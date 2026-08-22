@@ -283,7 +283,7 @@ Convenciones que el agente del juez encuentra: `# SUPUESTO:` grepeable en el pun
 
 ## 13. Lo que no pude resolver — decisiones de humanos, para la cena
 
-1. **Nombres a los roles.** Recomendación basada en los insumos (revisable): Juan David → R1 Datos (encontró y verificó la GEIH) · Alejandro → R2 Motor · Daniel → R3 Conductual/equilibrio (domina la literatura) · Nico → R4 Interfaz (ya especificó el dashboard Realtime) · Manuel → R5 Integración/pitch (su insumo es el repo-para-agentes y el pitch). Nota: **Nicolás defiende la teoría de juegos en el Q&A** aunque no tome R3 — necesita 1–2 horas de estudio dirigido con Daniel antes del domingo.
+1. ~~Nombres a los roles~~ **RESUELTO — ver `docs/ROLES.md`:** Alejo → R1 Datos · Manuel → R2 Backend (motor+API) · Nico → R3 Conductual/equilibrio · Dani → R4 Diseño/interfaz · Juanda → R5 Integración/validación/pitch. **Nicolás defiende la teoría de juegos en el Q&A** (construye el bucle de rondas, que es la mejor preparación) — con 1–2 horas de estudio del material de Daniel antes del domingo.
 2. **Nombre del producto.** Opciones: *Pulso* (ya propuesto por Nico; genérico pero listo) · algo sobre cumplimiento/letra menuda (más fiel a la tesis). Recomendación: decidirlo en la cena en ≤10 minutos; el nombre no está en la rúbrica.
 3. **La imagen central del pitch: ¿la curva de cascada o el mapa de quién pierde?** Recomendación: la curva (línea del gobierno vs realidad) como imagen principal y el mapa como segundo acto — la curva se entiende en 3 segundos. Pero es gusto, y el que ensaya el pitch decide.
 4. **¿Alguien puede conseguir 15 minutos con un economista laboral el sábado?** (Pregunta de Juan David.) Una frase de validación externa vale más que cinco horas de código. Dueño por definir.
