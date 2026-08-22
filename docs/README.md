@@ -22,7 +22,7 @@ El contrato de trabajo (dueños, ramas, PR, restricciones no-negociables) está 
 
 | Carpeta | Qué es |
 |---|---|
-| [`fuentes/`](fuentes/) | Los 5 insumos de investigación individuales (`dani`, `juanda`, `manuel`, `nico`, `simulacion-politicas`) que se fusionaron en `PLAN.md`. Útiles para el detalle y las fuentes citadas de cada afirmación. **Donde difieran de `PLAN.md`, gana `PLAN.md`.** |
+| [`fuentes/`](fuentes/) | Los 5 insumos de investigación individuales (`alejo`, `dani`, `juanda`, `manuel`, `nico`) que se fusionaron en `PLAN.md`. Útiles para el detalle y las fuentes citadas de cada afirmación. **Donde difieran de `PLAN.md`, gana `PLAN.md`.** |
 
 ## Historia — superado, se conserva por trazabilidad
 
