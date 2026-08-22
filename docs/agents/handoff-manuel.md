@@ -9,6 +9,66 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 — Review del PR #5 (Alejo) + 5 bugs propios encontrados de rebote.**
+
+  Revisé el [PR #5](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/5)
+  a mano y con `/code-review`, y corrí los dos scripts de `data/` desde una copia
+  limpia de la rama antes de opinar. **Los números del PR se reproducen exactos.**
+  El detalle completo está en [`review-pr5-manuel.md`](review-pr5-manuel.md); acá queda lo que me
+  cambia el trabajo a mí.
+
+  **Recomendé bloquear el merge por dos cosas:**
+
+  1. **Las dos tablas de headcount divergen.** `data/construir_empresas.py:46` afirma
+     ser *"idéntico al `EMPLEADOS_POR_CODIGO` de behavior/arquetipos.py"* y no lo es:
+     código 2 vale `2.5` allá y `3` acá, código 3 vale `4.5` contra `5`. Mueve el
+     titular del pitch de **74,9% a 61,4%**.
+  2. **`n_empresas_expandidas` mezcla dueños con empleados**: 368.491 debería ser
+     254.307.
+
+  **Ojo con `contracts/README.md`:** su advertencia nueva manda a `engine/costos.py`
+  (mío) a usar la tabla de `behavior/` como traducción de referencia. Si le hago caso,
+  `engine/` calcula headcounts que no cuadran con `empresas.parquet`. **No la uso hasta
+  que exista una sola tabla.**
+
+  **Lo bueno del PR para mí:** `empresas.parquet` trae el `factor_prestacional` ya
+  resuelto por celda, así que `costos.py` lo lee y no promedia nada; y
+  `MARGEN_SOBRE_NOMINA` queda en un solo lugar con nombre, que es el techo duro del
+  veto. Mata el supuesto **S1** de `MODELO.md` (factor prestacional): el rango real es
+  **1,384–1,583** y **no es incertidumbre, es estructura** — el motor debe asignar el
+  factor por firma, nunca promediar.
+
+  **Y lo que me obliga a cambiar `veto.py`:** los **964.004 cuenta propia (22,9% de los
+  ocupados)** no tienen fila en `empresas.parquet` a propósito (código 1 = trabaja solo,
+  no es una firma). Hoy `veto.py` no tiene rama para ellos.
+
+- **2026-08-22 — 5 bugs verificados en mi propio código, de un `/code-review` mal apuntado.**
+
+  El primer review cayó sobre `main...rol/backend` en vez del PR. Salió caro y salió bien.
+  **Los cinco los reproduje yo, no le creí al agente:**
+
+  | # | Dónde | Qué |
+  |---|---|---|
+  | 1 | `engine/veto.py:89` | El comentario dice *"`behavior/` los importa"*. **Falso**: `grep -rn "ESTRATEGIA_TERMINAL" behavior/` no devuelve nada. Cero imports. |
+  | 2 | `engine/test_veto.py:230` | `assert ESTRATEGIA_TERMINAL == "cumplir"` compara una constante contra su propio literal. **No puede fallar** y por eso no detectó el #1. Debe assertar contra `behavior.contrato.FALLBACK`. |
+  | 3 | `engine/veto.py:215` | `_entero` captura `(TypeError, ValueError)` pero `int(float('inf'))` levanta **`OverflowError`**. Reproducido con `json.loads('{"x": 1e999}')`: mata la corrida en vez de dar un veto `detalle_ilegible`. |
+  | 4 | `engine/veto.py:315-327` | Despidos e informalizaciones se validan **por separado**. En una planta de 3, `{despedir: 1, informalizar: 3}` pasa como factible: 4 acciones sobre 3 personas. Falta el chequeo conjunto. |
+  | 5 | `engine/veto.py:13` | El docstring dice que reemplaza los dos dobles de prueba. **`behavior/demo.py:112` sigue pasando `veto_doble_prueba` y `capa.py:107` sigue con `veto_permisivo` por defecto.** |
+
+  **El #5 es el que duele:** `engine/veto.py` **no está cableado a nada**. Ninguna entrada
+  ejercita el veto real, así que los bugs 3 y 4 no salen en ninguna corrida actual y los 44
+  tests verdes no significan lo que parecen. El "corre punta a punta" (C3) está más lejos de
+  lo que dice el tablero.
+
+  El compromiso #2 de la tabla de abajo (fallback `cumplir`) sigue **sin cumplirse en disco**:
+  `behavior/contrato.py:48` todavía tiene `FALLBACK = "absorber"`. Para un arquetipo ya
+  informal con todas sus propuestas vetadas, `absorber` da `fraccion_fuera_de_regla = 1.0`
+  donde `cumplir` daría `0.0`. **El fallback infla la informalidad que alimenta la cascada.**
+  Es de Nico, pero el comentario mentiroso de `veto.py:89` es mío.
+
+  El mismo review dejó 9 hallazgos más en `behavior/` (carpeta de Nico) que **no verifiqué**.
+  Están en [`review-pr5-manuel.md`](review-pr5-manuel.md) marcados como sin verificar.
+
 - **2026-08-22 — `engine/` existe. Los tres archivos, escritos y verdes.**
 
   `engine/` pasó de 0 líneas de código a **3 de 3 archivos**, en el orden que
@@ -219,9 +279,21 @@ documentan como trabajo futuro con honestidad:
 - [x] Review del [PR #4](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/4)
       de Nico, consolidado con el de Alejo y posteado.
 - [x] **`engine/` escrito**: `veto.py`, `fiscalizacion.py`, `seed.py`. 44 tests verdes.
+- [x] **Review del [PR #5](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/5)
+      de Alejo**, hecha y escrita en [`review-pr5-manuel.md`](review-pr5-manuel.md). **Sin postear todavía:
+      Mani decide si va como comentario del PR o al grupo.**
+- [ ] **Los 4 bugs míos de `engine/veto.py`.** En orden de tamaño del arreglo:
+      añadir `OverflowError` al `except` de `_entero` (1 línea) · chequeo conjunto
+      `despedidos + informalizados <= empleados` (3 líneas) · borrar la afirmación falsa del
+      comentario `:89` o hacerla verdad · reescribir `test_veto.py:230` contra
+      `behavior.contrato.FALLBACK`.
+- [ ] **Rama para cuenta propia en el veto.** 964.004 personas (22,9%) no tienen fila en
+      `empresas.parquet` y hoy `veto.py` no las contempla.
 - [ ] **Avisar S8 en el standup.** Cambia `n_vetos`/`n_fallback` y el empleo de la ronda 3.
 - [ ] Tras el merge del PR de Nico: quitar los dos dobles de prueba del veto
       (`capa.veto_permisivo` y `demo.veto_doble_prueba`) y enchufar `veto_del_motor`.
+      **Es más urgente de lo que parecía:** hasta que eso pase, `engine/veto.py` no lo
+      ejercita ninguna entrada y sus tests verdes no prueban una corrida real.
 - [ ] Si sobra tiempo, el cuarto archivo es `arquetipos.py`: sin `muestrear()` Dani no
       puede dibujar el mapa distributivo. La plomería de seed ya está.
 
