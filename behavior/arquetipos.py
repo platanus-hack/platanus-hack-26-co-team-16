@@ -211,3 +211,67 @@ def varianza_estrategias(distribucion: dict[str, float]) -> float:
         return 0.0
     p = pesos / pesos.sum()
     return float(-(p * np.log(p)).sum() / np.log(len(p)))
+
+
+# --- Modo top-K: a quién se le paga LLM y a quién no ------------------------
+
+
+def particionar_por_peso(
+    arquetipos: list[Arquetipo], cobertura: float = 0.80
+) -> tuple[list[Arquetipo], list[Arquetipo]]:
+    """Parte la grilla en (cabeza, cola) por peso poblacional acumulado.
+
+    La `cabeza` es el prefijo más corto —ordenando por peso decreciente— que
+    alcanza `cobertura` de la población expandida; la `cola` es el resto.
+
+    Por qué existe: con la grilla real (101 arquetipos) una corrida en frío son
+    ~404 llamadas y el barrido con banda se sale del presupuesto. La
+    distribución de peso lo hace evitable: 51 de los 101 arquetipos pesan menos
+    del 0,5% cada uno, y los 30 más grandes cubren ~80% de la población. La
+    cabeza va al LLM y la cola a reglas fijas.
+
+    Es un compromiso de costo, no de modelo, y se reporta como tal: cada ronda
+    publica qué fracción de la población fue decidida por LLM.
+
+    SUPUESTO: los arquetipos de la cola se comportan como el maximizador de
+    `ablacion.ClienteReglas`. Es un sesgo de dirección CONOCIDA: la regla fija
+    no descubre estrategias, así que la cola SUBESTIMA la evasión. Nuestra
+    cascada con top-K es una cota inferior por este canal.
+    """
+    if not 0 < cobertura <= 1:
+        raise ValueError(f"cobertura debe estar en (0, 1]; llegó {cobertura}")
+
+    ordenados = sorted(arquetipos, key=lambda a: -a.peso)
+    total = sum(a.peso for a in ordenados)
+    if total <= 0:
+        return ordenados, []
+
+    acumulado = 0.0
+    for i, a in enumerate(ordenados):
+        acumulado += a.peso
+        if acumulado / total >= cobertura:
+            return ordenados[: i + 1], ordenados[i + 1 :]
+    return ordenados, []
+
+
+def cobertura_de(cabeza: list[Arquetipo], todos: list[Arquetipo]) -> float:
+    """Qué fracción de la población expandida representa `cabeza`."""
+    total = sum(a.peso for a in todos)
+    return sum(a.peso for a in cabeza) / total if total else 0.0
+
+
+def informalidad_observada(ruta: str | Path = "data/momentos.json") -> float:
+    """La tasa de informalidad observada en la GEIH, ponderada por expansión.
+
+    Se LEE de `data/momentos.json` (R1, Alejo) en vez de recalcularla desde el
+    parquet: ese archivo es el objetivo de calibración publicado, y recalcularla
+    por nuestra cuenta abriría la puerta a dos números distintos para la misma
+    cosa. Si el archivo no está, quien llame decide el respaldo.
+
+    Es el punto de partida de la ronda 0 — la proyección oficial de la ADR 0005
+    asume cumplimiento total, o sea que la informalidad se queda donde la
+    encuesta la encontró.
+    """
+    import json
+
+    return float(json.loads(Path(ruta).read_text(encoding="utf-8"))["tasa_informalidad_total"])

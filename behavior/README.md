@@ -5,12 +5,49 @@
 Descubre estrategias de adaptación que un economista no habría enumerado.
 Propone; no aplica nada.
 
+## Alineación con las ADR del motor
+
+Las ADR 0005-0009 (PR #3, Manuel) son canon. Qué hace esta capa con cada una:
+
+| ADR | Qué exige | Estado acá |
+|---|---|---|
+| **0005** · el reloj | La ronda 0 es la reacción ingenua —la proyección oficial, cumplimiento total— y solo 1-3 son mejor respuesta | ✅ La ronda 0 no llama al LLM. Parte de la informalidad **observada** que publica `data/momentos.json` (30,6%), no de un número de andamio. Ahorra 25% del presupuesto y hace que `brecha = ronda 3 − ronda 0` sea la resta que define `engine/MODELO.md` |
+| **0006** · fiscalización | La capacidad es estado del mundo, no un campo de la política ni una perilla del usuario | ✅ Ya se cumplía: `capacidad_fiscalizacion` es parámetro de `correr()`, nunca entra al dict de política |
+| **0007** · `p(E)` | `p(E) = 1 − exp(−C/max(E,1))`, con micro-fundamento Poisson | ✅ Adoptada. Reemplaza a la forma abreviada `p ≈ C/E`, que coincidía en el régimen real (3,12% vs 3,16% a 63,2% de informalidad) pero saturaba en 100% en el borde donde la exponencial da 63,2% |
+| **0008** · asimetría | La firma propone vía LLM, el trabajador calcula por regla determinista | 🔶 Avalada. Falta que el motor exponga `realizacion` como campo hermano de `veto`: el rechazo del trabajador **no puede** volver por el canal del veto, o el reintento le entrega al agente una razón que no es una restricción suya y el dato A4 mezcla "no pudo pagarlo" con "no se lo aceptaron" |
+| **0009** · determinismo | La caché es artefacto versionado con hash de manifiesto que la corrida imprime | ✅ `Cache.manifiesto()`. Cubre claves **y contenido**: editar una entrada a mano cambia el hash, así que no se puede "arreglar" un resultado tocando el caché sin que se note |
+
+## El modo top-K — por qué existe
+
+Con la grilla real (101 arquetipos) una corrida en frío son ~404 llamadas y el
+barrido con banda se sale del presupuesto. La distribución de peso lo hace
+evitable:
+
+```
+top 10 ->  46,8%      top 30 ->  79,5%       51 de los 101 arquetipos
+top 20 ->  67,4%      top 40 ->  87,6%       pesan <0,5% cada uno
+```
+
+`particionar_por_peso(arquetipos, 0.80)` manda **31 arquetipos** al LLM (80,5% de
+la población expandida) y los **70** restantes a las reglas fijas de
+`ablacion.ClienteReglas`.
+
+**Es un compromiso de costo, no de modelo**, y se reporta como tal: cada ronda
+publica `fraccion_poblacion_llm`. El sesgo tiene dirección **conocida**: la regla
+fija no descubre estrategias, así que la cola subestima la evasión y la cascada
+con top-K es una **cota inferior** por este canal.
+
+`fraccion_poblacion_llm` **no** va en `a_contrato()`: `contracts/ronda.json` está
+congelado desde H+4 y agregarle un campo exige avisar en el grupo antes.
+
 ## Cómo verificarlo tú mismo
 
 | Comando | Qué hace |
 |---|---|
 | `python3 -m behavior.higiene` | Escanea los prompts y falla si alguno nombra la política |
-| `python3 -m behavior.demo` | Corrida completa de 4 rondas con reglas fijas — sin API key, $0 |
+| `python3 -m behavior.demo` | Corrida completa con reglas fijas — sin API key, $0 |
+| `python3 -m behavior.demo --real --cobertura 0.8` | Población real de la GEIH en modo top-K |
+| `python3 -m behavior.cache` | Tamaño del caché y su **hash de manifiesto** (ADR 0009) |
 | `python3 -m behavior.demo --barrido` | Barre 7 / 13,6 / 23 / 30% para buscar el codo |
 | `python3 -m behavior.demo --llm` | La capa LLM real (necesita credenciales) |
 | `python3 -m behavior.cache` | Estado del caché en disco |
@@ -83,7 +120,7 @@ cliente.py       API: ruteo de modelo, prompt caching, caché en disco, presupue
 cache.py         caché en disco por hash del prompt
 presupuesto.py   tope duro por corrida
 capa.py          propuesta -> veto -> reintento (máx 3) -> fallback 'absorber'
-rondas.py        el bucle de 4 rondas de mejor respuesta
+rondas.py        el bucle: ronda 0 ingenua + 3 de mejor respuesta (ADR 0005)
 ablacion.py      la misma corrida con reglas fijas (candado 4 de validación)
 demo.py          corrida punta a punta sin motor y sin API key
 ```

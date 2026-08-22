@@ -3,9 +3,12 @@
     python3 -m behavior.demo              # ablación (reglas fijas, $0, sin key)
     python3 -m behavior.demo --llm        # capa LLM real (necesita credenciales)
     python3 -m behavior.demo --barrido    # el codo: varias políticas seguidas
+    python3 -m behavior.demo --real       # la población real de data/poblacion.parquet
+    python3 -m behavior.demo --real --cobertura 0.8   # top-K: solo el 80% al LLM
 
-Qué prueba: que las 4 rondas corren, que el veto se encaja y se reintenta, y que
-la cascada aparece. Los números NO son un resultado del proyecto: el motor real
+Qué prueba: que las rondas corren, que el veto se encaja y se reintenta, y que
+la cascada aparece. El calendario es el de la ADR 0005: la ronda 0 es la
+proyección oficial (sin LLM) y las 1-3 son mejor respuesta. Los números NO son un resultado del proyecto: el motor real
 es `engine/` (Manuel) y la población real es `data/` (Alejo). Esto es el andamio
 que permite construir antes de que existan los dos.
 """
@@ -17,7 +20,14 @@ import sys
 from typing import Any
 
 from behavior.ablacion import ClienteReglas
-from behavior.arquetipos import Arquetipo, arquetipos_falsos
+from behavior.arquetipos import (
+    Arquetipo,
+    arquetipos_falsos,
+    desde_poblacion,
+    informalidad_observada,
+    particionar_por_peso,
+)
+from behavior.cache import Cache
 from behavior.cliente import ClienteConductual, SinCredenciales
 from behavior.rondas import correr
 
@@ -58,8 +68,16 @@ def _imprimir(rondas, cliente) -> None:
             f"{r.empleo_relativo:>7.1%} {r.varianza_media:>9.2f}  {top}"
         )
 
-    inicial, final = rondas[0].tasa_informalidad, rondas[-1].tasa_informalidad
-    print(f"\ncascada: {inicial:.1%} -> {final:.1%}  ({(final - inicial) * 100:+.1f} pp)")
+    # `brecha` = última ronda − ronda 0, y la ronda 0 es la proyección oficial
+    # (ADR 0005). Es el producto entero del proyecto: cuánta informalidad hay de
+    # más respecto de lo que el modelo oficial asumió (dato A1).
+    oficial, final = rondas[0].tasa_informalidad, rondas[-1].tasa_informalidad
+    print(f"\nproyección oficial (ronda 0): {oficial:.1%}")
+    print(f"brecha (dato A1): {oficial:.1%} -> {final:.1%}  "
+          f"({(final - oficial) * 100:+.1f} pp)")
+    if rondas[-1].fraccion_poblacion_llm < 1.0:
+        print(f"top-K: {rondas[-1].fraccion_poblacion_llm:.1%} de la población "
+              f"decidida por LLM; el resto por reglas fijas")
     print(f"desglose final (dato A4): {rondas[-1].desglose_estrategias()}")
 
     vetadas = sum(len(x.vetadas) for r in rondas for x in r.por_arquetipo.values())
@@ -85,11 +103,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--paralelismo", type=int, default=8,
                     help="arquetipos concurrentes por ronda (1 = secuencial)")
+    ap.add_argument("--real", action="store_true",
+                    help="usar data/poblacion.parquet en vez de los arquetipos de andamio")
+    ap.add_argument("--cobertura", type=float, default=None,
+                    help="modo top-K: fracción de población que va al LLM (p.ej. 0.8)")
     ap.add_argument("--tope", type=float, default=None,
                     help="tope de presupuesto USD (default 3.00; sube a 5 con --parafrasis 5)")
     args = ap.parse_args(argv)
 
-    arquetipos = arquetipos_falsos()
+    arquetipos = (
+        desde_poblacion("data/poblacion.parquet") if args.real else arquetipos_falsos()
+    )
     if args.llm:
         from behavior.presupuesto import Presupuesto
         tope = args.tope if args.tope is not None else (5.0 if args.parafrasis >= 5 else 3.0)
@@ -97,8 +121,24 @@ def main(argv: list[str] | None = None) -> int:
     else:
         cliente = ClienteReglas()
     modo = "LLM (Haiku)" if args.llm else "ABLACIÓN (reglas fijas)"
-    print(f"modo: {modo} · {len(arquetipos)} arquetipos · seed {args.seed} · "
-          f"{args.parafrasis} paráfrasis")
+    fuente = "poblacion.parquet" if args.real else "andamio"
+    print(f"modo: {modo} · {len(arquetipos)} arquetipos ({fuente}) · "
+          f"seed {args.seed} · {args.parafrasis} paráfrasis")
+    # La ronda 0 es la proyección oficial: parte de la informalidad OBSERVADA.
+    # Con datos reales sale de `momentos.json` (Alejo); con andamio es un número
+    # de andamio y se dice.
+    if args.real:
+        tasa_inicial = informalidad_observada()
+        print(f"informalidad observada (GEIH, momentos.json): {tasa_inicial:.1%}")
+    else:
+        # SUPUESTO: 42% es un número de andamio, no la GEIH. Con `--real` se
+        # reemplaza por el observado.
+        tasa_inicial = 0.42
+    if args.cobertura:
+        cabeza, cola = particionar_por_peso(arquetipos, args.cobertura)
+        print(f"top-K: {len(cabeza)} arquetipos al LLM, {len(cola)} a reglas fijas")
+    # ADR 0009: el par (seed, manifiesto) es lo que hace comparables dos corridas.
+    print(f"seed {args.seed} · manifiesto de caché {Cache().manifiesto()}")
 
     aumentos = [7.0, 13.6, 23.0, 30.0] if args.barrido else [args.aumento]
     try:
@@ -112,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
                 veto=veto_doble_prueba,
                 n_parafrasis=args.parafrasis,
                 paralelismo=args.paralelismo,
+                cobertura_llm=args.cobertura,
+                tasa_informalidad_inicial=tasa_inicial,
             )
             _imprimir(rondas, cliente)
     except SinCredenciales as e:

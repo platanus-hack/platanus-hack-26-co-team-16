@@ -21,13 +21,15 @@ eso vuelve a entrar como insumo de la siguiente ronda.
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from behavior import contrato
-from behavior.arquetipos import Arquetipo
+from behavior.ablacion import ClienteReglas
+from behavior.arquetipos import Arquetipo, particionar_por_peso
 from behavior.capa import ResultadoArquetipo, Veto, decidir_arquetipo, veto_permisivo
 
 # Quién queda fuera de regla lo decide `contrato.fraccion_fuera_de_regla()`,
@@ -49,6 +51,10 @@ class Ronda:
     empleo_relativo: float
     banda: dict[str, float]
     por_arquetipo: dict[str, ResultadoArquetipo] = field(default_factory=dict)
+    # Qué fracción de la población expandida fue decidida por LLM (el resto salió
+    # de reglas fijas por el modo top-K). NO va en `a_contrato()`: `ronda.json`
+    # está congelado desde H+4 y agregarle un campo exige avisar en el grupo ANTES.
+    fraccion_poblacion_llm: float = 1.0
 
     def a_contrato(self) -> dict[str, Any]:
         """Solo los campos de `contracts/ronda.json`, para la API y el frontend."""
@@ -83,20 +89,27 @@ class Ronda:
 def _prob_fiscalizacion(capacidad: float, peso_fuera_de_regla: float, peso_total: float) -> float:
     """Fiscalización endógena: capacidad FIJA repartida entre los evasores.
 
-    Acá nace la cascada. El motor de Manuel tiene la versión que manda; esta es
-    la que la capa usa para armar el agregado que ven los agentes.
+    Acá nace la cascada. Forma funcional de la [ADR 0007](../docs/adr/0007-forma-funcional-prob-sancion.md):
 
-    DIVERGENCIA CONOCIDA con la ADR 0007, que ya es canon: el motor usa
-    `p(E) = 1 − exp(−C/max(E,1))` y esta es la forma abreviada `p ≈ C/E`. En el
-    régimen real coinciden (a 63,2% de informalidad: 3,16% vs 3,12%), pero en el
-    borde esta se rompe — con 2% de evasores da 100% y la exponencial da 63,2%.
-    Se adopta la exponencial en el PR del top-K: cambiar la fórmula cambia el
-    texto del prompt e invalida la caché en disco, así que se paga una sola
-    corrida en frío junto con los demás cambios que también la invalidan.
+        p(E) = 1 − exp(−C / max(E, 1))
+
+    con `C` = inspecciones esperadas en el periodo sobre el universo del modelo
+    y `E` = unidades fuera de regla en la ronda anterior. Tiene micro-fundamento
+    (repartir C inspecciones al azar entre E evasores es Poisson de media C/E; la
+    probabilidad de recibir al menos una es 1 − e^(−C/E)), y no una curva elegida
+    para que la gráfica quede bonita.
+
+    Reemplaza a la forma abreviada `p ≈ C/E` que esta capa usaba antes. Las dos
+    coinciden donde ocurre la acción —a 63,2% de informalidad, 3,12% vs 3,16%—
+    pero la abreviada se rompe en el borde: con 2% de evasores daba 100% y esta
+    da 63,2%. El motor de Manuel usa la misma fórmula; si difieren, manda el motor.
     """
     if peso_fuera_de_regla <= 0:
+        # E → 0: por continuidad p → 1. Irrelevante en la práctica, no hay a
+        # quién aplicársela (ADR 0007).
         return 1.0
-    return min(1.0, capacidad * peso_total / peso_fuera_de_regla)
+    inspecciones = capacidad * peso_total
+    return 1.0 - math.exp(-inspecciones / max(peso_fuera_de_regla, 1.0))
 
 
 def correr(
@@ -113,6 +126,7 @@ def correr(
     tasa_informalidad_inicial: float = 0.42,
     n_parafrasis: int = 1,
     paralelismo: int = 8,
+    cobertura_llm: float | None = None,
     al_terminar_ronda: Callable[[Ronda], None] | None = None,
 ) -> list[Ronda]:
     """Corre las rondas de mejor respuesta y devuelve el agregado de cada una.
@@ -120,19 +134,62 @@ def correr(
     `capacidad_fiscalizacion` es la fracción del universo que se alcanza a
     inspeccionar por periodo. Es FIJA: no se ajusta a mano entre rondas. Ese es
     el compromiso metodológico que hace la cascada un resultado y no un supuesto.
+
+    El calendario es el de la [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md):
+    una ronda es un trimestre, la **ronda 0 es la reacción ingenua** —la
+    proyección oficial, que asume cumplimiento total y no gasta LLM— y las
+    rondas 1..`rondas_totales`-1 son mejor respuesta. Con el valor por defecto
+    son 3 rondas de LLM, no 4.
+
+    `cobertura_llm` activa el modo top-K: si se le da (p. ej. `0.80`), solo los
+    arquetipos que suman esa fracción de la población van al LLM y el resto se
+    resuelve con las reglas fijas de `ablacion.ClienteReglas`. `None` = todos al
+    LLM. Cada `Ronda` reporta `fraccion_poblacion_llm`.
     """
     peso_total = sum(a.peso for a in arquetipos) or 1.0
     tasa = tasa_informalidad_inicial
     historial: dict[str, list[str]] = {a.id: [] for a in arquetipos}
     salida: list[Ronda] = []
 
-    # DIVERGENCIA CONOCIDA con la ADR 0005, que ya es canon: allí la ronda 0 es
-    # la reacción INGENUA (la proyección oficial, que asume cumplimiento total) y
-    # solo las rondas 1-3 son mejor respuesta. Acá las cuatro son decisión de
-    # LLM. Eso gasta 25% más de presupuesto y hace que `brecha = ronda 3 −
-    # ronda 0` no sea la resta que define `engine/MODELO.md`. Se corrige en el
-    # PR del top-K, junto con los demás cambios que invalidan la caché.
-    for n in range(rondas_totales):
+    # Ruteo del top-K. `ClienteReglas` es un reemplazo directo de la firma de
+    # `proponer()`, así que el resto del bucle no distingue entre los dos.
+    if cobertura_llm is None:
+        cabeza_ids = {a.id for a in arquetipos}
+        cliente_cola = None
+    else:
+        cabeza, _cola = particionar_por_peso(arquetipos, cobertura_llm)
+        cabeza_ids = {a.id for a in cabeza}
+        cliente_cola = ClienteReglas()
+    fraccion_llm = (
+        sum(a.peso for a in arquetipos if a.id in cabeza_ids) / peso_total
+    )
+
+    # RONDA 0 — la proyección oficial (ADR 0005). No se llama al LLM: por
+    # definición asume cumplimiento total, así que la informalidad se queda en la
+    # observada y nadie pierde el empleo. Es el punto contra el que se mide
+    # `brecha = ronda 3 − ronda 0`, que es el producto entero (dato A1).
+    r0 = Ronda(
+        simulacion_id=simulacion_id,
+        seed=seed,
+        ronda=0,
+        politica={"tipo": "cambio_costo_laboral", "aumento_pct": aumento_pct},
+        tasa_informalidad=tasa,
+        prob_fiscalizacion=_prob_fiscalizacion(
+            capacidad_fiscalizacion, tasa * peso_total, peso_total
+        ),
+        empleo_relativo=1.0,
+        # La proyección oficial es un punto, no una distribución: no tiene banda
+        # porque no hay nada estocástico que la genere. Se marca degenerada en
+        # vez de inventarle un intervalo.
+        banda={"p10": tasa, "p90": tasa, "degenerada": True},
+        por_arquetipo={},
+        fraccion_poblacion_llm=0.0,
+    )
+    salida.append(r0)
+    if al_terminar_ronda:
+        al_terminar_ronda(r0)
+
+    for n in range(1, rondas_totales):
         prob = _prob_fiscalizacion(capacidad_fiscalizacion, tasa * peso_total, peso_total)
 
         # Las RONDAS son secuenciales por definición (cada una responde al
@@ -142,6 +199,8 @@ def correr(
         # el orden de recorrido no entra en ninguna semilla (ver
         # `arquetipos._semilla`), así que sigue siendo determinista.
         def _uno(a: Arquetipo) -> tuple[str, ResultadoArquetipo]:
+            # Top-K: la cabeza al LLM, la cola a reglas fijas. Misma firma.
+            cli = cliente if (cliente_cola is None or a.id in cabeza_ids) else cliente_cola
             previo = historial[a.id]
             texto_historial = (
                 "\n- Lo que hiciste en periodos anteriores: " + ", ".join(previo)
@@ -150,11 +209,14 @@ def correr(
             )
             return a.id, decidir_arquetipo(
                 a,
-                cliente,
+                cli,
                 veto,
                 aumento_pct=aumento_pct,
                 ronda=n,
-                rondas_totales=rondas_totales,
+                # El agente decide en los periodos 1..rondas_totales-1: la ronda
+                # 0 es la proyección oficial y él no participa en ella. Se le
+                # dice "periodo 1 de 3", no "de 4".
+                rondas_totales=rondas_totales - 1,
                 tasa_informalidad=tasa,
                 prob_fiscalizacion=prob,
                 # SUPUESTO: la sanción equivale a `multa_factor` meses de
@@ -217,6 +279,7 @@ def correr(
             # como banda vacía en vez de inventar una.
             banda=_banda(resultados, tasa, arquetipos, peso_total),
             por_arquetipo=resultados,
+            fraccion_poblacion_llm=fraccion_llm,
         )
         salida.append(r)
         if al_terminar_ronda:
