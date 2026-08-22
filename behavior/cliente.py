@@ -5,10 +5,11 @@ Entradas: sistema + usuario ya renderizados.
 Salidas: dict con la propuesta cruda del modelo.
 Supuestos: los de `presupuesto.PRECIOS`.
 
-Tres cosas pasan en cada llamada, en este orden y sin excepción:
+Cuatro cosas pasan en cada llamada, en este orden y sin excepción:
   1. `higiene.verificar()` sobre sistema Y usuario. Si nombra la política, muere acá.
   2. Caché en disco por hash. Si hay acierto, no se llama a la API.
-  3. `presupuesto.registrar()`. Si se pasó del tope, muere acá.
+  3. La salida se valida ANTES de cachearse. Una respuesta inválida no toca el disco.
+  4. `presupuesto.registrar()`, después de cachear. Si se pasó del tope, muere acá.
 """
 
 from __future__ import annotations
@@ -142,8 +143,26 @@ class ClienteConductual:
                 ) from e
             raise
         salida = self._extraer_json(respuesta)
+        # 4. Validar ANTES de cachear. Una salida que no construye una decisión
+        # usable no puede llegar al disco: si se cachea, la falla queda grabada y
+        # **toda re-corrida determinista revienta en el mismo punto**, sin gastar
+        # una llamada que la arregle. O sea que se dispara justo donde más duele,
+        # en la re-corrida barata sin API. Se valida con el mismo
+        # `contrato.construir()` que consume `capa.py`, para que no existan dos
+        # definiciones distintas de "respuesta usable".
+        try:
+            contrato.construir("_validacion", 0, salida)
+        except (ValueError, TypeError) as e:
+            raise RespuestaInvalida(
+                f"la salida del modelo no construye una decisión válida: {e}; "
+                f"cruda: {salida!r}"
+            ) from e
+
         with self._lock:
-            self.presupuesto.registrar(modelo, respuesta.usage)
+            # Cachear antes de registrar, no al revés: si el corte duro del
+            # presupuesto dispara acá, esta respuesta YA está pagada. Con el
+            # orden inverso se descartaba y se volvía a pagar en la corrida
+            # siguiente.
             self.cache.escribir(
                 k,
                 {
@@ -158,6 +177,7 @@ class ClienteConductual:
                     },
                 },
             )
+            self.presupuesto.registrar(modelo, respuesta.usage)
         return salida
 
     def _llamar(self, sistema: str, usuario: str, modelo: str, max_tokens: int):

@@ -21,13 +21,15 @@ eso vuelve a entrar como insumo de la siguiente ronda.
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from behavior import contrato
-from behavior.arquetipos import Arquetipo
+from behavior.ablacion import ClienteReglas
+from behavior.arquetipos import Arquetipo, particionar_por_peso
 from behavior.capa import ResultadoArquetipo, Veto, decidir_arquetipo, veto_permisivo
 
 # Quién queda fuera de regla lo decide `contrato.fraccion_fuera_de_regla()`,
@@ -49,6 +51,13 @@ class Ronda:
     empleo_relativo: float
     banda: dict[str, float]
     por_arquetipo: dict[str, ResultadoArquetipo] = field(default_factory=dict)
+    # Qué fracción de la población expandida fue decidida por LLM (el resto salió
+    # de reglas fijas por el modo top-K). NO va en `a_contrato()`: `ronda.json`
+    # está congelado desde H+4 y agregarle un campo exige avisar en el grupo ANTES.
+    fraccion_poblacion_llm: float = 1.0
+    # Peso poblacional de cada arquetipo (suma de factores de expansión). Sin
+    # esto el dato A4 no se puede ponderar, y sin ponderar dice lo contrario.
+    pesos: dict[str, float] = field(default_factory=dict)
 
     def a_contrato(self) -> dict[str, Any]:
         """Solo los campos de `contracts/ronda.json`, para la API y el frontend."""
@@ -66,8 +75,34 @@ class Ronda:
             },
         }
 
-    def desglose_estrategias(self) -> dict[str, int]:
-        """Dato A4: qué estrategia domina, agregado sobre todos los arquetipos."""
+    def desglose_estrategias(self) -> dict[str, float]:
+        """Dato A4: qué estrategia domina, **ponderado por factor de expansión**.
+
+        Devuelve fracciones de la población, no conteos de arquetipos. Es la
+        misma regla que `MODELO.md` le impone a `tasa_informalidad` —*"siempre
+        ponderada; sin el factor no es la informalidad de la GEIH, es la de la
+        muestra"*— y aplica igual acá: sin ponderar, este desglose dice lo
+        CONTRARIO de lo que dice ponderado. Medido en la corrida del 23%:
+        por conteo domina `cumplir` (44 de 101 arquetipos), ponderado domina
+        `informalizar` (51,0% de la población) y `cumplir` cae a 18,1%.
+
+        Un arquetipo de microempresa informal representa a muchísima más gente
+        que uno de empresa mediana formal, y contar arquetipos los iguala.
+        """
+        total: Counter[str] = Counter()
+        peso_total = sum(self.pesos.values())
+        if not peso_total:
+            return {}
+        for aid, r in self.por_arquetipo.items():
+            peso = self.pesos.get(aid, 0.0)
+            votos = sum(r.distribucion.values()) or 1
+            for estrategia, n in r.distribucion.items():
+                total[estrategia] += peso * n / votos
+        return {k: v / peso_total for k, v in total.most_common()}
+
+    def desglose_estrategias_conteo(self) -> dict[str, int]:
+        """El conteo crudo de arquetipos. Para el feed y el diagnóstico, NO para
+        el dato A4: para eso hay que ponderar (ver `desglose_estrategias`)."""
         total: Counter[str] = Counter()
         for r in self.por_arquetipo.values():
             total.update(r.distribucion)
@@ -83,20 +118,27 @@ class Ronda:
 def _prob_fiscalizacion(capacidad: float, peso_fuera_de_regla: float, peso_total: float) -> float:
     """Fiscalización endógena: capacidad FIJA repartida entre los evasores.
 
-    Acá nace la cascada. El motor de Manuel tiene la versión que manda; esta es
-    la que la capa usa para armar el agregado que ven los agentes.
+    Acá nace la cascada. Forma funcional de la [ADR 0007](../docs/adr/0007-forma-funcional-prob-sancion.md):
 
-    DIVERGENCIA CONOCIDA con la ADR 0007, que ya es canon: el motor usa
-    `p(E) = 1 − exp(−C/max(E,1))` y esta es la forma abreviada `p ≈ C/E`. En el
-    régimen real coinciden (a 63,2% de informalidad: 3,16% vs 3,12%), pero en el
-    borde esta se rompe — con 2% de evasores da 100% y la exponencial da 63,2%.
-    Se adopta la exponencial en el PR del top-K: cambiar la fórmula cambia el
-    texto del prompt e invalida la caché en disco, así que se paga una sola
-    corrida en frío junto con los demás cambios que también la invalidan.
+        p(E) = 1 − exp(−C / max(E, 1))
+
+    con `C` = inspecciones esperadas en el periodo sobre el universo del modelo
+    y `E` = unidades fuera de regla en la ronda anterior. Tiene micro-fundamento
+    (repartir C inspecciones al azar entre E evasores es Poisson de media C/E; la
+    probabilidad de recibir al menos una es 1 − e^(−C/E)), y no una curva elegida
+    para que la gráfica quede bonita.
+
+    Reemplaza a la forma abreviada `p ≈ C/E` que esta capa usaba antes. Las dos
+    coinciden donde ocurre la acción —a 63,2% de informalidad, 3,12% vs 3,16%—
+    pero la abreviada se rompe en el borde: con 2% de evasores daba 100% y esta
+    da 63,2%. El motor de Manuel usa la misma fórmula; si difieren, manda el motor.
     """
     if peso_fuera_de_regla <= 0:
+        # E → 0: por continuidad p → 1. Irrelevante en la práctica, no hay a
+        # quién aplicársela (ADR 0007).
         return 1.0
-    return min(1.0, capacidad * peso_total / peso_fuera_de_regla)
+    inspecciones = capacidad * peso_total
+    return 1.0 - math.exp(-inspecciones / max(peso_fuera_de_regla, 1.0))
 
 
 def correr(
@@ -110,9 +152,10 @@ def correr(
     veto: Veto = veto_permisivo,
     capacidad_fiscalizacion: float = 0.02,
     multa_factor: float = 12.0,
-    tasa_informalidad_inicial: float = 0.42,
+    tasa_informalidad_inicial: float,
     n_parafrasis: int = 1,
     paralelismo: int = 8,
+    cobertura_llm: float | None = None,
     al_terminar_ronda: Callable[[Ronda], None] | None = None,
 ) -> list[Ronda]:
     """Corre las rondas de mejor respuesta y devuelve el agregado de cada una.
@@ -120,19 +163,100 @@ def correr(
     `capacidad_fiscalizacion` es la fracción del universo que se alcanza a
     inspeccionar por periodo. Es FIJA: no se ajusta a mano entre rondas. Ese es
     el compromiso metodológico que hace la cascada un resultado y no un supuesto.
+
+    El calendario es el de la [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md):
+    una ronda es un trimestre, la **ronda 0 es la reacción ingenua** —la
+    proyección oficial, que asume cumplimiento total y no gasta LLM— y las
+    rondas 1..`rondas_totales`-1 son mejor respuesta. Con el valor por defecto
+    son 3 rondas de LLM, no 4.
+
+    `cobertura_llm` activa el modo top-K: si se le da (p. ej. `0.80`), solo los
+    arquetipos que suman esa fracción de la población van al LLM y el resto se
+    resuelve con las reglas fijas de `ablacion.ClienteReglas`. `None` = todos al
+    LLM. Cada `Ronda` reporta `fraccion_poblacion_llm`.
+
+    `tasa_informalidad_inicial` es obligatoria a propósito: es el punto de
+    partida de la ronda 0 y sale de `data/momentos.json` (30,57% observado en la
+    GEIH). Tenía un default de andamio de 0,42 que el propio repo contradice, y
+    no era inocuo — `p(E)` sube de 4,65% a 6,33% al corregirlo, que es suficiente
+    para voltear la decisión de la ablación con reglas fijas.
+
+    El ESTADO de cada arquetipo persiste entre rondas: qué fracción de su planta
+    quedó fuera de regla y cuánto de su empleo original sobrevive. Sin eso, la
+    ronda n+1 contradice a la ronda n y las dos métricas del pitch mienten en
+    direcciones opuestas.
     """
     peso_total = sum(a.peso for a in arquetipos) or 1.0
     tasa = tasa_informalidad_inicial
     historial: dict[str, list[str]] = {a.id: [] for a in arquetipos}
     salida: list[Ronda] = []
 
-    # DIVERGENCIA CONOCIDA con la ADR 0005, que ya es canon: allí la ronda 0 es
-    # la reacción INGENUA (la proyección oficial, que asume cumplimiento total) y
-    # solo las rondas 1-3 son mejor respuesta. Acá las cuatro son decisión de
-    # LLM. Eso gasta 25% más de presupuesto y hace que `brecha = ronda 3 −
-    # ronda 0` no sea la resta que define `engine/MODELO.md`. Se corrige en el
-    # PR del top-K, junto con los demás cambios que invalidan la caché.
-    for n in range(rondas_totales):
+    # EL ESTADO VIVO entre rondas. Son dos diccionarios y nada más: el estado del
+    # mundo completo es de `engine/` y no se replica acá.
+    #
+    # PUNTO DE SUTURA CON engine/ — ANDAMIO, bloqueado por R2 (crítico #2 del
+    # review del PR #4). Estos dos dicts son hoy la única fuente del estado vivo,
+    # y el motor va a llevar el suyo: son dos estados que pueden divergir. Cuando
+    # `engine/` exponga `fraccion_informal_previa` por `arquetipo_id` (float en
+    # [0,1], al empezar cada ronda, antes de renderizar el prompt), estas dos
+    # líneas pasan de ESCRIBIRSE a LEERSE del motor y el bloque que las actualiza
+    # más abajo se borra. El resto del bucle no cambia: la fracción ya viaja
+    # hasta el prompt y hasta el `contexto` de la ablación. La especificación
+    # completa está en `docs/agents/handoff-nico.md`, punto 10. Pero sin esto la ronda
+    # n+1 contradice lo que pasó en la ronda n, y de ahí salen dos números
+    # falsos: una unidad que informalizó su planta volvía a contar como formal
+    # (la tasa bajaba por una razón espuria — plausiblemente el "se devuelve" de
+    # la ronda 3 que reportaba el README), y los trabajadores despedidos
+    # resucitaban en cuanto la ronda siguiente no despedía a nadie.
+    frac_informal: dict[str, float] = {
+        a.id: (0.0 if a.formal else 1.0) for a in arquetipos
+    }
+    # Fracción de la planta ORIGINAL que sigue empleada. Arranca en 1.0 y solo
+    # baja: es acumulativa contra la línea base sin política, que es como
+    # `engine/MODELO.md` define `empleo_relativo` ("la base NO es la ronda 0").
+    # La ronda 0 —proyección oficial, cumplimiento total, nadie despide— ES esa
+    # línea base, así que empieza en 1.0 y coincide.
+    empleo: dict[str, float] = {a.id: 1.0 for a in arquetipos}
+
+    # Ruteo del top-K. `ClienteReglas` es un reemplazo directo de la firma de
+    # `proponer()`, así que el resto del bucle no distingue entre los dos.
+    if cobertura_llm is None:
+        cabeza_ids = {a.id for a in arquetipos}
+        cliente_cola = None
+    else:
+        cabeza, _cola = particionar_por_peso(arquetipos, cobertura_llm)
+        cabeza_ids = {a.id for a in cabeza}
+        cliente_cola = ClienteReglas()
+    fraccion_llm = (
+        sum(a.peso for a in arquetipos if a.id in cabeza_ids) / peso_total
+    )
+
+    # RONDA 0 — la proyección oficial (ADR 0005). No se llama al LLM: por
+    # definición asume cumplimiento total, así que la informalidad se queda en la
+    # observada y nadie pierde el empleo. Es el punto contra el que se mide
+    # `brecha = ronda 3 − ronda 0`, que es el producto entero (dato A1).
+    r0 = Ronda(
+        simulacion_id=simulacion_id,
+        seed=seed,
+        ronda=0,
+        politica={"tipo": "cambio_costo_laboral", "aumento_pct": aumento_pct},
+        tasa_informalidad=tasa,
+        prob_fiscalizacion=_prob_fiscalizacion(
+            capacidad_fiscalizacion, tasa * peso_total, peso_total
+        ),
+        empleo_relativo=1.0,
+        # La proyección oficial es un punto, no una distribución: no tiene banda
+        # porque no hay nada estocástico que la genere. Se marca degenerada en
+        # vez de inventarle un intervalo.
+        banda={"p10": tasa, "p90": tasa, "degenerada": True},
+        por_arquetipo={},
+        fraccion_poblacion_llm=0.0,
+    )
+    salida.append(r0)
+    if al_terminar_ronda:
+        al_terminar_ronda(r0)
+
+    for n in range(1, rondas_totales):
         prob = _prob_fiscalizacion(capacidad_fiscalizacion, tasa * peso_total, peso_total)
 
         # Las RONDAS son secuenciales por definición (cada una responde al
@@ -142,6 +266,8 @@ def correr(
         # el orden de recorrido no entra en ninguna semilla (ver
         # `arquetipos._semilla`), así que sigue siendo determinista.
         def _uno(a: Arquetipo) -> tuple[str, ResultadoArquetipo]:
+            # Top-K: la cabeza al LLM, la cola a reglas fijas. Misma firma.
+            cli = cliente if (cliente_cola is None or a.id in cabeza_ids) else cliente_cola
             previo = historial[a.id]
             texto_historial = (
                 "\n- Lo que hiciste en periodos anteriores: " + ", ".join(previo)
@@ -150,11 +276,14 @@ def correr(
             )
             return a.id, decidir_arquetipo(
                 a,
-                cliente,
+                cli,
                 veto,
                 aumento_pct=aumento_pct,
                 ronda=n,
-                rondas_totales=rondas_totales,
+                # El agente decide en los periodos 1..rondas_totales-1: la ronda
+                # 0 es la proyección oficial y él no participa en ella. Se le
+                # dice "periodo 1 de 3", no "de 4".
+                rondas_totales=rondas_totales - 1,
                 tasa_informalidad=tasa,
                 prob_fiscalizacion=prob,
                 # SUPUESTO: la sanción equivale a `multa_factor` meses de
@@ -165,6 +294,8 @@ def correr(
                 multa=a.ingreso_por_trabajador * multa_factor,
                 historial=texto_historial,
                 n_parafrasis=n_parafrasis,
+                # El estado que dejó la ronda anterior, no el del dataclass.
+                fraccion_informal_previa=frac_informal[a.id],
             )
 
         if paralelismo > 1:
@@ -179,30 +310,33 @@ def correr(
         for a in arquetipos:
             historial[a.id].append(resultados[a.id].estrategia_dominante)
 
+        # El estado con el que los arquetipos ENTRARON a esta ronda. Se guarda
+        # antes de pisarlo porque la banda lo necesita: cada paráfrasis parte del
+        # mismo punto de partida.
+        frac_previa = dict(frac_informal)
+
         # Nuevo agregado: para cada arquetipo, qué fracción de SU planta queda
-        # fuera de regla; después se pondera por cuánta gente representa.
-        # Se promedia primero entre paráfrasis, después entre arquetipos.
-        fuera = 0.0
+        # fuera de regla ACUMULANDO sobre lo que ya estaba; después se pondera
+        # por cuánta gente representa. Se promedia primero entre paráfrasis,
+        # después entre arquetipos.
         for a in arquetipos:
             ds = resultados[a.id].decisiones
-            frac = sum(
-                contrato.fraccion_fuera_de_regla(d, a.n_trabajadores, not a.formal)
+            frac_informal[a.id] = sum(
+                contrato.fraccion_fuera_de_regla(d, a.n_trabajadores, frac_previa[a.id])
                 for d in ds
             ) / max(1, len(ds))
-            fuera += a.peso * frac
-        tasa = min(1.0, fuera / peso_total)
 
-        # Empleo relativo: 1 - fracción ponderada de trabajadores despedidos.
-        # Promedia primero DENTRO del arquetipo (entre paráfrasis), después
-        # pondera ENTRE arquetipos por factor de expansión.
-        despedidos = 0.0
-        for a in arquetipos:
-            ds = resultados[a.id].decisiones
-            frac = sum(
+            # El empleo se ARRASTRA: lo que se despidió en una ronda no vuelve
+            # porque la siguiente absorba. Se descuenta sobre la planta original,
+            # que es la unidad en la que está medida la línea base.
+            despidos_ronda = sum(
                 min(1.0, d["detalle"].get("empleados_a_despedir", 0) / max(1, a.n_trabajadores))
                 for d in ds
             ) / max(1, len(ds))
-            despedidos += a.peso * frac
+            empleo[a.id] = max(0.0, empleo[a.id] - despidos_ronda)
+
+        tasa = min(1.0, sum(a.peso * frac_informal[a.id] for a in arquetipos) / peso_total)
+        empleo_relativo = sum(a.peso * empleo[a.id] for a in arquetipos) / peso_total
 
         r = Ronda(
             simulacion_id=simulacion_id,
@@ -211,12 +345,14 @@ def correr(
             politica={"tipo": "cambio_costo_laboral", "aumento_pct": aumento_pct},
             tasa_informalidad=tasa,
             prob_fiscalizacion=prob,
-            empleo_relativo=max(0.0, 1.0 - despedidos / peso_total),
+            empleo_relativo=empleo_relativo,
             # SUPUESTO: sin N paráfrasis la banda es degenerada (p10 = p90 = media).
             # Con n_parafrasis>=5 se llena de verdad; hasta entonces se reporta
             # como banda vacía en vez de inventar una.
-            banda=_banda(resultados, tasa, arquetipos, peso_total),
+            banda=_banda(resultados, tasa, arquetipos, peso_total, frac_previa),
             por_arquetipo=resultados,
+            fraccion_poblacion_llm=fraccion_llm,
+            pesos={a.id: a.peso for a in arquetipos},
         )
         salida.append(r)
         if al_terminar_ronda:
@@ -225,8 +361,18 @@ def correr(
     return salida
 
 
-def _banda(resultados, tasa: float, arquetipos, peso_total: float) -> dict[str, float]:
-    """p10/p90 de la tasa entre paráfrasis. Degenerada si solo hubo una."""
+def _banda(
+    resultados, tasa: float, arquetipos, peso_total: float, frac_previa: dict[str, float]
+) -> dict[str, float]:
+    """p10/p90 de la tasa entre paráfrasis. Degenerada si solo hubo una.
+
+    SUPUESTO: las N paráfrasis parten todas del MISMO estado previo (el promedio
+    que dejó la ronda anterior), no de N trayectorias separadas. Seguir un árbol
+    de estados por paráfrasis multiplicaría las llamadas por N en cada ronda y es
+    otro proyecto; acá la banda mide dispersión de la decisión de ESTA ronda, no
+    de la historia completa. Se declara porque estrecha la banda respecto de la
+    que daría el árbol.
+    """
     n_votos = max(len(r.decisiones) for r in resultados.values())
     if n_votos < 2:
         return {"p10": tasa, "p90": tasa, "degenerada": True}
@@ -235,7 +381,7 @@ def _banda(resultados, tasa: float, arquetipos, peso_total: float) -> dict[str, 
         fuera = sum(
             a.peso
             * contrato.fraccion_fuera_de_regla(
-                resultados[a.id].decisiones[i], a.n_trabajadores, not a.formal
+                resultados[a.id].decisiones[i], a.n_trabajadores, frac_previa[a.id]
             )
             for a in arquetipos
         )

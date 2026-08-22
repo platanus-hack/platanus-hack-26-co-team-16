@@ -3,8 +3,8 @@
 Qué modela: la interfaz `contracts/decision.json` ([ADR 0003](../docs/adr/0003-veto-de-factibilidad.md)).
 Entradas: la salida cruda del LLM.
 Salidas: un dict que cumple `contracts/decision.json`, listo para el veto.
-Supuestos: mientras `contracts/decision.json` no exista en disco, se valida
-  contra el ejemplo de `docs/PLAN.md` §4 embebido acá (`EJEMPLO`).
+Supuestos: ninguno. `contracts/decision.json` está congelado en `main` y este
+  módulo coincide con él campo a campo.
 
 Frontera de responsabilidad: yo lleno `estrategia_propuesta`, `detalle` y
 `justificacion`. Manuel llena `veto`. Ninguno de los dos toca el campo del otro.
@@ -12,14 +12,11 @@ Frontera de responsabilidad: yo lleno `estrategia_propuesta`, `detalle` y
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
-_CONTRATO = Path(__file__).resolve().parents[1] / "contracts" / "decision.json"
-
-# Copiado literal de `docs/PLAN.md` §4. Es la fuente de verdad hasta que Alejo
-# cree el archivo; entonces `cargar_contrato()` prefiere el archivo.
+# Copiado literal de `contracts/decision.json`, que Alejo ya congeló en `main`
+# (verificado campo a campo). Se conserva embebido como referencia legible del
+# contrato; el archivo del repo es la fuente de verdad.
 EJEMPLO: dict[str, Any] = {
     "agente_id": "empresa-com-04-0083",
     "ronda": 2,
@@ -45,7 +42,14 @@ ESTRATEGIAS_CONOCIDAS = (
     "subir_precios",
 )
 
-FALLBACK = "absorber"  # tras 3 vetos seguidos: el agente se come el costo
+# Tras 3 vetos seguidos, la estrategia terminal. Es `cumplir` por canon:
+# `docs/IDEA.md` §5.3 y §5.7 ("hasta 3 reintentos; al agotarlos, la estrategia
+# terminal es cumplir") y `engine/MODELO.md`, fila del veto de factibilidad.
+# Antes acá decía `absorber`, y esa divergencia NO era inocua: para una unidad
+# informal, `absorber` puntúa 1.0 fuera de regla y `cumplir` puntúa 0.0, así que
+# el motor y esta capa habrían reportado tasas distintas con las mismas
+# decisiones. Si alguna vez se cambia, se cambia en la ADR primero.
+FALLBACK = "cumplir"
 
 # Esquema para `output_config.format` (salida estructurada de la API). Garantiza
 # JSON válido sin cerrar el espacio de estrategias: `estrategia_propuesta` es
@@ -95,13 +99,6 @@ ESQUEMA_SALIDA: dict[str, Any] = {
 }
 
 
-def cargar_contrato() -> dict[str, Any]:
-    """El ejemplo congelado: del archivo si existe, del plan si todavía no."""
-    if _CONTRATO.exists():
-        return json.loads(_CONTRATO.read_text(encoding="utf-8"))
-    return EJEMPLO
-
-
 def construir(agente_id: str, ronda: int, cruda: dict[str, Any]) -> dict[str, Any]:
     """Envuelve la salida del LLM en una decisión válida, sin veredicto todavía.
 
@@ -123,7 +120,7 @@ def construir(agente_id: str, ronda: int, cruda: dict[str, Any]) -> dict[str, An
 
 
 def decision_fallback(agente_id: str, ronda: int, razones: list[str]) -> dict[str, Any]:
-    """Tras agotar los reintentos: el agente absorbe. Se marca como tal."""
+    """Tras agotar los reintentos: el agente cumple. Se marca como tal."""
     return {
         "agente_id": agente_id,
         "ronda": int(ronda),
@@ -192,26 +189,41 @@ def familia(estrategia: str) -> str:
 
 
 def fraccion_fuera_de_regla(
-    decision: dict[str, Any], n_trabajadores: int, ya_informal: bool
+    decision: dict[str, Any], n_trabajadores: int, fraccion_previa: float
 ) -> float:
-    """Qué fracción de la planta queda fuera de regla DESPUÉS de esta decisión.
+    """Qué fracción de la planta queda fuera de regla DESPUÉS de esta decisión,
+    partiendo de la fracción con la que el arquetipo llegó a la ronda.
 
-    Dos correcciones que salieron de la primera corrida real:
+    Es **acumulativa**: el tercer parámetro es el estado vivo, no el estado
+    inicial del arquetipo. Antes era un booleano fijo (`ya_informal`) leído del
+    dataclass, y eso hacía que una unidad que informalizó toda su planta en la
+    ronda 1 volviera a contar como formal en la ronda 2; si ahí respondía
+    "mantener", la tasa de informalidad BAJABA por una razón espuria. El estado
+    de una ronda tiene que ser el que dejó la anterior.
+
+    Tres correcciones que salieron de correr de verdad:
 
     1. `informalizar_parcial` NO saca a toda la unidad de regla — solo a los
        trabajadores que efectivamente pasa a acuerdo informal. Contarlo como
        total era lo que saturaba la tasa en 100% desde la ronda 0.
     2. La misma etiqueta significa cosas distintas según de dónde venga el
        agente: `mantener_status_quo` en una unidad formal es cumplir, y en una
-       informal es seguir fuera de regla. Por eso hace falta `ya_informal`.
+       informal es seguir fuera de regla. Por eso hace falta el estado previo.
+    3. Informalizar se ACUMULA sobre lo que ya estaba fuera de regla; formalizar
+       lo lleva a cero de una.
     """
+    previa = max(0.0, min(1.0, float(fraccion_previa)))
     fam = familia(decision["estrategia_propuesta"])
-    if ya_informal:
-        # Una unidad informal solo entra en regla si se formaliza.
-        return 0.0 if fam == "cumplir" else 1.0
-    if fam != "informalizar":
+    if fam == "cumplir":
+        # Formalizarse entra a toda la planta en regla, venga de donde venga.
         return 0.0
-    n = decision["detalle"].get("empleados_a_informalizar")
-    if n is None:  # informalización total: toda la planta
-        return 1.0
-    return max(0.0, min(1.0, float(n) / max(1, n_trabajadores)))
+    if fam == "informalizar":
+        n = decision["detalle"].get("empleados_a_informalizar")
+        delta = 1.0 if n is None else max(0.0, min(1.0, float(n) / max(1, n_trabajadores)))
+        return min(1.0, previa + delta)
+    # SUPUESTO: ninguna otra estrategia cambia el estatus de regla de la planta.
+    # `absorber`, `despedir`, `bajar_horas`, `renegociar`, `subir_precios` y lo
+    # que el modelo invente mueven márgenes, headcount o precios, no el registro
+    # laboral. Es el supuesto que decide si una unidad informal que "absorbe"
+    # sigue contando como informal — y sí sigue, que es lo correcto.
+    return previa

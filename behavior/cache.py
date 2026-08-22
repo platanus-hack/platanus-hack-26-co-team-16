@@ -73,6 +73,24 @@ class Cache:
         total = self.aciertos + self.fallos
         return self.aciertos / total if total else 0.0
 
+    def manifiesto(self) -> str:
+        """Hash del contenido completo del caché. Obligación de la ADR 0009.
+
+        La corrida lo imprime junto con el seed. El nivel 2 de determinismo del
+        proyecto —"mismo seed + misma caché + mismas versiones = mismo
+        resultado"— no es verificable por un tercero sin esto: dos corridas
+        comparables se reconocen porque imprimen el mismo par (seed, manifiesto).
+
+        Cubre claves y contenido, no solo los nombres de archivo: si una entrada
+        se edita a mano, el manifiesto cambia. Es lo que impide "arreglar" un
+        resultado tocando el caché sin que se note.
+        """
+        h = hashlib.sha256()
+        for ruta in sorted(self.dir.glob("*.json")):
+            h.update(ruta.stem.encode())
+            h.update(hashlib.sha256(ruta.read_bytes()).digest())
+        return h.hexdigest()[:16]
+
     def exportar(self, destino: Path | str) -> int:
         """Consolida el caché en un archivo, para versionar los escenarios del demo.
 
@@ -95,6 +113,7 @@ if __name__ == "__main__":
     peso = sum(a.stat().st_size for a in archivos)
     print(f"caché: {c.dir}")
     print(f"entradas: {len(archivos)}  ({peso / 1024:.1f} KiB)")
+    print(f"manifiesto: {c.manifiesto()}   # ADR 0009 — nivel 2 de determinismo")
     if not archivos:
         print("vacío — todavía no se ha corrido nada contra la API")
     sys.exit(0)

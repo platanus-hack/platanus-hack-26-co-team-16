@@ -5,7 +5,8 @@ Qué modela: el agrupamiento sector × tamaño × formalidad × tramo de ingreso
   de miles de agentes desde la distribución de estrategias de su arquetipo.
 Entradas: `data/poblacion.parquet` (esquema `contracts/agente.json`), o el grid
   falso de `arquetipos_falsos()` mientras ese archivo no exista.
-Salidas: lista de `Arquetipo`; y estrategias por agente vía `muestrear()`.
+Salidas: lista de `Arquetipo`. El muestreo hacia agentes individuales es de
+  `engine/arquetipos.py` (ver `_muestrear_local` al final de este archivo).
 Supuestos: ver `# SUPUESTO:` en el cuerpo.
 
 Esta es la pieza de la verificación V10 (`docs/PLAN.md` §6). Ver el veredicto en
@@ -62,9 +63,11 @@ class Arquetipo:
     costo_despido: float
     peso: float = 1.0  # suma de factores de expansión: a cuánta gente representa
 
-    @property
-    def situacion_planta(self) -> str:
-        return "toda formal" if self.formal else "toda informal"
+    # `formal` es el estado INICIAL del arquetipo, el que trae la encuesta. No es
+    # su estado durante la corrida: eso lo lleva `rondas.correr()` y lo traduce a
+    # texto `capa.situacion_planta()`. Acá había una property que devolvía
+    # "toda formal"/"toda informal" desde este campo, y era justo la que hacía
+    # que la ronda 2 le dijera "toda formal" a quien ya se había informalizado.
 
 
 def arquetipos_falsos() -> list[Arquetipo]:
@@ -159,6 +162,18 @@ def desde_poblacion(ruta: str | Path) -> list[Arquetipo]:
                 peso=float(g["_peso"].sum()),
             )
         )
+    # El `id` se arma con `sector[:3]`, y hoy los 9 sectores reales dan prefijos
+    # únicos (verificado: 101 ids, 0 colisiones). Pero una colisión futura sería
+    # silenciosa y cara: dos arquetipos con el mismo id comparten `historial` y
+    # uno pisa al otro en el dict de resultados de `rondas.correr()`. Dos líneas
+    # de seguro valen más que ese rato de depuración.
+    ids = [a.id for a in fuera]
+    if len(ids) != len(set(ids)):
+        repetidos = sorted({i for i in ids if ids.count(i) > 1})
+        raise ValueError(
+            f"ids de arquetipo repetidos en {ruta}: {repetidos}. "
+            "El prefijo `sector[:3]` colisiona; hay que alargarlo."
+        )
     return fuera
 
 
@@ -172,13 +187,22 @@ def _semilla(seed: int, *partes: object) -> int:
     return int.from_bytes(hashlib.blake2b(crudo, digest_size=8).digest(), "big")
 
 
-def muestrear(
+def _muestrear_local(
     distribucion: dict[str, float],
     n: int,
     seed: int,
     *partes_semilla: object,
 ) -> list[str]:
     """Reparte `n` agentes entre las estrategias de su arquetipo, determinista.
+
+    ⚠️ **Este NO es el muestreo del proyecto.** El canónico vive en
+    `engine/arquetipos.py` con la firma que le asigna `engine/MODELO.md`
+    —`muestrear(arq, n, rng)`— y es el que consume el pipeline. Éste se conserva
+    con nombre privado como la evidencia de la verificación V10 (lo que
+    AgentTorch habría dado, en 20 líneas; ver `behavior/README.md`), no como
+    una segunda implementación en uso: dos funciones con el mismo nombre y
+    semillas distintas es un camino directo a dos resultados "deterministas"
+    que no coinciden.
 
     `distribucion` es {estrategia: peso}; los pesos se normalizan. Con un solo
     voto del LLM la distribución es degenerada (todos hacen lo mismo dentro del
@@ -211,3 +235,67 @@ def varianza_estrategias(distribucion: dict[str, float]) -> float:
         return 0.0
     p = pesos / pesos.sum()
     return float(-(p * np.log(p)).sum() / np.log(len(p)))
+
+
+# --- Modo top-K: a quién se le paga LLM y a quién no ------------------------
+
+
+def particionar_por_peso(
+    arquetipos: list[Arquetipo], cobertura: float = 0.80
+) -> tuple[list[Arquetipo], list[Arquetipo]]:
+    """Parte la grilla en (cabeza, cola) por peso poblacional acumulado.
+
+    La `cabeza` es el prefijo más corto —ordenando por peso decreciente— que
+    alcanza `cobertura` de la población expandida; la `cola` es el resto.
+
+    Por qué existe: con la grilla real (101 arquetipos) una corrida en frío son
+    ~404 llamadas y el barrido con banda se sale del presupuesto. La
+    distribución de peso lo hace evitable: 51 de los 101 arquetipos pesan menos
+    del 0,5% cada uno, y los 30 más grandes cubren ~80% de la población. La
+    cabeza va al LLM y la cola a reglas fijas.
+
+    Es un compromiso de costo, no de modelo, y se reporta como tal: cada ronda
+    publica qué fracción de la población fue decidida por LLM.
+
+    SUPUESTO: los arquetipos de la cola se comportan como el maximizador de
+    `ablacion.ClienteReglas`. Es un sesgo de dirección CONOCIDA: la regla fija
+    no descubre estrategias, así que la cola SUBESTIMA la evasión. Nuestra
+    cascada con top-K es una cota inferior por este canal.
+    """
+    if not 0 < cobertura <= 1:
+        raise ValueError(f"cobertura debe estar en (0, 1]; llegó {cobertura}")
+
+    ordenados = sorted(arquetipos, key=lambda a: -a.peso)
+    total = sum(a.peso for a in ordenados)
+    if total <= 0:
+        return ordenados, []
+
+    acumulado = 0.0
+    for i, a in enumerate(ordenados):
+        acumulado += a.peso
+        if acumulado / total >= cobertura:
+            return ordenados[: i + 1], ordenados[i + 1 :]
+    return ordenados, []
+
+
+def cobertura_de(cabeza: list[Arquetipo], todos: list[Arquetipo]) -> float:
+    """Qué fracción de la población expandida representa `cabeza`."""
+    total = sum(a.peso for a in todos)
+    return sum(a.peso for a in cabeza) / total if total else 0.0
+
+
+def informalidad_observada(ruta: str | Path = "data/momentos.json") -> float:
+    """La tasa de informalidad observada en la GEIH, ponderada por expansión.
+
+    Se LEE de `data/momentos.json` (R1, Alejo) en vez de recalcularla desde el
+    parquet: ese archivo es el objetivo de calibración publicado, y recalcularla
+    por nuestra cuenta abriría la puerta a dos números distintos para la misma
+    cosa. Si el archivo no está, quien llame decide el respaldo.
+
+    Es el punto de partida de la ronda 0 — la proyección oficial de la ADR 0005
+    asume cumplimiento total, o sea que la informalidad se queda donde la
+    encuesta la encontró.
+    """
+    import json
+
+    return float(json.loads(Path(ruta).read_text(encoding="utf-8"))["tasa_informalidad_total"])
