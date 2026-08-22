@@ -102,6 +102,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--llm", action="store_true", help="usar la capa LLM real")
     ap.add_argument("--barrido", action="store_true", help="barrer aumento_pct para ver el codo")
+    ap.add_argument("--puntos", type=str, default=None,
+                    help="puntos del barrido separados por coma (p.ej. 7,13.6,23,30)")
     ap.add_argument("--aumento", type=float, default=23.0)
     ap.add_argument("--parafrasis", type=int, default=1, help="N>=5 para banda de error")
     ap.add_argument("--seed", type=int, default=42)
@@ -144,7 +146,12 @@ def main(argv: list[str] | None = None) -> int:
     # ADR 0009: el par (seed, manifiesto) es lo que hace comparables dos corridas.
     print(f"seed {args.seed} · manifiesto de caché {Cache().manifiesto()}")
 
-    aumentos = [7.0, 13.6, 23.0, 30.0] if args.barrido else [args.aumento]
+    if args.puntos:
+        aumentos = [float(x) for x in args.puntos.split(",")]
+    elif args.barrido:
+        aumentos = [7.0, 13.6, 23.0, 30.0]
+    else:
+        aumentos = [args.aumento]
     try:
         for aumento in aumentos:
             print(f"\n{'=' * 78}\npolítica: el costo laboral formal sube {aumento:g}%")

@@ -180,9 +180,17 @@ _Lo más reciente arriba._
    ingreso en los dos lados, así que es idéntico para todos los arquetipos.
    La dirección del candado 4 es la que esperábamos, pero es a parámetros de
    andamio sin calibrar — todavía no es EL número.
-7. **Dani: agrega por `familia`, no por `estrategia_propuesta`.** El modelo
-   inventa sinónimos (cinco nombres para "seguir informal" en 193 llamadas).
-   Cada decisión trae las dos: la cruda para el feed, la familia para agregar.
+7. **Dani — el dato A4 se agrega de dos maneras y las dos importan.**
+   **(a) Por `familia`, no por `estrategia_propuesta`:** el modelo inventa
+   sinónimos (cinco nombres para "seguir informal" en 193 llamadas). Cada
+   decisión trae las dos, la cruda para el feed y la familia para agregar.
+   **(b) Ponderado por factor de expansión, NUNCA por conteo de arquetipos.**
+   Las dos versiones dicen lo contrario: en la corrida del 23%, por conteo
+   domina `cumplir` (44 de 101 arquetipos) y ponderado domina `informalizar`
+   (51,0% de la población), con `cumplir` en 18,1%. Un arquetipo de microempresa
+   informal representa a muchísima más gente que uno de mediana formal. Ya está
+   arreglado en `Ronda.desglose_estrategias()`, que devuelve fracciones de
+   población; `desglose_estrategias_conteo()` conserva el crudo para el feed.
 8. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
    que pide el plan. Los montos van en "unidades (u)". Eso deja el test de
    re-skinning (candado 3b) casi hecho. El motor convierte a COP; el agente
