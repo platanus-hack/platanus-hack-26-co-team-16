@@ -47,3 +47,22 @@ Copiados tal cual de `docs/PLAN.md` §4 — la interfaz del veto (Manuel↔Nico)
 ```json
 "veto": { "factible": false, "razon": "flujo de caja insuficiente para pagar indemnizaciones de despido" }
 ```
+
+### Campos que `ronda.json` ganó después del congelamiento de H+4
+
+El contrato se congeló en H+4 y estos cinco campos entraron después, **avisados al
+grupo antes de tocarlo** (C3 y C5 del [plan de correcciones](../docs/agents/plan-correcciones-simulacion.md)).
+Se declaran acá porque un campo que se emite y no está en el contrato es peor que un
+campo nuevo: nadie lo ve venir.
+
+| Campo | Qué es | Por qué se agregó |
+|---|---|---|
+| `banda.degenerada` | La banda es un punto, no un intervalo | **Ya se emitía sin estar declarado** (§4.4). Se declara, no se agrega |
+| `banda.tipo` | `intra_ronda` o `entre_trayectorias` | Miden dispersiones distintas y dan números muy distintos (0,0 pp contra 22,5 pp). Publicar una donde se espera la otra es perder credibilidad en el Q&A |
+| `traslado_precios_pct` | Alza de precios **declarada** por las firmas, ponderada | `subir_precios` era el único canal a precios: los agentes lo elegían y el agregado lo botaba. **No es un pronóstico de inflación** — no hay respuesta de demanda |
+| `ingreso_laboral_relativo` | Masa salarial que sobrevive (empleo × jornada) | `bajar_horas` no movía ningún número. Un trabajador que conserva el puesto a media jornada no es un empleo intacto |
+| `movimiento_pp` / `estabilizada` | Cuánto movió la última ronda y si cae bajo el umbral | La regla de corte se declara **antes** de correr (A5), no después de ver el número |
+
+`banda.tipo` es el que más importa para `web/`: la banda que se dibuja tiene que ser la
+de trayectorias completas, y es más ancha que la que se publicaba antes. Ese
+ensanchamiento **es** la corrección, no un empeoramiento.
