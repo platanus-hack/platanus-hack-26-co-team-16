@@ -62,12 +62,12 @@ Cuatro cosas, todas para el próximo standup:
    error suyo: era un hueco que nadie había cerrado.
 3. **Dani (R4) y Alejo (R1)** — `contracts/ronda.json` gana campo de tiempo (`trimestre`) y
    dos de diagnóstico (`n_vetos`, `n_fallback`). Cambio aditivo, no rompe nada.
-4. **🔴 Quien pueda: la cifra VIGENTE de inspectores de trabajo en Colombia.** Es el número
-   del que depende que la cascada sea un hallazgo y no una perilla. Lo que hay hoy: planta de
-   **904 cargos, 813 provistos**, de un documento de MinTrabajo de ~2015 — fuente primaria
-   pero **desactualizada**. El estándar OIT/OCDE que el propio ministerio invoca es **1
-   inspector por cada 10.000 trabajadores**, y con ~23M de ocupados Colombia estaría alrededor
-   de 1 por 25.000. Detalle y fuentes en
+4. ~~La cifra vigente de inspectores de trabajo~~ **RESUELTO por Mani:** la OIT publica
+   **1.300 inspectores del trabajo en 36 direcciones territoriales** (proyecto ago-2023 a
+   ago-2024). Reemplaza los 904 de ~2015. Con ~23M de ocupados son ≈**1 por cada 18.000
+   trabajadores**, casi el doble del estándar OIT/OCDE de 1 por 10.000 que el propio
+   ministerio invoca. **`C` ya tiene fuente**; lo que sigue sin fuente es cuántas inspecciones
+   hace cada inspector por trimestre (supuesto S2). Detalle en
    [`docs/investigacion/1-teorica.md`](../investigacion/1-teorica.md) §3.
 
 ## Supuestos que tomé

@@ -107,26 +107,31 @@ número de evasores, porque la capacidad de inspección es fija.
 | **Qué NO nos sirve** | El estudio es sobre infracciones de tránsito, no laborales. Extrapolamos el principio, no la magnitud, y se marca así. |
 | **Dónde aterriza** | [ADR 0006](../adr/0006-fiscalizacion-es-estado-del-mundo.md) y [ADR 0007](../adr/0007-forma-funcional-prob-sancion.md). |
 
-### 🔴 El número que ancla `capacidad_fija`
+### El número que ancla `capacidad_fija`
 
-La cascada solo es honesta si la capacidad sale de una fuente. Lo que hay:
+**Para qué se necesita.** La cascada sale de `p(E) = 1 − exp(−C/E)`. `C` es el numerador: el
+número esperado de inspecciones en el trimestre. **Si `C` es inventado, la cascada es una
+perilla que giramos, no un hallazgo.** La pregunta del Q&A es *"¿por qué el codo aparece en
+23% y no en 30%?"*, y la respuesta tiene que ser *"porque Colombia tiene N inspectores"*, no
+*"porque escogimos un número"*. Es la diferencia entre medir y decorar.
 
 | Dato | Fuente | Estado |
 |---|---|---|
-| Planta de **904 cargos** de inspector de trabajo, **813 provistos** (89%), 91 vacantes. Pasó de 424 a 904 en cuatro años. | [MinTrabajo, *Inspección del trabajo en Colombia*](https://www.mintrabajo.gov.co/documents/20147/51963/Inspeccion+trabajo+en+Colombia_web.pdf/686c8c7b-9eb7-990d-e4ab-7b18d9d9a6d1) (documento institucional, cifras ~2014-2015) | ✅ fuente primaria, ⚠️ **desactualizada** — hay que buscar la cifra vigente |
-| Estándar **OIT/OCDE: 1 inspector por cada 10.000 trabajadores**, invocado por MinTrabajo como justificación de la ampliación de planta | [Presidencia, ene-2026](https://www.presidencia.gov.co/prensa/Paginas/MinTrabajo-hace-precisiones-sobre-planta-temporal-de-inspectores-260125.aspx) | ✅ |
-| Planta **temporal** creada por Decreto 0052 del 22-ene-2026, con vinculación por fases | [Decreto 0052 de 2026](https://dapre.presidencia.gov.co/normativa/normativa/DECRETO%20No.%200052%20DEL%2022%20DE%20ENERO%20DE%202026.pdf) | ⚠️ **las cifras que circulan se contradicen** (500 vs 1.141 empleos; 460 vs 1.000 inspectores). No se usa ninguna hasta abrir el decreto. |
+| **1.300 inspectores del trabajo** en Colombia, en **36 direcciones territoriales** | [OIT, *Mayor capacidad de la inspección del trabajo en Colombia*](https://www.ilo.org/es/projects-and-partnerships/projects/mayor-capacidad-de-la-inspeccion-del-trabajo-en-colombia), proyecto ago-2023 a ago-2024 | ✅ **Es la cifra que se usa.** Fuente institucional y reciente |
+| Planta de **904 cargos**, **813 provistos** (89%); pasó de 424 a 904 en cuatro años | [MinTrabajo, *Inspección del trabajo en Colombia*](https://www.mintrabajo.gov.co/documents/20147/51963/Inspeccion+trabajo+en+Colombia_web.pdf/686c8c7b-9eb7-990d-e4ab-7b18d9d9a6d1) (cifras ~2014-2015) | ✅ fuente primaria, **superada** por la de la OIT. Se conserva porque muestra la trayectoria de crecimiento |
+| Estándar **OIT/OCDE: 1 inspector por cada 10.000 trabajadores**, invocado por MinTrabajo como justificación de ampliar la planta | [Presidencia, ene-2026](https://www.presidencia.gov.co/prensa/Paginas/MinTrabajo-hace-precisiones-sobre-planta-temporal-de-inspectores-260125.aspx) | ✅ |
+| Planta **temporal** creada por Decreto 0052 del 22-ene-2026, vinculación por fases | [Decreto 0052 de 2026](https://dapre.presidencia.gov.co/normativa/normativa/DECRETO%20No.%200052%20DEL%2022%20DE%20ENERO%20DE%202026.pdf) | ⚠️ **las cifras que circulan se contradicen** (500 vs 1.141 empleos; 460 vs 1.000 inspectores). No se usa ninguna hasta abrir el decreto. Es posterior a nuestra ventana de simulación, así que **no afecta el caso demo** |
 | La capacidad **no escala con el problema**: pese a triplicar el presupuesto de inspección en 2018, el número de investigaciones y de procesos sancionatorios **cayó** en siete años, y casi la mitad de las investigaciones exceden el plazo legal | [OECD Reviews of Labour Market and Social Policies: Colombia](https://www.oecd.org/en/publications/oecd-reviews-of-labour-market-and-social-policies-colombia-2024_6ed40726-en.html) | ✅ |
 
-**Orden de magnitud que se deriva** (💭 cálculo nuestro, va con `# SUPUESTO:`): con ~904
-inspectores para una población ocupada nacional del orden de 23 millones, Colombia está
-alrededor de **1 inspector por cada 25.000 trabajadores**, unas 2,5 veces por debajo del
-estándar OIT/OCDE que el propio ministerio invoca.
+**Orden de magnitud** (💭 cálculo nuestro, va con `# SUPUESTO:` porque el denominador es
+aproximado): con **1.300 inspectores** para una población ocupada nacional del orden de 23
+millones, Colombia está alrededor de **1 inspector por cada 18.000 trabajadores**, casi el
+doble de lo que fija el estándar OIT/OCDE que el propio ministerio invoca.
 
 > **Por qué esto importa más que cualquier otra cifra del proyecto:** el hallazgo de la OCDE
 > —presupuesto triplicado, investigaciones a la baja— es evidencia externa de que la
 > capacidad de fiscalización **no responde al tamaño de la evasión**. Ese es exactamente el
-> supuesto que hace correr la cascada, y no lo pusimos nosotros.
+> supuesto que hace correr la cascada, y no lo pusimos nosotros: está publicado.
 
 ---
 

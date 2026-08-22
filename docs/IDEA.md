@@ -11,6 +11,8 @@
 > decida otra cosa.
 >
 > **Dueño:** Manuel (R2). Lo marcado 🔶 espera aval del equipo.
+>
+> **¿Llegaste de cero?** Empieza por [`EXPLICACION-SIMPLE.md`](EXPLICACION-SIMPLE.md), que cuenta lo mismo sin jerga.
 
 ---
 
@@ -205,7 +207,7 @@ corrida con política signifique algo.**
 |---|---|---|
 | Población de agentes | Microdatos GEIH (DANE) | Única fuente verificada del proyecto |
 | Momentos de calibración | GEIH: informalidad por sector y tamaño, distribución salarial | Los objetivos de P1-P3 |
-| Capacidad de inspección | MinTrabajo / OIT | ⚠️ mejor fuente primaria hoy: planta de 904 cargos, 813 provistos, documento de ~2015. **Conseguir la cifra vigente es la tarea de investigación más urgente del motor** |
+| Capacidad de inspección | [OIT, 2023-24](https://www.ilo.org/es/projects-and-partnerships/projects/mayor-capacidad-de-la-inspeccion-del-trabajo-en-colombia) | **1.300 inspectores** en 36 direcciones territoriales. Con ~23M de ocupados es ≈1 por cada 18.000 trabajadores, casi el doble del estándar OIT/OCDE de 1 por 10.000. **De acá sale `C`, y de `C` sale la cascada** |
 | Elasticidad de contraste | Banco de la República WP 1104: +1 pp en el ratio del mínimo ≈ +0,21 pp de informalidad | Objetivo de calibración del tramo bajo, **nunca resultado** |
 | Inflación, crecimiento, tasa de cambio | Observados | **Exógenos siempre.** No es un modelo macro |
 
