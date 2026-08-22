@@ -56,3 +56,51 @@ Correr la simulación sustituyendo la capa LLM por reglas fijas. Si el resultado
 
 **Backtest**
 Predecir un alza histórica del salario mínimo ya ocurrida, sin dejar ver el resultado, y publicar el error. Se excluyen 2020-2021 por COVID.
+
+---
+
+## Términos añadidos por R2 (2026-08-22, rama `rol/backend`)
+
+Salen de [`docs/IDEA.md`](../IDEA.md) y de los ADR 0005-0009. Se agregan acá siguiendo la
+regla de arriba: quien acuña un término lo registra en el mismo PR.
+
+**Ronda (precisión)**
+Ya estaba definida como un ciclo de mejor respuesta. Ahora tiene reloj: **una ronda es un
+trimestre**, y el horizonte de una corrida son nueve meses desde el decreto
+([ADR 0005](../adr/0005-el-reloj-de-la-simulacion.md)).
+*Evitar:* "tick", "paso", "iteración".
+
+**Agregado**
+El resumen del estado del sistema que los arquetipos ven al inicio de cada ronda: tasa de
+evasión y probabilidad de sanción vigente. **Es lo único que ven** — nadie observa agentes
+individuales. Es el mecanismo por el que la cascada ocurre sin costo cuadrático.
+*Evitar:* "estado global", "contexto".
+
+**EstadoFiscalizacion**
+La capacidad de inspección del período (inspectores efectivos × inspecciones por inspector
+por trimestre × fracción del universo). Es **estado del mundo, no parte de la política**, y
+**no es una palanca del usuario** ([ADR 0006](../adr/0006-fiscalizacion-es-estado-del-mundo.md)).
+*Evitar:* llamarla "parámetro de fiscalización", que sugiere que se ajusta.
+
+**Capacidad (`C`)**
+El número esperado de inspecciones efectivas en un trimestre. Es el numerador de la
+probabilidad de sanción y el supuesto más importante del motor.
+
+**Prima de protección**
+Cuánto vale para el trabajador la protección del empleo formal (pensión, salud, cesantías),
+expresada como fracción del salario. Es lo que decide si acepta una oferta informal
+([ADR 0008](../adr/0008-asimetria-firma-trabajador.md) 🔶).
+
+**Estrategia terminal**
+La estrategia a la que cae un arquetipo cuando el veto le rechaza tres propuestas seguidas:
+**cumplir**. Se cuenta en `n_fallback`, y un `n_fallback` alto significa que el veto está
+demasiado apretado, no que todos decidieron cumplir.
+
+**Mejor respuesta con rezago**
+Precisión de "mejor respuesta": los arquetipos deciden contra el agregado de la ronda
+**anterior**, no contra el de la actual. No resolvemos un punto fijo simultáneo, y por eso
+nunca decimos "equilibrio".
+
+**Corrida de control**
+La corrida con `p` **fijo** (sin fiscalización endógena). Si la cascada aparece igual, viene
+de otra parte. Es distinta de la **ablación**, que quita el LLM, no la endogeneidad.
