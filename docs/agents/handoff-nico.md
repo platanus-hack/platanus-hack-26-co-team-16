@@ -9,6 +9,31 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 (mañana) — `main` mergeado (PR #1 y #2). Un bug serio que solo
+  apareció al enchufar el parquet real de Alejo.**
+  - **`tamano_empresa` es un CÓDIGO ORDINAL 1-10 de la GEIH (P3069), no un
+    número de empleados.** Está documentado en `contracts/README.md` y yo lo
+    estaba leyendo como headcount. Dos efectos, los dos silenciosos: la
+    categoría `mediana` quedaba **vacía** (el corte `bins=[0,4,19,inf]` espera
+    headcounts y los códigos topan en 10), y una firma de "201+ personas"
+    entraba con **10 trabajadores** — de ahí a `flujo_caja` y por lo tanto al
+    **techo duro que usa el veto**. Corregido en `EMPLEADOS_POR_CODIGO`
+    (commit `d28d371`). Verificado: 36 micro / 34 pequeña / 31 mediana, `n` de
+    1 a 300.
+  - **La grilla real son 101 arquetipos**, no 48: recuperar `mediana` más los
+    **9 sectores reales** de Alejo (mi constante `SECTORES` decía 4, quedó
+    obsoleta para el camino real). Consecuencia de plata: la corrida en frío
+    pasa de $0,51 a **~$1,06**, y el barrido de 7 puntos con N≥5 paráfrasis a
+    **~$37** contra un techo de $50. Ya no cabe con margen.
+  - **La salida está en el mismo dato:** 51 de los 101 arquetipos pesan <0,5%
+    cada uno. top-10 = 46,8% · top-20 = 67,4% · **top-30 = 79,5%** · top-40 =
+    87,6% de la población expandida. Con top-30 al LLM y la cola de 71 a
+    reglas fijas ponderadas, el barrido con banda baja a ~$11. **Sin
+    implementar todavía.**
+  - `contrato.py` ya lee el `contracts/decision.json` real de Alejo y coincide
+    campo a campo con `EJEMPLO`. `make estado` marca el parquet en verde.
+  - Higiene 7/7 y `python3 -m behavior.demo` siguen corriendo a $0.
+
 - **2026-08-22 (tarde) — la capa corre contra la API real. 1.880 respuestas en caché.**
   - **Costo medido:** $0,5080 la corrida en frío (193 llamadas), **$0,0000 y
     0,5 s** la repetición con caché. Paralelizado (`--paralelismo 8`) baja el
@@ -44,11 +69,22 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
+- [ ] **Modo top-K** (30 arquetipos al LLM, cola a reglas fijas ponderadas).
+      Es lo que vuelve a hacer viable el barrido con banda dentro del
+      presupuesto. Va con `# SUPUESTO:` y reportando qué fracción de la
+      población fue decidida por LLM.
 - [ ] **Barrido con N≥5 paráfrasis por punto**, para poder afirmar o descartar
-      el codo. Es el número que el pitch quiere y hoy no tenemos. ~$18 completo,
-      ~$8 acotado a 3 puntos. **Es mi siguiente tarea y la más importante.**
-- [ ] Congelar `contracts/decision.json` con Manuel y enchufar el veto real en
-      lugar de `demo.veto_doble_prueba`.
+      el codo. Es el número que el pitch quiere y hoy no tenemos. **Depende del
+      top-K**: sin él son ~$37 y no caben. **Sigue siendo la tarea más
+      importante.**
+- [ ] **ADR 0010** — reabrir el H10 de Manuel (input en lenguaje natural).
+      Concede la ADR 0006 (la fiscalización no va en la política) y trae el
+      mecanismo contra la fuga que el H10 no nombra: un parser LLM puede emitir
+      la magnitud **de memoria** del decreto en vez de leerla del texto. Test:
+      re-skinning aplicado al parser.
+- [ ] Cerrar la definición de arquetipo con Alejo: **mi agrupación da 101 y la
+      suya 67.** `contracts/README.md` dice que la cierro yo hacia H+14.
+- [ ] Enchufar el veto real de Manuel en lugar de `demo.veto_doble_prueba`.
 - [ ] Exportar un caché consolidado (`Cache().exportar()`) y versionarlo, para
       que el demo del domingo corra sin API key y sin red.
 
@@ -61,31 +97,53 @@ _Lo más reciente arriba._
   tanto uso un doble de prueba en `behavior/demo.py`, claramente marcado como
   tal. **Un veto sin `razon` no sirve:** el reintento le pasa la razón al agente,
   y esa es justamente la información que un economista no le daría.
-- **Alejo — `contracts/decision.json` no existe en disco.** `contrato.py` valida
-  contra el ejemplo de `docs/PLAN.md` §4 y prefiere el archivo apenas aparezca.
-- **Alejo — `data/poblacion.parquet`.** `arquetipos.desde_poblacion()` ya está
-  escrito contra el esquema de `contracts/agente.json`; es un cambio de una línea.
+- ~~Alejo — `contracts/decision.json`~~ — **resuelto** (PR #2). En disco y
+  coincide campo a campo con `EJEMPLO`.
+- ~~Alejo — `data/poblacion.parquet`~~ — **resuelto** (PR #2). 6.692 filas,
+  esquema exacto. Ver el bug de `tamano_empresa` arriba.
+- **Manuel — ADR 0008 espera MI aval** (y el de Alejo). Ya lo di con una
+  precisión que es de mi capa: si el trabajador rechaza la oferta, eso **no
+  puede volver por el mismo canal que el veto**. Hoy `capa.py` reintenta ante
+  un veto pasándole la razón al agente; si el rechazo del trabajador entra por
+  ahí, el agente reintenta contra algo que no es una restricción física suya, y
+  el dato A4 mezcla "no pudo pagarlo" con "no se lo aceptaron". Propuse que
+  `decision.json` gane un campo hermano de `veto`
+  (`realizacion: {ocurre, razon}`) que **no** dispare reintento. Aditivo.
 
 ## Lo que hay que contarle al equipo
 
-1. **⚠️ Lo más importante: no prometer el codo todavía.** El barrido con LLM no
-   es monótono y la banda de paráfrasis es más ancha que las diferencias entre
-   políticas. Con 1 paráfrasis no distinguimos señal de ruido. Juanda: esto
-   afecta el guion del pitch — el dato A2 está en duda hasta que corra el
-   barrido con banda. La curva de la brecha (A1) sí se sostiene.
-2. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
+1. **⚠️ Alejo — `tamano_empresa` es un código ordinal, no un headcount.** Yo caí
+   en ese error y me corrompía el flujo de caja que usa el veto. **Manuel va a
+   escribir `engine/costos.py` contra el mismo campo y tiene el mismo pie para
+   tropezar** — y en su caso cae directo sobre el veto. Vale una línea de
+   advertencia en `contracts/README.md`.
+2. **Alejo — dos definiciones de arquetipo circulando:** mi agrupación da 101 y
+   la del parquet trae 67. Hay que cerrar una hoy.
+3. **Juanda — el presupuesto cambió.** Con la grilla real (101 arquetipos), el
+   barrido con banda cuesta ~$37 de $50. Con top-30 baja a ~$11. El techo sigue
+   siendo real, pero el margen se estrechó.
+4. **⚠️ Lo más importante: no prometer el codo, y hay un choque con `IDEA.md`.**
+   `IDEA.md` §6 promete "muestra dónde está el codo (dato A2)" y `MODELO.md`
+   le pone a `barrido.py` un test de "monótono donde debe serlo". **Yo medí que
+   no es monótono**, y que la banda de 5 paráfrasis (20 pp de ancho a 18%) es
+   más ancha que la diferencia entre políticas vecinas (8,7 pp). Con 1
+   paráfrasis, el codo es ruido. No es opinión contra opinión: hay una
+   medición, y el guion se está construyendo encima. El dato A2 queda en duda
+   hasta que corra el barrido con banda; **la curva de la brecha (A1) sí se
+   sostiene.**
+5. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
    mientras el LLM llega a 75,6%: el umbral de una regla fija escala con el
    ingreso en los dos lados, así que es idéntico para todos los arquetipos.
    La dirección del candado 4 es la que esperábamos, pero es a parámetros de
    andamio sin calibrar — todavía no es EL número.
-3. **Dani: agrega por `familia`, no por `estrategia_propuesta`.** El modelo
+6. **Dani: agrega por `familia`, no por `estrategia_propuesta`.** El modelo
    inventa sinónimos (cinco nombres para "seguir informal" en 193 llamadas).
    Cada decisión trae las dos: la cruda para el feed, la familia para agregar.
-4. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
+7. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
    que pide el plan. Los montos van en "unidades (u)". Eso deja el test de
    re-skinning (candado 3b) casi hecho. El motor convierte a COP; el agente
    nunca ve pesos.
-5. **Prompt caching de la API: medido, no aplica** (0 tokens cacheados en 193
+8. **Prompt caching de la API: medido, no aplica** (0 tokens cacheados en 193
    llamadas). La palanca real es el caché en disco: la repetición cuesta $0 y
    tarda 0,5 s. Eso además hace viable el demo en vivo.
 
@@ -93,7 +151,11 @@ _Lo más reciente arriba._
 
 _Además del `# SUPUESTO:` en el código, para que R5 los recoja en `VALIDATION.md`._
 
-- **Arquetipos:** 4 sectores × 3 tramos de tamaño (micro 3 / pequeña 10 /
+- **Código 10 de `tamano_empresa` = 300 empleados.** El rango es "201 o más",
+  abierto, sin punto medio. Los otros nueve códigos sí son el punto medio de su
+  rango. **Es el primer parámetro de esta capa que R5 debe someter a análisis
+  de sensibilidad**: entra en `flujo_caja` y por lo tanto en el veto.
+- **Arquetipos (andamio, superado por el parquet real):** 4 sectores × 3 tramos de tamaño (micro 3 / pequeña 10 /
   mediana 45) × formal/informal × 2 tramos de ingreso = 48. Los cortes los
   confirma o corrige Alejo contra el parquet real.
 - **Números de andamio** (`arquetipos_falsos`, se van con los datos reales):
