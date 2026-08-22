@@ -108,7 +108,7 @@ El motor es general para UNA clase de problemas: **cambio de costos/incentivos +
 | Tarifa TransMilenio → colados | ✅ | Misma estructura (era el plan B de D1) |
 | Impuesto a un sector → evasión | ✅ | Misma estructura exacta |
 | Subsidio por estrato → reporte falso | ✅ | El "costo" es el subsidio perdido; la fiscalización es la verificación |
-| Pico y placa → segundo carro | ⚠️ | La estructura cabe; faltan datos de parque automotor |
+| Pico y placa → segundo carro | ✅ como test | Entra como prueba nivel 3 de validación (§5.5): corrida cualitativa con solo la mecánica, sin calibración — la emergencia del "segundo carro" es el control de contaminación más demostrable que tenemos |
 | Trancón por un clásico, evacuación por sismo, epidemia | ❌ | Son física de flujo/contagio, no equilibrio de incentivos — otra máquina (SUMO/MATSim, excluida en §9) |
 
 **Regla de desarrollo:** si un feature solo tiene sentido para casos ❌, no se construye. **Línea para el Q&A:** *"un túnel de viento no simula terremotos y nadie se lo reprocha — lo grave no es no cubrir el trancón, sería decir que lo cubrimos"*. La generalidad se pitchea como tesis, no como catálogo: toda política que cambia incentivos tiene un supuesto de cumplimiento, y este motor lo mide — en cualquier ciudad donde la gente no cumple por defecto.
@@ -168,6 +168,7 @@ Es la pregunta que decide el track (los cinco insumos coinciden). Cuatro candado
 2. **Backtest fuera de muestra.** Calibrar con datos hasta un año de corte, predecir el efecto de las alzas siguientes, publicar el error — acierte o no. **Se excluyen 2020–2021** (COVID rompe cualquier backtest laboral) y se dice explícitamente: eso suma credibilidad, no resta.
 3. **Control de contaminación de entrenamiento (respuesta explícita exigida por el enunciado).** Doble mecanismo: **(a)** al modelo jamás se le nombra la política — no ve "salario mínimo", "decreto", ni años; solo la mecánica: *"tu costo laboral por empleado formal sube X%"*. Si el efecto agregado emerge igual, no es memoria: es simulación. **(b)** Test de re-skinning (protocolo de Daniel, ✅ basado en Gao et al. PNAS 2025): la misma corrida con sectores y unidades renombradas a etiquetas inventadas debe dar el mismo resultado agregado que la canónica. Si difieren, hay memorización y lo reportamos nosotros antes que el juez.
 4. **Ablación del LLM.** Una corrida con la capa conductual sustituida por reglas fijas (maximizador simple). Si el resultado no cambia, el LLM no aporta — mejor saberlo nosotros a la H+24 que el juez en el Q&A. Si cambia, la diferencia ES el argumento de por qué el LLM se gana el puesto (el espacio de estrategias abierto).
+5. **Prueba del efecto contraintuitivo: pico y placa (módulo opcional, condicionado a C4 completado).** El efecto real de pico y placa está documentado y es contraintuitivo: la gente compró segundo carro y la congestión no mejoró. El experimento: misma población, mismo motor, y a los agentes SOLO la mecánica — *"no puedes usar tu vehículo 2 días a la semana"* — sin decir jamás "pico y placa". **Si la estrategia "comprar un segundo carro barato" emerge sola** de agentes que solo conocen sus ingresos y costos, no es memoria del modelo: es simulación, demostrable en 20 segundos. Corrida **cualitativa**: la variable de salida es la decisión (segundo carro / cambiar horario / transporte público), NO tiempos de viaje ni congestión — no requiere calibración ni datos de parque automotor. Dueño: R3+R5, ~3 horas, solo después de C4. Si no emerge, se reporta igual en `VALIDATION.md` y no se menciona en el pitch.
 
 **Reglas de método (de Daniel, adoptadas):** la barra de error se construye sobre **N≥5 paráfrasis del prompt**, no sobre temperatura; se reporta **la varianza además de la media** (los LLM colapsan varianza — lo decimos nosotros primero); ningún número sale sin banda.
 
@@ -210,7 +211,7 @@ Reglas de equipo (consolidadas de los insumos): contratos congelados en H+4 y to
 | **H4–H10** | **Una simulación fea corre punta a punta con datos falsos**: slider → motor → 4 rondas → curva en la web. Fea está bien; completa es obligatorio | **C3 (H+10): ¿corre punta a punta?** No → se recorta el mapa distributivo, la curva es el producto. |
 | **H10–H14** | Sueño escalonado · datos reales de R1 entran al motor · arquetipos definidos | — |
 | **H12–H20** | Calibración base (nivel 1 de §5) · rondas con LLM real · caché y tope de presupuesto activos | **C4 (H+20): ¿la calibración base reproduce la informalidad observada?** No → **se cambia la métrica de validación, no el proyecto.** |
-| **H20–H26** | Backtest (nivel 2) · re-skinning · ablación · `VALIDATION.md` con el número, sea bueno o malo | **C5 (H+26): existe el número de validación.** Publicarlo aunque sea "±4 pp y falla en agricultura". |
+| **H20–H26** | Backtest (nivel 2) · re-skinning · ablación · `VALIDATION.md` con el número, sea bueno o malo · **opcional si C4 cerró a tiempo: test pico y placa (§5.5, ~3h, R3+R5)** | **C5 (H+26): existe el número de validación.** Publicarlo aunque sea "±4 pp y falla en agricultura". El test de pico y placa se cae SIN discusión si compite con el número principal. |
 | **H20–H28** | Interfaz final · historias narradas (modelo grande) · **escenarios de la demo precomputados** | — |
 | **H+28** | 🔒 **Feature freeze. Sin excepciones ni dependencias nuevas.** | **C6: video de respaldo del demo grabado antes de pulir nada.** |
 | **H28–H33** | Deploy final probado desde un celular con datos móviles y sin sesión (el voto público lo exige) · `make test` y `make validate` corren en una máquina limpia, no en la del autor · limpieza de commits | — |
@@ -234,6 +235,7 @@ Reglas de equipo (consolidadas de los insumos): contratos congelados en H+4 y to
 | Auth, multi-tenant, cuentas | No aportan al demo ni al voto público (un extraño debe usarlo SIN registrarse). |
 | Replay con scrubber temporal | Bonito, no esencial: la comparación entre rondas y entre políticas ya cuenta la historia. Se recorta para pagar la capa de equilibrio. |
 | Simulador de opinión electoral | El ejemplo literal de los organizadores = el terreno más saturado del track. |
+| Optimización de semáforos / timing de tráfico | Es control sobre física de flujo: exige el simulador de tráfico ya excluido, no responde ninguno de los datos A1–A4, y es campo saturado comercialmente (SCOOT/SCATS, RL para semáforos). Se menciona SOLO como visión en el cierre del pitch ("el paso siguiente: buscar la política que maximiza cumplimiento"), jamás como feature. |
 
 ## 10. Riesgos
 
@@ -276,7 +278,7 @@ Convenciones que el agente del juez encuentra: `# SUPUESTO:` grepeable en el pun
 | 0:20–0:45 | **Por qué no creerle a las simulaciones** (recuerdan, no simulan; colapsan varianza) **y los candados nuestros:** población real del DANE, veto de factibilidad, la política sin nombre, backtest publicado. |
 | 0:45–1:05 | **El aporte técnico en una frase:** "la teoría de juegos necesita que un economista escriba las estrategias; nosotros las descubrimos con miles de colombianos reales y resolvemos la mejor respuesta". |
 | 1:05–2:30 | **DEMO en vivo** (escenarios precomputados + video de respaldo): calibración base → slider al 23% → ronda 0 (la línea del gobierno) → rondas 1–3 (la cascada) → el mapa de quién pierde → una historia con cara. |
-| 2:30–3:00 | **El número de validación:** le pedimos que prediga alzas que ya pasaron, sin dejarle ver el resultado ni el nombre. Se equivocó por X. Ese X está en `VALIDATION.md` y `make validate` lo reproduce. |
+| 2:30–3:00 | **El número de validación:** le pedimos que prediga alzas que ya pasaron, sin dejarle ver el resultado ni el nombre. Se equivocó por X. Ese X está en `VALIDATION.md` y `make validate` lo reproduce. **Si el test §5.5 salió:** *"y a esta misma población le dimos otra restricción sin nombrarla — y la estrategia del segundo carro emergió sola, igual que en el Bogotá real"*. |
 | 3:00–3:30 | **Escala:** esto sirve para cualquier política que cambie incentivos, en cualquier ciudad donde el supuesto de cumplimiento se rompe — Bogotá, Lima, CDMX, Manila — y es innecesario en Copenhague. Cierre: **"hoy Colombia decide el salario mínimo sabiendo cuánto quiere subir; nosotros le mostramos cuánto va a llegar — y a quién."** |
 
 ## 13. Lo que no pude resolver — decisiones de humanos, para la cena
