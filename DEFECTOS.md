@@ -21,6 +21,63 @@ Datos crudos: `scripts/salidas/barrido-llm-20260822-1550.json`.
 
 ---
 
+## Estado tras el PR #12 — léase ESTO antes que el inventario
+
+> **Actualizado el 2026-08-22, después de mergear `rol/correcciones-simulacion-limpia`.**
+> Este documento fue el diagnóstico del que salió `docs/agents/plan-correcciones-simulacion.md`
+> —el plan lo cita por número de sección—, así que buena parte de lo que lista **ya no
+> está roto**. El inventario de abajo se conserva completo y sin editar: es el estado
+> medido del 22-08 a las 15:50, y borrarlo sería borrar la línea base contra la que se
+> mide si las correcciones sirvieron. Lo que cambia es esta tabla.
+
+Verificado en el árbol de `main` a mano, defecto por defecto, no inferido del plan:
+
+| # | Defecto | Estado | Evidencia |
+|---|---|---|---|
+| 1.1 | Cinco de ocho estrategias no mueven un número | 🟡 parcial | `subir_precios` (C3) y `bajar_horas` (A4) ya mueven `traslado_precios_pct` y `ingreso_laboral_relativo`. Quedan tres |
+| 1.2 | No hay canal de inflación | 🟡 parcial | Hay traslado a precios **declarado**, y `contracts/README.md` dice explícitamente que no es un pronóstico: no hay respuesta de demanda |
+| 1.3 | La tasa de desempleo no es computable | 🔵 declarado | Bloque D en `VALIDATION.md:72`, con la dirección del sesgo |
+| 1.4 | No existe productividad, ni demanda, ni capital | 🔵 declarado | Ídem. La consecuencia se publica: informalidad = cota superior, empleo = cota inferior |
+| 1.5 | El costo de despido es restricción, no decisión | 🔵 declarado | A3 le puso la misma caja al jugador y al árbitro; el mecanismo sigue siendo un muro y así se dice |
+| 1.6 | La simulación no tiene punto de corte definido | 🟢 cerrado | A5: `movimiento_pp` y `estabilizada` en `Ronda`, y la regla se declaró antes de correr |
+| 2.1 | Ruido/señal = 0,71 🔴 | ⚪ **sin remedir** | B1 y B2 apuntan acá, pero el número es de la corrida con LLM PRE-corrección. No hay con qué compararlo todavía |
+| 2.2 | La informalidad apunta al revés (−0,311) 🔴 | ⚪ **sin remedir** | A1, A2 y C2 apuntan acá. Mismo problema: falta la corrida con LLM POST-corrección |
+| 2.3 | La banda subestima la incertidumbre | 🟢 cerrado | B2: `banda_entre_trayectorias()` y `banda.tipo` declarado en `contracts/ronda.json` |
+| 3.1 | `demo.py` no usa el veto real 🔴 | 🟢 cerrado | `behavior/demo.py:196` pasa `veto=None`, que es el veto del motor |
+| 3.2 | `behavior/` no importa `engine/` 🔴 | 🟢 cerrado | `behavior/rondas.py:51-52` importa `EstadoFiscalizacion`, `EstadoVivo` y `veto_del_motor` |
+| 3.3 | El factor prestacional se promedia | 🟢 cerrado | C1: el parquet trae 10 factores distintos entre 1,3835 y 1,5829, celda por celda |
+| 3.4 | Dos particiones incompatibles de la población | 🟡 cambió de forma | La grilla ya no sale de `poblacion.parquet` sino de `empresas.parquet` (81 celdas de empleador). Hay que volver a mirarlo con R1 |
+| 3.5 | Divergencia latente en `p(E)` | 🟢 cerrado | C2: `_prob_fiscalizacion` ya no existe en `behavior/`. Hay una sola implementación |
+| 3.6 | La caché no está versionada | 🟡 parcial | El `.gitignore:30` ya tiene el `!behavior/cache-demo.json`, pero **el archivo no existe**: `make reproduce` cae a la ablación (nivel 3 de la ADR 0009) |
+| 3.7 | El corte de presupuesto no es atómico | 🔴 abierto | `behavior/cliente.py:134-136`: `comprobar()` y `registrar()` siguen en bloques `with self._lock` separados. El contador ya no se corrompe, pero la ventana de sobregiro con 8 hilos sigue ahí |
+| 4.2 | `VALIDATION.md` se contradice con `momentos.json` | 🟢 cerrado | C5: ya no queda ningún 0,42 en `VALIDATION.md` |
+| 4.4 | El contrato emite un campo que no declara | 🟢 cerrado | `contracts/README.md` declara `banda.degenerada` y los cuatro campos nuevos |
+| 4.5 | Faltan campos de la página de votación | 🔴 abierto | `platanus-hack-project.jsonc:22`: `deploy-url` sigue en `<FILL THIS>` |
+| 4.6 | No hay `requirements.txt` en `main` | 🟢 cierra con este PR | Es uno de los archivos que trae `rol/integracion`. Verificado en venv limpio contra el `main` de hoy |
+| 4.7 | Candado 3(b) — re-skinning — no tiene código | 🟡 parcial | `correr()` ya acepta `reskin: Reskin \| None` (`behavior/rondas.py:186`). El gancho existe; el candado todavía hay que correrlo |
+
+**Lo único que importa de esta tabla.** Los dos defectos 🔴 que le dan el título al
+documento —§2.1 y §2.2, el ruido y el signo— son los únicos que **no se pueden dar por
+cerrados ni por abiertos**: siguen sin remedir. Las correcciones que los atacan ya están
+en `main`, pero el número que las juzgaría solo sale de una corrida con la capa LLM
+real, y esa corrida no se ha hecho después del PR #12.
+
+En ablación no se puede: con reglas fijas la informalidad **no se mueve** entre políticas
+—`despedir` domina con el 67,2% de la población en todas—, así que ruido y señal salen
+los dos en 0,00 pp y el cociente no existe. `scripts/barrido_politicas.py` lo reporta
+así en vez de imprimir un `inf` que se leería como "demasiado ruido".
+
+Traducido: **el veredicto de abajo sigue en pie porque nadie lo ha podido refutar
+todavía, no porque se haya confirmado.** El comando que lo decide es
+
+```bash
+python scripts/barrido_politicas.py --llm --repeticiones 5 --desde 5 --hasta 20 --paso 2 --cascada-apagada
+```
+
+y su semáforo imprime los seis criterios de la §9 del plan, marcados o sin marcar.
+
+---
+
 ## Veredicto en un párrafo
 
 **La máquina funciona; el modelo todavía no.** El pipeline es determinista, la cascada de

@@ -1,7 +1,9 @@
 # Dependencias del proyecto. Dueño: Juanda (R5 · integración).
 #
 # Versiones verificadas en un venv limpio el 2026-08-22 corriendo
-# `scripts/barrido_politicas.py` punta a punta sobre la población real.
+# `scripts/barrido_politicas.py` punta a punta sobre la grilla real de
+# empleadores, `pytest engine/ tests/` (58 en verde) y `make reproduce`
+# dos veces con salida idéntica.
 #
 # Instalación:
 #     python3 -m venv .venv && source .venv/bin/activate
@@ -22,7 +24,7 @@ numpy==2.5.2          # engine/seed.py (SeedSequence) y behavior/arquetipos.py
 pandas==3.0.5         # data/ y behavior/arquetipos.py: pd.read_parquet
 pyarrow==25.0.1       # backend de parquet. Dependencia IMPLÍCITA: no aparece en
                       # ningún import, pero sin él `pd.read_parquet` no abre
-                      # data/poblacion.parquet.
+                      # data/empresas.parquet ni data/poblacion.parquet.
 requests==2.32.5      # data/descargar_geih.py (descarga del ANDA del DANE)
 
 # --- Solo para la capa LLM real (`--llm`) ------------------------------------
@@ -30,4 +32,4 @@ anthropic==1.0.0      # behavior/cliente.py. Sin ANTHROPIC_API_KEY el cliente
                       # cae a caché; sin caché lanza SinCredenciales.
 
 # --- Desarrollo ---------------------------------------------------------------
-pytest==8.4.1         # engine/test_*.py (44 casos) y tests/
+pytest==8.4.1         # engine/test_*.py y tests/ (58 casos hoy)
