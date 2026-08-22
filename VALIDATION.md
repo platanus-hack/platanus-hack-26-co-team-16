@@ -13,17 +13,45 @@
 
 ## EL número
 
-_PENDIENTE — se llena al correr V0 (ver más abajo). No se toca ninguna línea de arriba después._
+**Corrido el 2026-08-22, después del pre-registro `2d4aa7e`. Ningún umbral se movió para llegar aquí.**
 
 ```
-Error del backtest:            ___ pp   (signo: ___)
-Skill vs persistencia (B1):    ___
-Cobertura de la banda:         ___ (¿el observado cae dentro?)
-Ancho de la banda:             ___ pp
-Corridas:                      ___ (N≥5 paráfrasis del prompt)
+Error del backtest:            37,37 pp   (firmado modelo − observado: +37,37 pp)
+Skill vs persistencia (B1):    -8,182
+Cobertura de la banda:         NO
+Ancho de la banda:             33,9 pp
+Corridas:                      BLOQUEADO — el repo no registra N>=5 trayectorias comparables
+
+Proxy Bogotá, GEIH 2025 ene-jun:   34,64 %
+Proxy Bogotá, GEIH 2026 ene-jun:   30,57 %
+Delta observado:                   -4,07 pp
+Delta predicho por el modelo:     +33,3  pp
 ```
 
-Reproducible con: `make validate`
+Reproducible con: `make validate` · sale con código **1** mientras haya compuertas bloqueadas.
+
+### Veredicto: **rama B — la cascada agregada está falsada**
+
+El modelo predice que la informalidad **sube 33 puntos**; bajó **4**. El signo es contrario, la
+magnitud está a un orden de magnitud, el observado cae **fuera de la banda del propio modelo**, y
+**la persistencia le gana ocho veces**: predecir "2026 = 2025" erra por 4,07 pp y el modelo por 37,37.
+
+**El contraste vale doble porque hay dos escalas independientes y coinciden:**
+
+| Escala | 2025 → 2026 | Cambio |
+|---|---|---|
+| Proxy propio, mismo código en los dos extremos, ene–jun | 34,64% → 30,57% | **−4,07 pp** |
+| Oficial DANE, abr–jun | 35,60% → 33,30% | **−2,30 pp** |
+
+Distinta definición, distinto trimestre, misma dirección y mismo orden de magnitud. **El resultado
+no es un artefacto del proxy.**
+
+Un chequeo independiente de que el pipeline lee bien la realidad: el pico salarial se movió solo, de
+**1.420.000** en 2025 a **1.750.000** en 2026 — sigue al mínimo legal de cada año (1.423.500 y
+1.750.905) sin que nadie se lo dijera. El patrón P3 se sostiene en los dos años.
+
+Lo que sigue en la sección "Las dos ramas" **estaba escrito antes de conocer estos números** y se
+aplica tal cual, sin ampliarlo.
 
 ---
 
@@ -91,7 +119,7 @@ Medido sobre nuestros propios microdatos (GEIH 2026, `AREA==11`):
 | Medida | Valor |
 |---|---|
 | Proxy del repo, ene–jun, con filtro de ingreso | **30,57%** (es el de `momentos.json`) |
-| Proxy del repo, abr–jun | 31,17% |
+| Proxy del repo, abr–jun, con filtro de ingreso | **30,81%** |
 | **Oficial DANE, Bogotá, abr–jun** | **33,3%** |
 | Brecha proxy − oficial | **≈ −2,1 pp** |
 
@@ -232,9 +260,22 @@ el número y el pitch se mantiene. El codo (A2) sigue sin afirmarse hasta que el
    nunca como excusa.** La diferencia entre las dos cosas es si se dicen antes o después de conocer
    el resultado. Por eso van aquí.
 
-### Lo que ya se sabe y apunta a la rama B
+### La rama que se activó: **B**
 
-No es el resultado de V0 —V0 no se ha corrido— pero está medido y se deja escrito:
+V0 corrió el 2026-08-22 y dio `error = 37,37 pp`, `skill = −8,182`, cobertura `NO`. Ninguna de las
+dos condiciones de la rama A se cumple, ni de cerca. Los tres movimientos de la rama B son los que
+están escritos arriba, sin agregar ninguno.
+
+**Lo que sobrevive, y no es poco:** la población es real y verificable, la política nunca se le
+nombra al modelo, el veto es aritmética determinista, y el error está publicado con su signo y
+reproducible con un comando. El aparato de medición funciona — fue él quien encontró que el modelo
+está mal, seis horas antes de la entrega y no en el Q&A.
+
+**Lo que NO se puede seguir diciendo:** que la cascada agregada de informalidad es un hallazgo del
+proyecto. Está falsada contra el dato observado. Los cuatro datos A1–A4 de `docs/PLAN.md` §1.1
+dependían de ella y hay que revisarlos uno por uno con el equipo.
+
+### La evidencia previa, que ya apuntaba aquí
 
 **El comparador oficial, año contra año, mismo trimestre y misma fuente.** Los dos boletines del
 DANE, publicados con un año de diferencia:
@@ -251,7 +292,7 @@ Contra eso, lo que el modelo predice:
 |---|---|
 | Modelo con +23%, post-fix: ronda 0 → ronda 3 | 30,6% → **63,8%** (brecha **+33,3 pp**) |
 | Banda del modelo en la ronda 3 | **47,9% – 81,8%** |
-| **Observado**, proxy propio abr–jun 2026 | **31,2%** |
+| **Observado**, proxy propio abr–jun 2026 | **30,8%** |
 | **Observado**, oficial DANE abr–jun 2026 | **33,3%** |
 
 Tres cosas, y ninguna es el resultado de V0:

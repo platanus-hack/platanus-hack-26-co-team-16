@@ -37,13 +37,8 @@ run:
 test:
 	@if ! command -v pytest >/dev/null 2>&1; then \
 		echo "PENDIENTE · make test — pytest no esta instalado (pip install pytest)."; \
-	elif [ -z "$$(find tests -name 'test_*.py' -print -quit 2>/dev/null)" ]; then \
-		echo "PENDIENTE · make test"; \
-		echo "  No hay tests todavia. Los primeros cuatro estan enumerados en tests/README.md:"; \
-		echo "  determinismo · el veto · fiscalizacion endogena · contratos."; \
-		echo "  Se cablean con Manuel (R2) alrededor de H+6."; \
 	else \
-		pytest tests/ -q; \
+		pytest engine/ tests/ -q; \
 	fi
 
 validate:
