@@ -22,16 +22,18 @@ eso vuelve a entrar como insumo de la siguiente ronda.
 from __future__ import annotations
 
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from behavior import contrato
 from behavior.arquetipos import Arquetipo
 from behavior.capa import ResultadoArquetipo, Veto, decidir_arquetipo, veto_permisivo
 
-# Estrategias que dejan al agente fuera de regla. El motor tiene la última
-# palabra sobre el estado del mundo; esto es solo para el agregado que vuelve a
-# los agentes en la siguiente ronda.
-FUERA_DE_REGLA = {"informalizar_total", "informalizar_parcial"}
+# Quién queda fuera de regla lo decide `contrato.fraccion_fuera_de_regla()`,
+# que trabaja sobre la FAMILIA canónica de la estrategia y sobre el estado del
+# que viene el agente. El motor tiene la última palabra sobre el estado del
+# mundo; esto es solo el agregado que vuelve a los agentes la ronda siguiente.
 
 
 @dataclass
@@ -102,6 +104,7 @@ def correr(
     multa_factor: float = 12.0,
     tasa_informalidad_inicial: float = 0.42,
     n_parafrasis: int = 1,
+    paralelismo: int = 8,
     al_terminar_ronda: Callable[[Ronda], None] | None = None,
 ) -> list[Ronda]:
     """Corre las rondas de mejor respuesta y devuelve el agregado de cada una.
@@ -117,16 +120,21 @@ def correr(
 
     for n in range(rondas_totales):
         prob = _prob_fiscalizacion(capacidad_fiscalizacion, tasa * peso_total, peso_total)
-        resultados: dict[str, ResultadoArquetipo] = {}
 
-        for a in arquetipos:
+        # Las RONDAS son secuenciales por definición (cada una responde al
+        # agregado de la anterior), pero los ARQUETIPOS dentro de una ronda son
+        # independientes: se resuelven en paralelo. Con 48 arquetipos eso baja
+        # una corrida en frío de ~10 min a ~1,5 min sin cambiar el resultado —
+        # el orden de recorrido no entra en ninguna semilla (ver
+        # `arquetipos._semilla`), así que sigue siendo determinista.
+        def _uno(a: Arquetipo) -> tuple[str, ResultadoArquetipo]:
             previo = historial[a.id]
             texto_historial = (
                 "\n- Lo que hiciste en periodos anteriores: " + ", ".join(previo)
                 if previo
                 else ""
             )
-            res = decidir_arquetipo(
+            return a.id, decidir_arquetipo(
                 a,
                 cliente,
                 veto,
@@ -144,20 +152,31 @@ def correr(
                 historial=texto_historial,
                 n_parafrasis=n_parafrasis,
             )
-            resultados[a.id] = res
-            historial[a.id].append(res.estrategia_dominante)
 
-        # Nuevo agregado, ponderado por cuánta gente representa cada arquetipo.
-        fuera = sum(
-            a.peso
-            * (
-                sum(v for k, v in resultados[a.id].distribucion.items() if k in FUERA_DE_REGLA)
-                / max(1, sum(resultados[a.id].distribucion.values()))
-            )
-            for a in arquetipos
-        )
-        informales_base = sum(a.peso for a in arquetipos if not a.formal)
-        tasa = min(1.0, (fuera + informales_base) / peso_total)
+        if paralelismo > 1:
+            with ThreadPoolExecutor(max_workers=paralelismo) as pool:
+                pares = list(pool.map(_uno, arquetipos))
+        else:
+            pares = [_uno(a) for a in arquetipos]
+
+        # Se reconstruye en el orden de `arquetipos`, no en el de terminación:
+        # el paralelismo no puede filtrarse al resultado.
+        resultados: dict[str, ResultadoArquetipo] = dict(pares)
+        for a in arquetipos:
+            historial[a.id].append(resultados[a.id].estrategia_dominante)
+
+        # Nuevo agregado: para cada arquetipo, qué fracción de SU planta queda
+        # fuera de regla; después se pondera por cuánta gente representa.
+        # Se promedia primero entre paráfrasis, después entre arquetipos.
+        fuera = 0.0
+        for a in arquetipos:
+            ds = resultados[a.id].decisiones
+            frac = sum(
+                contrato.fraccion_fuera_de_regla(d, a.n_trabajadores, not a.formal)
+                for d in ds
+            ) / max(1, len(ds))
+            fuera += a.peso * frac
+        tasa = min(1.0, fuera / peso_total)
 
         # Empleo relativo: 1 - fracción ponderada de trabajadores despedidos.
         # Promedia primero DENTRO del arquetipo (entre paráfrasis), después
@@ -201,11 +220,12 @@ def _banda(resultados, tasa: float, arquetipos, peso_total: float) -> dict[str, 
     for i in range(n_votos):
         fuera = sum(
             a.peso
+            * contrato.fraccion_fuera_de_regla(
+                resultados[a.id].decisiones[i], a.n_trabajadores, not a.formal
+            )
             for a in arquetipos
-            if resultados[a.id].decisiones[i]["estrategia_propuesta"] in FUERA_DE_REGLA
         )
-        base = sum(a.peso for a in arquetipos if not a.formal)
-        tasas.append(min(1.0, (fuera + base) / peso_total))
+        tasas.append(min(1.0, fuera / peso_total))
     tasas.sort()
     k10 = max(0, int(0.10 * (len(tasas) - 1)))
     k90 = min(len(tasas) - 1, int(round(0.90 * (len(tasas) - 1))))

@@ -9,6 +9,26 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 (tarde) — la capa corre contra la API real. 1.880 respuestas en caché.**
+  - **Costo medido:** $0,5080 la corrida en frío (193 llamadas), **$0,0000 y
+    0,5 s** la repetición con caché. Paralelizado (`--paralelismo 8`) baja el
+    frío de 10 min a ~1,5 min. Gasto total de la sesión: **~$4,3**.
+  - **Prompt caching de la API: confirmado que NO aplica** (0 tokens cacheados;
+    Haiku 4.5 pide 4.096 de prefijo mínimo y el nuestro es más corto). La
+    palanca real es el caché en disco. Estaba sospechado, ahora está medido.
+  - **La cascada existe con LLM:** 63,2% → 75,6% con la probabilidad de sanción
+    cayendo 4,8% → 2,1%. No converge (la ronda 2 se pasa y la 3 se devuelve), y
+    así hay que reportarlo.
+  - **⚠️ El codo NO se puede afirmar.** El barrido de 7 políticas no es monótono,
+    y la banda de 5 paráfrasis (20 pp de ancho a 18%) es MÁS ancha que las
+    diferencias entre políticas vecinas (8,7 pp). Con 1 paráfrasis, el codo es
+    ruido. **No llevarlo al pitch hasta medirlo con N≥5 por punto.**
+  - Tres bugs reales que solo aparecieron corriendo de verdad: sinónimos de
+    estrategia fragmentando el dato A4 (→ `contrato.familia()`),
+    `informalizar_parcial` contando como total (→ `fraccion_fuera_de_regla()`),
+    y una respuesta sin JSON válido en 1.160 que tumbaba la corrida entera
+    (→ `RespuestaInvalida`, ahora es reintento).
+
 - **2026-08-22 — `behavior/` construido punta a punta y corriendo sin API key.**
   - **V10 cerrada.** Veredicto en `behavior/README.md`: se adopta la idea de
     AgentTorch, no la dependencia. El bloqueo duro es la **licencia AGPL-3.0**
@@ -24,17 +44,18 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [ ] **Primero al abrir la próxima sesión:** una llamada real a la API. Todo el
-      camino LLM está escrito pero **jamás se ejecutó** (no había credenciales).
-      `python3 -m behavior.demo --llm` es la prueba. Hasta que eso pase, el
-      costo por corrida es un estimado ($0,29 normal / $1,44 con 5 paráfrasis).
+- [ ] **Barrido con N≥5 paráfrasis por punto**, para poder afirmar o descartar
+      el codo. Es el número que el pitch quiere y hoy no tenemos. ~$18 completo,
+      ~$8 acotado a 3 puntos. **Es mi siguiente tarea y la más importante.**
 - [ ] Congelar `contracts/decision.json` con Manuel y enchufar el veto real en
       lugar de `demo.veto_doble_prueba`.
+- [ ] Exportar un caché consolidado (`Cache().exportar()`) y versionarlo, para
+      que el demo del domingo corra sin API key y sin red.
 
 ## Bloqueado / esperando a alguien
 
-- **Credenciales de la API de Anthropic.** No hay `ANTHROPIC_API_KEY` ni CLI
-  `ant` en la máquina. Es lo único que separa a `behavior/` de estar terminado.
+- ~~Credenciales de la API~~ — resueltas. **La key está en el historial del chat
+  de la sesión, no en el repo. Hay que rotarla al terminar el hackathon.**
 - **Manuel — el veto real.** Yo consumo `Veto` (`behavior/capa.py`):
   `veto(decision, arquetipo) -> {"factible": bool, "razon": str|None}`. Mientras
   tanto uso un doble de prueba en `behavior/demo.py`, claramente marcado como
@@ -47,22 +68,26 @@ _Lo más reciente arriba._
 
 ## Lo que hay que contarle al equipo
 
-1. **Con reglas fijas no hay cascada, hay un escalón.** El umbral de evadir
-   ("sobrecosto > sanción esperada") escala con el ingreso en los dos lados, así
-   que es idéntico para todos los arquetipos: cruzan todos o ninguno. La
-   retroalimentación sí funciona (50% → 100% con la probabilidad de sanción
-   cayendo 4,8% → 2,0%), pero **el codo (dato A2) no puede salir de una regla
-   fija.** Necesita heterogeneidad en el umbral: población real (Alejo) o el
-   espacio de estrategias abierto del LLM. Si el codo aparece con LLM y no con
-   reglas, esa diferencia ES el candado 4.
-2. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
+1. **⚠️ Lo más importante: no prometer el codo todavía.** El barrido con LLM no
+   es monótono y la banda de paráfrasis es más ancha que las diferencias entre
+   políticas. Con 1 paráfrasis no distinguimos señal de ruido. Juanda: esto
+   afecta el guion del pitch — el dato A2 está en duda hasta que corra el
+   barrido con banda. La curva de la brecha (A1) sí se sostiene.
+2. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
+   mientras el LLM llega a 75,6%: el umbral de una regla fija escala con el
+   ingreso en los dos lados, así que es idéntico para todos los arquetipos.
+   La dirección del candado 4 es la que esperábamos, pero es a parámetros de
+   andamio sin calibrar — todavía no es EL número.
+3. **Dani: agrega por `familia`, no por `estrategia_propuesta`.** El modelo
+   inventa sinónimos (cinco nombres para "seguir informal" en 193 llamadas).
+   Cada decisión trae las dos: la cruda para el feed, la familia para agregar.
+4. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
    que pide el plan. Los montos van en "unidades (u)". Eso deja el test de
    re-skinning (candado 3b) casi hecho. El motor convierte a COP; el agente
    nunca ve pesos.
-3. **Prompt caching de la API probablemente no aplica.** El mínimo cacheable de
-   Haiku 4.5 son 4096 tokens y nuestro prefijo es más corto. Está cableado y
-   medido, pero la palanca real de costo es el caché en disco. Está dicho en
-   `behavior/README.md` para que no lo descubra el juez.
+5. **Prompt caching de la API: medido, no aplica** (0 tokens cacheados en 193
+   llamadas). La palanca real es el caché en disco: la repetición cuesta $0 y
+   tarda 0,5 s. Eso además hace viable el demo en vivo.
 
 ## Supuestos que tomé
 

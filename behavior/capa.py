@@ -23,7 +23,12 @@ from typing import Any, Callable, Protocol
 
 from behavior import contrato
 from behavior.arquetipos import Arquetipo, varianza_estrategias
-from behavior.cliente import ClienteConductual, cargar_prompt, parafrasis
+from behavior.cliente import (
+    ClienteConductual,
+    RespuestaInvalida,
+    cargar_prompt,
+    parafrasis,
+)
 
 MAX_REINTENTOS = 3
 
@@ -53,8 +58,10 @@ class ResultadoArquetipo:
     arquetipo_id: str
     distribucion: dict[str, int] = field(default_factory=dict)
     decisiones: list[dict[str, Any]] = field(default_factory=list)
+    distribucion_cruda: dict[str, int] = field(default_factory=dict)
     vetadas: list[dict[str, Any]] = field(default_factory=list)
     fallbacks: int = 0
+    fallos_tecnicos: int = 0
 
     @property
     def varianza(self) -> float:
@@ -128,35 +135,47 @@ def decidir_arquetipo(
     res = ResultadoArquetipo(arquetipo_id=arquetipo.id)
 
     for instruccion in parafrasis(n_parafrasis):
-        razones: list[str] = []
+        # Dos listas a propósito. `razones_veto` SÍ se le muestra al agente: es
+        # la razón física por la que no pudo, y es justo lo que un economista no
+        # le daría. `fallos_tecnicos` NO se le muestra nunca: decirle "tu
+        # respuesta no parseó" le revelaría que es un modelo respondiendo a un
+        # prompt, y eso es una meta-fuga aunque no nombre la política.
+        razones_veto: list[str] = []
+        fallos_tecnicos: list[str] = []
         aceptada = None
         for intento in range(MAX_REINTENTOS):
             usuario = f"{base}\n\n## Tu decisión\n\n{instruccion}"
-            if razones:
+            if razones_veto:
                 # El reintento NO repite la propuesta: le dice al agente por qué
                 # no pudo, que es la información que un economista no le daría.
                 usuario += (
                     "\n\nYa intentaste otra salida y no fue posible:\n"
-                    + "\n".join(f"- {r}" for r in razones)
+                    + "\n".join(f"- {r}" for r in razones_veto)
                     + "\nElige una estrategia distinta que sí puedas pagar."
                 )
-            cruda = cliente.proponer(
-                sistema,
-                usuario,
-                # Solo lo usa la ablación (`behavior/ablacion.py`); el cliente
-                # real lo ignora. Así las dos corridas comparten este archivo.
-                contexto={
-                    "arquetipo": arquetipo,
-                    "aumento_pct": aumento_pct,
-                    "tasa_informalidad": tasa_informalidad,
-                    "prob_fiscalizacion": prob_fiscalizacion,
-                    "multa": multa,
-                    "ronda": ronda,
-                    "estrategias_vetadas": tuple(
-                        d["estrategia_propuesta"] for d in res.vetadas
-                    ),
-                },
-            )
+            try:
+                cruda = cliente.proponer(
+                    sistema,
+                    usuario,
+                    # Solo lo usa la ablación (`behavior/ablacion.py`); el cliente
+                    # real lo ignora. Así las dos corridas comparten este archivo.
+                    contexto={
+                        "arquetipo": arquetipo,
+                        "aumento_pct": aumento_pct,
+                        "tasa_informalidad": tasa_informalidad,
+                        "prob_fiscalizacion": prob_fiscalizacion,
+                        "multa": multa,
+                        "ronda": ronda,
+                        "estrategias_vetadas": tuple(
+                            d["estrategia_propuesta"] for d in res.vetadas
+                        ),
+                    },
+                )
+            except (RespuestaInvalida, ValueError) as e:
+                # Una respuesta mala es un intento perdido, no una corrida
+                # perdida. Se anota y se reintenta como si la hubiera vetado.
+                fallos_tecnicos.append(str(e))
+                continue
             propuesta = contrato.validar(contrato.construir(arquetipo.id, ronda, cruda))
             veredicto = veto(propuesta, arquetipo)
             propuesta["veto"] = veredicto
@@ -165,12 +184,22 @@ def decidir_arquetipo(
                 aceptada = propuesta
                 break
             res.vetadas.append(propuesta)
-            razones.append(str(veredicto.get("razon") or "sin razón declarada"))
+            razones_veto.append(str(veredicto.get("razon") or "sin razón declarada"))
 
         if aceptada is None:
-            aceptada = contrato.decision_fallback(arquetipo.id, ronda, razones)
+            aceptada = contrato.decision_fallback(
+                arquetipo.id, ronda, razones_veto or fallos_tecnicos
+            )
+            aceptada["fallos_tecnicos"] = fallos_tecnicos
             res.fallbacks += 1
+            res.fallos_tecnicos += len(fallos_tecnicos)
+        # Se guardan las dos: la cruda (lo que inventó el modelo) y la familia
+        # canónica (para agregar sin fragmentar en sinónimos).
+        aceptada["familia"] = contrato.familia(aceptada["estrategia_propuesta"])
         res.decisiones.append(aceptada)
 
-    res.distribucion = dict(Counter(d["estrategia_propuesta"] for d in res.decisiones))
+    res.distribucion = dict(Counter(d["familia"] for d in res.decisiones))
+    res.distribucion_cruda = dict(
+        Counter(d["estrategia_propuesta"] for d in res.decisiones)
+    )
     return res

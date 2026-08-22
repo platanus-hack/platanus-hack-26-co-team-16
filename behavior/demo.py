@@ -83,10 +83,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--aumento", type=float, default=23.0)
     ap.add_argument("--parafrasis", type=int, default=1, help="N>=5 para banda de error")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--paralelismo", type=int, default=8,
+                    help="arquetipos concurrentes por ronda (1 = secuencial)")
+    ap.add_argument("--tope", type=float, default=None,
+                    help="tope de presupuesto USD (default 3.00; sube a 5 con --parafrasis 5)")
     args = ap.parse_args(argv)
 
     arquetipos = arquetipos_falsos()
-    cliente = ClienteConductual() if args.llm else ClienteReglas()
+    if args.llm:
+        from behavior.presupuesto import Presupuesto
+        tope = args.tope if args.tope is not None else (5.0 if args.parafrasis >= 5 else 3.0)
+        cliente = ClienteConductual(presupuesto=Presupuesto(tope_usd=tope))
+    else:
+        cliente = ClienteReglas()
     modo = "LLM (Haiku)" if args.llm else "ABLACIÓN (reglas fijas)"
     print(f"modo: {modo} · {len(arquetipos)} arquetipos · seed {args.seed} · "
           f"{args.parafrasis} paráfrasis")
@@ -102,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
                 seed=args.seed,
                 veto=veto_doble_prueba,
                 n_parafrasis=args.parafrasis,
+                paralelismo=args.paralelismo,
             )
             _imprimir(rondas, cliente)
     except SinCredenciales as e:

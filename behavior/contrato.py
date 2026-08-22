@@ -153,3 +153,65 @@ def validar(decision: dict[str, Any], exigir_veto: bool = False) -> dict[str, An
         if not veto["factible"] and not veto.get("razon"):
             raise ValueError("un veto sin razón no es un veto: el agente no sabe qué reintentar")
     return decision
+
+# --- Familias canónicas: agregar sin cerrar el espacio -----------------------
+#
+# El modelo INVENTA nombres, y eso es exactamente lo que queremos: en la primera
+# corrida real de 193 llamadas propuso `mantener_informal`, `mantener_informalidad`,
+# `mantener_status_quo`, `mantener_operacion_informal` y `mantener_informalidad_total`
+# — cinco nombres para la misma conducta. Si agregamos por el nombre crudo, el
+# dato A4 sale fragmentado en sinónimos y la pantalla de Dani no dice nada.
+#
+# La solución NO es cerrar el menú con un enum: eso mata lo que aporta el LLM.
+# Guardamos las dos cosas: `estrategia_propuesta` (cruda, tal como la inventó) y
+# `familia` (canónica, para agregar). El juez puede ver las dos columnas.
+
+_FAMILIAS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # (familia, subcadenas que la delatan) — se evalúa en orden.
+    ("despedir", ("despedir", "despido", "reducir_planta", "recortar_personal")),
+    ("bajar_horas", ("bajar_horas", "reducir_horas", "media_jornada", "jornada")),
+    ("informalizar", ("informalizar", "informalidad", "informal")),
+    ("cumplir", ("cumplir", "formalizar", "formalizarse", "regularizar")),
+    ("subir_precios", ("subir_precios", "trasladar_precio", "aumentar_precios")),
+    ("renegociar", ("renegociar", "renegociacion")),
+    ("absorber", ("absorber", "status_quo", "mantener", "asumir_costo")),
+)
+
+
+def familia(estrategia: str) -> str:
+    """Agrupa una estrategia cruda en su familia canónica.
+
+    Devuelve `"otra"` cuando el modelo propuso algo genuinamente nuevo — y ese
+    balde es interesante, no un error: es donde vive el hallazgo del dato A4.
+    """
+    n = estrategia.lower()
+    for fam, marcas in _FAMILIAS:
+        if any(m in n for m in marcas):
+            return fam
+    return "otra"
+
+
+def fraccion_fuera_de_regla(
+    decision: dict[str, Any], n_trabajadores: int, ya_informal: bool
+) -> float:
+    """Qué fracción de la planta queda fuera de regla DESPUÉS de esta decisión.
+
+    Dos correcciones que salieron de la primera corrida real:
+
+    1. `informalizar_parcial` NO saca a toda la unidad de regla — solo a los
+       trabajadores que efectivamente pasa a acuerdo informal. Contarlo como
+       total era lo que saturaba la tasa en 100% desde la ronda 0.
+    2. La misma etiqueta significa cosas distintas según de dónde venga el
+       agente: `mantener_status_quo` en una unidad formal es cumplir, y en una
+       informal es seguir fuera de regla. Por eso hace falta `ya_informal`.
+    """
+    fam = familia(decision["estrategia_propuesta"])
+    if ya_informal:
+        # Una unidad informal solo entra en regla si se formaliza.
+        return 0.0 if fam == "cumplir" else 1.0
+    if fam != "informalizar":
+        return 0.0
+    n = decision["detalle"].get("empleados_a_informalizar")
+    if n is None:  # informalización total: toda la planta
+        return 1.0
+    return max(0.0, min(1.0, float(n) / max(1, n_trabajadores)))

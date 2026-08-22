@@ -102,66 +102,123 @@ propuesta del LLM  ->  veto del motor  ->  ¿factible?
 `capa.py` y `rondas.py` sin cambiar una línea. La diferencia entre las dos ES el
 candado 4.
 
-## Costo
+## Costo — medido, no estimado
 
-48 arquetipos × 4 rondas = **192 llamadas** por corrida (dentro del rango de
-~250 que estima el plan). Con Haiku 4.5 a ~900 tokens de entrada y ~120 de
-salida:
+48 arquetipos × 4 rondas = **193 llamadas** por corrida. Medido contra la API
+real el 22-08-2026 con `claude-haiku-4-5`:
 
-| Corrida | Llamadas | Costo estimado |
-|---|---|---|
-| Normal (1 paráfrasis) | 192 | **~$0,29** |
-| Con banda de error (5 paráfrasis) | 960 | **~$1,44** |
-| Repetición con caché poblado | 0 | **~$0,00** |
+| Corrida | Llamadas | Costo | Tiempo |
+|---|---|---|---|
+| En frío, secuencial | 193 | **$0,5080** | 10 min 12 s |
+| En frío, `--paralelismo 8` | 193 | $0,5080 | **~1,5 min** |
+| Repetición con caché caliente | 0 | **$0,0000** | **0,5 s** |
 
-Tope duro por corrida: **$3,00** (`presupuesto.TOPE_POR_DEFECTO_USD`). Al
-llegar, la corrida se para.
+Promedio real por llamada: 1.622 tokens de entrada / 192 de salida ≈ $0,0026.
+(Mi estimado previo de 900 tokens de entrada se quedó corto en un 80%.)
 
-⚠️ **Estos son estimados, no medidos** — todavía no se ha hecho ninguna llamada
-real (ver *Lo que falta*). El costo real va acá en cuanto haya credenciales.
+Tope duro por corrida: **$3,00** (`--tope` para subirlo). Barrer 7 políticas ×
+4 rondas costó $3,04 y el corte se disparó como debía.
 
-**Sobre el prompt caching de la API:** está cableado, pero el mínimo cacheable
-de Haiku 4.5 es de 4096 tokens y nuestro prefijo estable es más corto, así que
-probablemente **no** cachee. Se deja porque es gratis y se mide en
-`usage.cache_read_input_tokens`. La palanca real de costo es el caché en disco.
-Preferimos decirlo a que el juez lo descubra.
+**El caché en disco es lo que hace usable el demo en vivo:** la segunda corrida
+es 1.200× más rápida y gratis. También es lo que sostiene el determinismo — con
+el caché poblado, la corrida relee exactamente las mismas respuestas. Verificado:
+dos corridas seguidas dan contratos byte a byte idénticos, en paralelo y en serie.
+
+**Prompt caching de la API: confirmado que NO aplica.** Medido
+`cache_read_input_tokens = 0` y `cache_creation_input_tokens = 0` en las 193
+llamadas. El mínimo cacheable de Haiku 4.5 son 4.096 tokens y nuestro prefijo
+estable es más corto. Lo sospechábamos; ahora está medido. La palanca real de
+costo es el caché en disco.
+
+**Tasa de fallo del modelo: ~0,1%.** En 1.160 llamadas, una respuesta no parseó
+como JSON. Antes eso tumbaba la corrida entera; ahora cuenta como intento
+perdido y se reintenta (`RespuestaInvalida` en `cliente.py`).
 
 ## Hallazgos que afectan a otros roles
 
-**1. Con reglas fijas no hay cascada — hay un escalón.** En la ablación, la
-informalidad se queda plana en todo el barrido (7 / 13,6 / 23 / 30%). La razón
-no es un bug: en un maximizador simple el umbral de evadir es *"sobrecosto >
-sanción esperada"*, y como ambos lados escalan con el ingreso, **el umbral es
-idéntico para todos los arquetipos**. O cruzan todos o no cruza ninguno.
+### 1. La cascada existe con LLM, y se ve
 
-La retroalimentación sí funciona — forzando la sanción cerca del umbral se ve
-50% → 100% con la probabilidad de sanción cayendo de 4,8% a 2,0% — pero es un
-escalón, no una curva con codo.
+Corrida real, aumento 23%, 48 arquetipos:
 
-**Consecuencia:** el **codo (dato A2) no puede salir de una regla fija.** Necesita
-heterogeneidad en el *umbral*, no solo en los niveles. Eso lo puede dar la
-población real de Alejo (márgenes y tamaños que no escalan proporcionalmente) o
-el espacio de estrategias abierto del LLM. Es una buena noticia para el candado
-4: si el codo aparece con LLM y no con reglas, esa diferencia es exactamente el
-argumento de por qué la capa conductual se gana el puesto.
+| ronda | informalidad | prob. de sanción |
+|---|---|---|
+| 0 | 63,2% | 4,8% |
+| 1 | 70,1% | 3,2% |
+| 2 | 93,8% | 2,9% |
+| 3 | 75,6% | 2,1% |
 
-**2. `contracts/decision.json` todavía no existe en disco.** `contrato.py` valida
-contra el ejemplo de `docs/PLAN.md` §4 embebido, y prefiere el archivo apenas
-aparezca. Alejo/Manuel: al crearlo, `behavior/` lo toma solo.
+El mecanismo se comporta como dice la tesis: más agentes fuera de regla → la
+capacidad fija se reparte entre más → la probabilidad de sanción cae → más
+evaden. **No converge**, y así hay que reportarlo (decisión D5): la ronda 2 se
+pasa y la 3 se devuelve. Eso es dinámica de mejor respuesta, no equilibrio.
 
-**3. Los prompts no usan pesos colombianos.** Si el motor o el frontend esperan
-COP en el texto que ve el agente, no lo van a encontrar: adentro todo es
-"unidades". La conversión es responsabilidad del motor.
+### 2. ⚠️ El codo (dato A2) NO se puede afirmar todavía
+
+Barrido real de 7 niveles de política (1.160 llamadas, $3,04):
+
+| aumento | 0% | 7% | 13,6% | 18% | 23% | 30% | 40% |
+|---|---|---|---|---|---|---|---|
+| informalidad final | 0,0% | 58,3% | 73,6% | 84,3% | 75,6% | 91,0% | 80,0% |
+
+Dos lecturas, y la segunda es la que importa:
+
+- **Bueno:** con aumento 0% la informalidad se queda en 0%. El mecanismo no
+  dispara solo; necesita el choque. Es una buena señal para el candado 1.
+- **Malo:** la curva **no es monótona** y el salto de 0% a 7% (0 → 58 pp) es
+  desproporcionado. Peor: midiendo la banda de 5 paráfrasis en la ronda 0 con
+  aumento 18%, el ancho fue de **20 puntos** (59,6% – 79,6%) — **más ancho que
+  las diferencias entre políticas vecinas** (75,6% vs 84,3% = 8,7 pp).
+
+**Conclusión: con 1 paráfrasis, lo que parece un codo es ruido.** Cualquier
+afirmación sobre el umbral necesita N≥5 paráfrasis por punto del barrido, y hoy
+no la tenemos. Esto es exactamente para lo que existe la regla de "todo número
+sale con banda" del plan §5. **No lo llevemos al pitch como codo hasta medirlo.**
+
+### 3. El LLM sí inventa estrategias fuera del menú — y eso rompe la agregación
+
+En 193 llamadas propuso cinco nombres distintos para la misma conducta:
+`mantener_informal` (41), `mantener_informalidad` (14), `mantener_status_quo` (4),
+`mantener_operacion_informal` (3), `mantener_informalidad_total` (2). Más
+`formalizarse_mantener_escala`, que no estaba en el menú.
+
+Es la evidencia de que el espacio abierto funciona, y a la vez fragmentaba el
+dato A4 en sinónimos. La solución **no** fue cerrar el menú con un enum — eso
+mata lo que aporta el LLM. Se guardan las dos: `estrategia_propuesta` (cruda,
+como la inventó) y `familia` (canónica, para agregar). Dani: agrega por
+`familia`; el nombre crudo sirve para el feed y para mostrar que el modelo
+inventa.
+
+### 4. Con reglas fijas no hay cascada — y ahora la diferencia es enorme
+
+Con los mismos parámetros de andamio, la ablación **formaliza a todo el mundo**
+(informalidad 0%) mientras el LLM llega a 75,6%. El umbral de una regla fija
+("sobrecosto > sanción esperada") escala con el ingreso en los dos lados, así
+que es idéntico para todos los arquetipos: cruzan todos o ninguno.
+
+Ojo con la lectura: esa diferencia es **a parámetros de andamio no calibrados**,
+así que todavía no es el número del candado 4. Pero la dirección es la que
+esperábamos, y la razón estructural (el umbral homogéneo) va a sobrevivir a la
+calibración.
+
+### 5. Notas sueltas para el equipo
+
+- **`contracts/decision.json` todavía no existe en disco.** `contrato.py` valida
+  contra el ejemplo de `docs/PLAN.md` §4 y prefiere el archivo apenas aparezca.
+- **Los prompts no usan pesos.** Adentro todo es "unidades (u)"; la conversión
+  es del motor.
+- **`informalizar_parcial` cuenta parcial.** Mueve solo la fracción de la planta
+  que informaliza, no la unidad entera. Contarlo entero era lo que saturaba la
+  tasa en 100% desde la ronda 0.
 
 ## Lo que falta
 
-- [ ] **Una sola llamada real a la API.** Todo el camino LLM está escrito pero
-      **nunca se ha ejecutado contra la API** (esta sesión no tenía credenciales).
-      Es lo primero que hay que hacer cuando haya key.
+- [x] ~~Primera llamada real a la API~~ — hecho: 1.880 respuestas en caché.
+- [ ] **Barrido con N≥5 paráfrasis por punto** para poder afirmar (o descartar)
+      el codo. Es el número que hoy no tenemos y que el pitch quiere. ~$18 a
+      precio de lista; se puede acotar a 3 puntos por ~$8.
 - [ ] Congelar `contracts/decision.json` con Manuel (H+4) y enchufar el veto real.
 - [ ] Reemplazar `arquetipos_falsos()` por `desde_poblacion()` cuando Alejo
       entregue `data/poblacion.parquet` (H+8–14). El código ya está escrito.
-- [ ] Medir el costo real por corrida y reemplazar los estimados de arriba.
 - [ ] Test de pico y placa (§5.5), solo si el checkpoint C4 cerró.
 
 ## Qué NO va aquí
