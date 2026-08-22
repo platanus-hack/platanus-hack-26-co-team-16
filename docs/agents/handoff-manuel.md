@@ -9,6 +9,87 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 — `engine/` existe. Los tres archivos, escritos y verdes.**
+
+  `engine/` pasó de 0 líneas de código a **3 de 3 archivos**, en el orden que
+  dejó la sesión anterior: `veto.py` → `fiscalizacion.py` → `seed.py`.
+  **44 tests verdes** (`python3 -m pytest engine/ -q`), **7 supuestos
+  grepeables**, **cero `TODO`** en código.
+
+  Cada archivo se puede correr solo y se explica a sí mismo:
+
+  ```bash
+  python3 -m engine.veto           # el catálogo de razones y su higiene: 6/6 limpias
+  python3 -m engine.fiscalizacion  # C, la curva p(E), la cordura y el barrido de S2
+  python3 -m engine.seed           # el manifiesto y la prueba de independencia de orden
+  ```
+
+  **Las tres decisiones que hay que revisar, porque son las que se pueden discutir:**
+
+  1. **El veto juzga el DETALLE, no el nombre de la estrategia.** El modelo
+     inventa nombres —cinco para la misma conducta en la primera corrida real—
+     así que `estrategia == "despedir"` deja pasar `reducir_planta` con la misma
+     gente adentro. Ese era el bug del doble de prueba. La canonicalización de
+     nombres sigue siendo de `behavior/contrato.familia()`: no se duplicó.
+  2. **El borde `E → 0` se declara, no se parcha.** El `max(E,1)` de la ADR 0007
+     no es un guardia contra la división por cero: el `1` es **quien hace la
+     pregunta** — `p` es lo que enfrenta el que está considerando salirse, y al
+     salirse él es una unidad fuera de regla. El estado absorbente es el espejo
+     de la cascada (equilibrios múltiples, JPubE 2007), no un artefacto. Lo que
+     sí era problema es que fuera **silencioso**: para eso está `es_degenerado()`.
+     Arreglar la física para tapar el crítico #3 de la ablación habría sido
+     fabricar el resultado.
+  3. **El determinismo se deriva por clave, no con `spawn()`.** `spawn()` es
+     stateful y con 8 hilos el stream de una ronda dependería del orden de
+     terminación. Se usa `SeedSequence(seed, spawn_key=(ronda, ...))`, y nunca
+     `hash()` de Python (salado por proceso: rompería el determinismo sin que
+     ningún test de una sola corrida fallara). Hay un test en subprocesos con
+     `PYTHONHASHSEED` distinto.
+
+  **Tres cosas que aparecieron al medir y que no estaban previstas:**
+
+  - 🔴 **S8 mueve el número y hay que decirlo en el standup.** La caja de la ronda
+    son 3 meses de `flujo_caja` (ADR 0005), no 1 como el doble de prueba. En la
+    corrida de ablación eso mueve los vetos de **96 a 0** y el empleo de la ronda
+    3 de **100% a 85,7%**. Está en `MODELO.md` con la medición al lado. **A R5 le
+    cambia `n_vetos`/`n_fallback`, que son métricas de diagnóstico del pitch.**
+  - **`satura()`**: con `C/E` por encima de ~36 el exponencial cae debajo del
+    epsilon del double y `p` sale 1,0 exacto — hay una meseta donde deja de ser
+    estrictamente decreciente. Con la `C` del caso demo cubre el 0,027% del
+    universo. Se detecta y se reporta; un tope artificial metería un codo falso
+    justo donde el proyecto dice descubrir **el codo**.
+  - **`-expm1(-x)` en vez de `1 - exp(-x)`**: en el régimen real el exponente es
+    ~0,02 y la forma ingenua pierde media docena de dígitos justo donde vive la
+    cascada.
+
+  **Lo que esto desbloquea, y para quién:**
+
+  - **Nico (R3):** `EstadoVivo` es el `fraccion_informal_previa` que pide el
+    `PUNTO DE SUTURA` de `behavior/rondas.py` (float [0,1], por `arquetipo_id`).
+    El motor es la fuente única: los dos dicts de andamio se borran. Se enchufa
+    con `veto=veto_del_motor(estado)` en lugar de `veto_permisivo` /
+    `veto_doble_prueba`. Y `ESTRATEGIA_TERMINAL = "cumplir"` vive en
+    `engine/veto.py` para que `behavior/contrato.FALLBACK` lo importe en vez de
+    duplicarlo (compromiso #2, cumplido de mi lado).
+  - **Juanda (R5):** `make test` ya tiene qué correr (`pytest engine/`, 44 casos).
+    Para `VALIDATION.md`: S8, S9 y S10 son nuevos; el barrido obligatorio de S2 lo
+    imprime `python3 -m engine.fiscalizacion`; y `manifiesto()` da la mitad del
+    contrato de determinismo de la ADR 0009 que le toca al motor.
+  - **Dani (R4):** el mapa distributivo (dato A3) **sigue bloqueado**: necesita
+    `muestrear()`, que es de `arquetipos.py` y no entró. `seed.py` ya tiene la
+    plomería (`stream_nombrado`), falta el archivo.
+
+  **Lo que NO se escribió, a propósito:** los otros siete archivos de
+  `MODELO.md` (`mundo.py`, `costos.py`, `trabajador.py`, `arquetipos.py`,
+  `agregado.py`, `rondas.py`, `barrido.py`). Siguen declarados como límite, no
+  como `TODO`. Y dos tests que necesitan `rondas.py` quedan nombrados en los
+  docstrings en vez de ausentes en silencio: la **corrida de control con `p`
+  fijo** (sin cascada) y los niveles 2 y 3 de la ADR 0009.
+
+  **Excepción que me tomé:** `EstadoFiscalizacion` vive en `fiscalizacion.py` y
+  no en `mundo.py` como decía el mapa. Sin `mundo.py` escrito, la clase va donde
+  vive su fórmula. Está anotado en `MODELO.md`.
+
 - **2026-08-22 (noche) — la rama quedó lista para escribir el motor. No se
   escribió código de `engine/`.**
   - **Tu WIP estaba SIN COMMITEAR** desde la sesión de las 09:52 (`docs/IDEA.md`,
@@ -137,9 +218,12 @@ documentan como trabajo futuro con honestidad:
 - [x] [PR #3](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/3) mergeado.
 - [x] Review del [PR #4](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/4)
       de Nico, consolidado con el de Alejo y posteado.
-- [ ] **Siguiente sesión: escribir `engine/`.** Tres archivos, en este orden: `seed.py`,
-      `fiscalizacion.py`, `veto.py`. **No los diez de `MODELO.md`.** Arranca en `rol/backend`.
-- [ ] Tras el merge del PR de Nico: quitar los dos dobles de prueba del veto.
+- [x] **`engine/` escrito**: `veto.py`, `fiscalizacion.py`, `seed.py`. 44 tests verdes.
+- [ ] **Avisar S8 en el standup.** Cambia `n_vetos`/`n_fallback` y el empleo de la ronda 3.
+- [ ] Tras el merge del PR de Nico: quitar los dos dobles de prueba del veto
+      (`capa.veto_permisivo` y `demo.veto_doble_prueba`) y enchufar `veto_del_motor`.
+- [ ] Si sobra tiempo, el cuarto archivo es `arquetipos.py`: sin `muestrear()` Dani no
+      puede dibujar el mapa distributivo. La plomería de seed ya está.
 
 ## Cuatro compromisos que ya tomé por escrito, en público
 
