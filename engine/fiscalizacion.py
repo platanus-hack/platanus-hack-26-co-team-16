@@ -78,7 +78,7 @@ from dataclasses import dataclass, replace
 # territoriales. Ver `docs/investigacion/1-teorica.md` §3.
 INSPECTORES_NACIONALES = 1_300
 
-# SUPUESTO S2 — el más importante del motor, y no tiene fuente. Es el numerador
+# SUPUESTO: S2 — el más importante del motor, y no tiene fuente. Es el numerador
 # de p, o sea la cascada. Una inspección por día hábil serían ~60 al trimestre;
 # el hallazgo de la OCDE de que el número de investigaciones CAYÓ pese a
 # triplicar el presupuesto, y que casi la mitad exceden el plazo legal, dice que
@@ -87,7 +87,7 @@ INSPECTORES_NACIONALES = 1_300
 # lo imprime, y es la respuesta a "¿y si le erraron a la capacidad?".
 INSPECCIONES_POR_INSPECTOR_TRIMESTRE = 20.0
 
-# SUPUESTO S10 — qué parte de la planta nacional actúa sobre el universo del
+# SUPUESTO: S10 — qué parte de la planta nacional actúa sobre el universo del
 # modelo (una ciudad × los sectores modelados). Son dos factores multiplicados y
 # ninguno está medido todavía: la participación de la ciudad en el empleo
 # nacional (~0,20) y la de los sectores modelados dentro de ella (~0,75). Sale de
@@ -156,7 +156,7 @@ def es_degenerado(evasores: float) -> bool:
 def tasa_anual_implicita(p_trimestral: float) -> float:
     """Cuatro trimestres independientes: `1 − (1 − p)^4`.
 
-    # SUPUESTO S5: los trimestres son independientes y la capacidad se reparte
+    # SUPUESTO: S5 — los trimestres son independientes y la capacidad se reparte
     # uniforme en el año. La inspección real es estacional y una unidad ya
     # inspeccionada no es un ensayo idéntico al siguiente. Sirve para el chequeo
     # de cordura contra la cifra de EE.UU., no como resultado del modelo.

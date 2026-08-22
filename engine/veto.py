@@ -228,7 +228,7 @@ def _real(valor: Any) -> float | None:
 def caja_de_la_ronda(firma: Firma) -> float:
     """La plata con la que la firma cuenta para pagar un desembolso del trimestre.
 
-    # SUPUESTO S8: `flujo_caja` es un flujo MENSUAL (así lo construye
+    # SUPUESTO: S8 — `flujo_caja` es un flujo MENSUAL (así lo construye
     # `behavior/arquetipos.py`: 0,18 × nómina del mes) y la ronda es un trimestre
     # (ADR 0005), así que la caja del periodo son tres meses de ese flujo. Se
     # asume además que la firma puede destinarla completa a un desembolso de una
@@ -245,7 +245,7 @@ def planta_viva(firma: Firma, estado: EstadoVivo | None = None) -> tuple[int, in
     Sin `estado` se responde con el estado INICIAL de la firma, que es lo
     correcto en la ronda 0 y en cualquier uso suelto del veto.
 
-    # SUPUESTO S9: la planta se redondea al entero más cercano. Un arquetipo de
+    # SUPUESTO: S9 — la planta se redondea al entero más cercano. Un arquetipo de
     # 3 trabajadores con 50% fuera de regla tiene 2 en regla, no 1,5. El
     # redondeo mueve el veto en el margen de las plantas chicas; con las plantas
     # de la GEIH (mediana 3) es el caso común, así que se declara en vez de
