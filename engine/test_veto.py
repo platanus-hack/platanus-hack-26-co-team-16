@@ -20,6 +20,7 @@ from behavior import contrato
 
 from engine.veto import (
     ESTRATEGIA_TERMINAL,
+    MAX_REINTENTOS,
     EstadoVivo,
     caja_de_la_ronda,
     planta_viva,
@@ -183,9 +184,16 @@ def test_el_veto_juzga_el_detalle_y_no_el_nombre_de_la_estrategia():
     assert not por_nombre_conocido["factible"]
 
 
-def test_una_estrategia_sin_numeros_pasa_y_es_un_limite_declarado():
-    """El veto no puede costear lo que no trae detalle. Se sabe y se dice."""
-    assert vetar(_propuesta("absorber"), _firma())["factible"] is True
+def test_una_estrategia_sin_familia_no_se_puede_costear_y_pasa():
+    """Límite declarado: sin `familia`, el veto no sabe que esto es absorber.
+
+    La canonicalización de nombres es de `behavior/contrato.familia()` y viaja
+    dentro de la decisión (la pone `behavior/capa.py` antes de llamar al veto).
+    Una decisión que llega sin ella no se puede costear, y pasa. Es el precio de
+    no duplicar la tabla de familias en `engine/`, y se prueba para que sea un
+    límite conocido y no una sorpresa.
+    """
+    assert vetar(_propuesta("absorber"), _firma(), None, 30.0)["factible"] is True
 
 
 def test_un_detalle_ilegible_se_veta_en_vez_de_reventar():
@@ -225,9 +233,185 @@ def test_veto_del_motor_encaja_en_la_firma_que_consume_behavior():
     assert veto(_propuesta("cumplir"), firma) == {"factible": True, "razon": None}
 
 
-def test_la_estrategia_terminal_es_cumplir():
-    """Canon de `docs/IDEA.md` §5.3 y §5.7, y compromiso #2 del review del PR #4."""
-    assert ESTRATEGIA_TERMINAL == "cumplir"
+def test_la_estrategia_terminal_coincide_con_la_de_behavior():
+    """Canon de `docs/IDEA.md` §5.3 y §5.7, y compromiso #2 del review del PR #4.
+
+    Antes esto comparaba la constante contra su propio literal, así que no podía
+    fallar — y por eso no detectó que el comentario de `engine/veto.py` afirmaba
+    un import que no existe (hallazgo de la review del PR #5). Ahora compara las
+    DOS definiciones, que es lo único que puede divergir de verdad.
+    """
+    assert ESTRATEGIA_TERMINAL == contrato.FALLBACK
+    assert contrato.ORDEN_FALLBACK[0] == ESTRATEGIA_TERMINAL
+
+
+def test_max_reintentos_coincide_entre_el_motor_y_la_capa():
+    """El otro par duplicado que la review del PR #5 marcó: hoy coinciden, y el
+    día que dejen de coincidir esto lo dice en vez de que nadie se entere."""
+    from behavior.capa import MAX_REINTENTOS as MAX_CAPA
+
+    assert MAX_REINTENTOS == MAX_CAPA
+
+
+def test_el_fallback_no_manda_a_formalizarse_a_quien_no_puede_pagar():
+    """ADR 0010: la razón de ser de A2, probada de punta a punta.
+
+    Una planta EN REGLA y sin caja tiene vetadas las tres opciones del orden
+    —formalizar no aplica, pero el alza no le cabe ni recortando jornada—, así
+    que sale `sin_salida` y se queda como estaba. Con la regla vieja salía
+    `cumplir`, o sea pagando el alza que acababa de demostrar que no podía.
+    """
+    firma = _firma(formal=True, flujo_caja=1.0)
+    veto = veto_del_motor(EstadoVivo.inicial([firma]), 30.0)
+    decision = contrato.decision_fallback("x", 1, ["sin caja"], veto=veto, arquetipo=firma)
+    assert decision["sin_salida"] is True
+    assert decision["familia"] == "absorber"
+    assert decision["estrategia_propuesta"] != ESTRATEGIA_TERMINAL
+
+
+def test_una_planta_toda_fuera_de_regla_no_paga_el_alza_ni_recortando_jornada():
+    """El límite del caso anterior, explícito para que no se lea como un bug.
+
+    Si NADIE está en regla, el alza del costo laboral formal no toca a esta
+    firma: su sobrecosto es cero y `bajar_horas` le cabe. Por eso el fallback de
+    una unidad totalmente informal NO es `sin_salida` — y es correcto: esa es
+    justamente la ventaja que hace de la informalidad una salida.
+    """
+    firma = _firma(formal=False, flujo_caja=1.0)
+    veto = veto_del_motor(EstadoVivo.inicial([firma]), 30.0)
+    decision = contrato.decision_fallback("x", 1, ["sin caja"], veto=veto, arquetipo=firma)
+    assert "sin_salida" not in decision
+    assert decision["familia"] == "bajar_horas"
+
+
+def test_bajar_horas_atenua_el_sobrecosto_en_proporcion_a_la_jornada():
+    """A4 + A1: recortar la mitad de la jornada paga la mitad del alza."""
+    firma = _firma()  # caja de periodo = 5.400.000
+    alza = 20.0  # sobrecosto pleno = 10 × 1.000.000 × 1,40 × 0,20 × 3 = 8.400.000
+    pleno = _propuesta("absorber")
+    pleno["familia"] = "absorber"
+    assert vetar(pleno, firma, None, alza)["factible"] is False
+
+    recortado = _propuesta("bajar_horas", reduccion_horas_pct=50.0)
+    recortado["familia"] = "bajar_horas"
+    # La mitad de 8.400.000 son 4.200.000, que sí cabe en 5.400.000.
+    assert vetar(recortado, firma, None, alza)["factible"] is True
+
+
+def test_el_fallback_si_formaliza_a_quien_puede_pagar():
+    """El canon de `IDEA.md` se conserva donde la caja alcanza."""
+    firma = _firma(formal=True, flujo_caja=500_000_000.0)
+    veto = veto_del_motor(EstadoVivo.inicial([firma]), 5.0)
+    decision = contrato.decision_fallback("x", 1, ["r"], veto=veto, arquetipo=firma)
+    assert decision["estrategia_propuesta"] == ESTRATEGIA_TERMINAL
+    assert "sin_salida" not in decision
+
+
+# --- A1: el veto revisa las cuatro jugadas, no dos ---------------------------
+#
+# Los tres tests que el plan de correcciones declara obligatorios: factible
+# justo debajo del umbral, infactible justo encima, y las dos razones nuevas
+# pasando la higiene (esto último lo cubre solo
+# `test_todas_las_razones_declaradas_pasan_la_higiene`, porque
+# `razones_posibles()` se construye desde `_RAZONES`).
+
+
+def _absorber(aumento: float, **kw) -> dict:
+    """Una propuesta de absorber con su familia ya canonicalizada."""
+    p = _propuesta("absorber")
+    p["familia"] = "absorber"
+    return p
+
+
+def test_absorber_cabe_en_la_caja_justo_debajo_del_umbral():
+    """Con caja = 0,18 × nómina y factor 1,40, el techo del alza es ~12,9%.
+
+    La aritmética: la caja del periodo es 0,18 × nómina × 3 y el sobrecosto es
+    nómina × 1,40 × (alza/100) × 3, así que el alza límite es 0,18/1,40.
+    """
+    firma = _firma()  # 10 trabajadores × 1.000.000, caja 1.800.000/mes
+    veredicto = vetar(_absorber(12.0), firma, None, 12.0)
+    assert veredicto["factible"] is True, veredicto
+
+
+def test_absorber_no_cabe_justo_encima_del_umbral():
+    firma = _firma()
+    veredicto = vetar(_absorber(14.0), firma, None, 14.0)
+    assert veredicto["factible"] is False
+    assert "margen" in veredicto["razon"]
+
+
+def test_el_umbral_de_absorber_es_el_que_dice_la_aritmetica():
+    """0,18/1,40 = 12,857%. Se prueba el borde por los dos lados."""
+    firma = _firma()
+    umbral = 0.18 / 1.40 * 100
+    assert vetar(_absorber(umbral - 0.5), firma, None, umbral - 0.5)["factible"] is True
+    assert vetar(_absorber(umbral + 0.5), firma, None, umbral + 0.5)["factible"] is False
+
+
+def test_formalizar_una_planta_informal_no_cabe_en_la_caja():
+    """El caso que producía el signo invertido: formalizarse gratis.
+
+    Una unidad informal que se pone en regla paga el sobrecosto prestacional de
+    toda su planta. Con 0,18 de caja contra ~0,40 de sobrecosto, no alcanza.
+    """
+    firma = _firma(formal=False)
+    p = _propuesta("cumplir")
+    p["familia"] = "cumplir"
+    veredicto = vetar(p, firma, None, 10.0)
+    assert veredicto["factible"] is False
+    assert "en regla" in veredicto["razon"]
+
+
+def test_formalizar_si_cabe_cuando_la_caja_alcanza():
+    """El veto no es un muro: con caja suficiente, formalizarse pasa."""
+    firma = _firma(formal=False, flujo_caja=50_000_000.0)
+    p = _propuesta("cumplir")
+    p["familia"] = "cumplir"
+    assert vetar(p, firma, None, 5.0)["factible"] is True
+
+
+def test_una_planta_ya_formal_que_cumple_solo_paga_el_alza():
+    """Sin gente fuera de regla no hay costo de formalización, solo el alza."""
+    firma = _firma(formal=True)
+    p = _propuesta("cumplir")
+    p["familia"] = "cumplir"
+    assert vetar(p, firma, None, 5.0)["factible"] is True
+    veredicto = vetar(p, firma, None, 40.0)
+    assert veredicto["factible"] is False
+    assert "margen" in veredicto["razon"]
+
+
+def test_el_factor_prestacional_de_la_firma_mueve_el_umbral():
+    """C1: cada celda trae su factor (1,3835-1,5829), no el promedio 1,40.
+
+    El micro-empleador NO exonerado del Art. 114-1 paga más, así que su umbral
+    de absorción es más bajo. Si el veto usara un factor promedio para todos,
+    esta diferencia —que es donde vive el 66,7% de la informalidad— se borraría.
+    """
+    alza = 12.0
+    barato = _firma(factor_prestacional=1.3835)
+    caro = _firma(factor_prestacional=1.5829)
+    assert vetar(_absorber(alza), barato, None, alza)["factible"] is True
+    assert vetar(_absorber(alza), caro, None, alza)["factible"] is False
+
+
+def test_veto_del_motor_lleva_el_aumento_adentro():
+    """La política es constante en la corrida: entra al cierre, no a cada llamada."""
+    firma = _firma()
+    estado = EstadoVivo.inicial([firma])
+    assert veto_del_motor(estado, 5.0)(_absorber(5.0), firma)["factible"] is True
+    assert veto_del_motor(estado, 40.0)(_absorber(40.0), firma)["factible"] is False
+
+
+def test_absorber_de_una_unidad_informal_no_paga_el_alza_de_los_que_no_estan_en_regla():
+    """El alza encarece el costo laboral FORMAL. Quien no está en regla no la paga.
+
+    Es la asimetría que hace que informalizarse sea una salida: si el veto le
+    cobrara el alza a la planta fuera de regla, evadir no aliviaría nada.
+    """
+    firma = _firma(formal=False)
+    assert vetar(_absorber(40.0), firma, None, 40.0)["factible"] is True
 
 
 if __name__ == "__main__":  # pragma: no cover

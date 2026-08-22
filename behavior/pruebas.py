@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Any
 
 from behavior import contrato
+from dataclasses import replace
+
 from behavior.arquetipos import Arquetipo, arquetipos_falsos
 from behavior.cache import Cache
 from behavior.capa import decidir_arquetipo, situacion_planta
@@ -291,7 +293,33 @@ def critico_2_el_estado_vive_entre_rondas() -> None:
         abs(ts[1] - 0.4) < 1e-9 and abs(ts[2] - 0.7) < 1e-9,
         f"informalizar parcial ACUMULA: 40% -> 70% ({ts[1]:.0%} -> {ts[2]:.0%})",
     )
-    _check(ts[3] == 0.0, f"formalizarse lleva la planta entera a regla ({ts[3]:.0%})")
+    # A1 CAMBIÓ ESTA EXPECTATIVA, y ese es el punto de la corrección.
+    #
+    # Antes: `cumplir` pasaba sin que nadie revisara si la firma podía pagarlo,
+    # así que formalizarse llevaba la planta a 0% fuera de regla SIEMPRE, gratis.
+    # Esa era la fuga que invertía el signo del modelo: cada veto empujaba al
+    # agente hacia la única jugada que nadie le revisaba.
+    #
+    # Ahora el veto la costea. `_FORMAL` tiene caja de 1.800.000 al mes (5,4M en
+    # el periodo) y poner en regla a 7 trabajadores cuesta 7 × 1.000.000 × 0,40 ×
+    # 3 = 8,4M: no alcanza. La propuesta se veta y el agente cae al fallback.
+    _check(
+        ts[3] > 0.0,
+        f"formalizarse ya NO es gratis: sin caja, el veto lo impide ({ts[3]:.0%} sigue fuera)",
+    )
+
+    # Y con caja suficiente sí formaliza: el veto es una restricción material,
+    # no un muro. Si esto fallara, A1 se habría pasado de largo.
+    rico = replace(_FORMAL, flujo_caja=500_000_000.0)
+    ts_rico = [
+        r.tasa_informalidad
+        for r in correr([rico], _Guion(parcial, formaliza), aumento_pct=23.0,
+                        paralelismo=1, tasa_informalidad_inicial=0.3057)
+    ]
+    _check(
+        ts_rico[3] == 0.0,
+        f"con caja suficiente, formalizarse sí lleva la planta a regla ({ts_rico[3]:.0%})",
+    )
 
     _check(situacion_planta(0.0) == "toda formal", "situacion_planta(0) = toda formal")
     _check(situacion_planta(1.0) == "toda informal", "situacion_planta(1) = toda informal")
@@ -352,11 +380,33 @@ def critico_3_el_costo_de_formalizarse_es_el_costo_completo() -> None:
     _check(baja["estrategia_propuesta"] == "absorber", "con p=3% sigue fuera de regla")
     _check(alta["estrategia_propuesta"] == "cumplir", "con p=9% se formaliza")
 
-    # Y el hallazgo que decide el candado 4: el signo se voltea dentro del rango
-    # que `engine/MODELO.md` declara incierto para S1 (1,4-1,5).
-    barrido = barrer_factor([1.40, 1.45])
-    _check(barrido[0][1] < 0.01, f"con F=1,40 la ablación NO produce cascada ({barrido[0][1]:.1%})")
-    _check(barrido[1][1] > 0.5, f"con F=1,45 la ablación SÍ produce cascada ({barrido[1][1]:.1%})")
+    # EL HALLAZGO CAMBIÓ, y el cambio es a favor del proyecto.
+    #
+    # Antes: el signo del candado 4 se volteaba dentro del rango que
+    # `engine/MODELO.md` declara incierto para S1 — con F=1,40 no había cascada
+    # y con F=1,45 sí. O sea que la conclusión dependía de un parámetro que
+    # nadie había medido, y eso era el defecto §3.3.
+    #
+    # Ahora, con la grilla real de empleadores (C1: cada celda trae SU factor,
+    # entre 1,3835 y 1,5829) y con la fiscalización del motor (C2: p(sanción)
+    # con fuente de la OIT en vez del 0,02 inventado), el resultado es ESTABLE
+    # en todo el rango declarado. El factor dejó de decidir el signo.
+    #
+    # Se prueba la robustez, no un valor: si mañana el resultado vuelve a
+    # depender del factor, este test lo dice.
+    barrido = barrer_factor([1.35, 1.40, 1.45, 1.50, 1.58])
+    valores = [inf for _f, inf, _p in barrido]
+    dispersion = max(valores) - min(valores)
+    _check(
+        dispersion < 0.02,
+        f"el candado 4 ya NO depende del factor prestacional "
+        f"(dispersión {dispersion:.1%} en el rango 1,35-1,58)",
+        f"valores: {[f'{v:.1%}' for v in valores]}",
+    )
+    _check(
+        all(0.0 < v < 1.0 for v in valores),
+        f"y el resultado no está saturado en ninguno de los extremos ({valores[0]:.1%})",
+    )
 
 
 # --- Punto #5 ----------------------------------------------------------------

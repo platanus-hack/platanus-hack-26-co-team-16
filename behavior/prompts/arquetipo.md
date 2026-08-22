@@ -4,7 +4,7 @@
 - Trabajadores a cargo: {n_trabajadores}
 - Situación actual de tu planta: {situacion_planta}
 - Ingreso mensual por trabajador antes del cambio: {ingreso_por_trabajador} u
-- Margen mensual disponible (flujo de caja libre): {flujo_caja} u
+- Caja disponible en este periodo (flujo de caja libre): {flujo_caja} u
 - Costo de indemnizar a un trabajador: {costo_despido} u
 
 ## El cambio que enfrentas

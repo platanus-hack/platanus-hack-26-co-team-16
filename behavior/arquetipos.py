@@ -63,6 +63,32 @@ class Arquetipo:
     costo_despido: float
     peso: float = 1.0  # suma de factores de expansión: a cuánta gente representa
 
+    # --- Lo que aporta `data/empresas.parquet` (C1) --------------------------
+    # Estos tres campos existen porque el andamio los inventaba y el dato real
+    # los tiene celda por celda. Conservan un default para que `arquetipos_falsos()`
+    # y cualquier doble de prueba sigan construyendo sin pasarlos.
+
+    # Factor prestacional de ESTA celda (sector × exoneración del Art. 114-1),
+    # entre 1,3835 y 1,5829. El promedio 1,40 que usaba `ablacion.py` para toda
+    # la población borraba justo la diferencia que decide el signo del candado 4:
+    # el micro-empleador no exonerado paga ~13,5 puntos más que el exonerado.
+    factor_prestacional: float = 1.40
+    # Fracción de la planta FUERA de regla al empezar (1 − share_formal). Es
+    # continua: el corte binario `formal` metía a una celda con 55% de formalidad
+    # entera de un lado. `None` = derivar de `formal`, que es lo que hace el andamio.
+    fraccion_informal_inicial: float | None = None
+    # A cuántas FIRMAS representa esta celda (no a cuántos trabajadores: eso es
+    # `peso`). Es el universo que `engine/fiscalizacion.py` reparte entre evasores,
+    # y sin él la capa tenía que inventarse una capacidad (el 0,02 de C2).
+    n_empresas: float = 0.0
+
+    @property
+    def fraccion_informal_inicio(self) -> float:
+        """El estado inicial de la planta, continuo, con el binario de respaldo."""
+        if self.fraccion_informal_inicial is None:
+            return 0.0 if self.formal else 1.0
+        return max(0.0, min(1.0, float(self.fraccion_informal_inicial)))
+
     # `formal` es el estado INICIAL del arquetipo, el que trae la encuesta. No es
     # su estado durante la corrida: eso lo lleva `rondas.correr()` y lo traduce a
     # texto `capa.situacion_planta()`. Acá había una property que devolvía
@@ -177,6 +203,154 @@ def desde_poblacion(ruta: str | Path) -> list[Arquetipo]:
     return fuera
 
 
+# --- La grilla real de empleadores (C1) --------------------------------------
+
+
+def desde_empresas(
+    ruta: str | Path = "data/empresas.parquet",
+    momentos: str | Path = "data/momentos.json",
+) -> list[Arquetipo]:
+    """Construye los arquetipos desde `data/empresas.parquet` (R1, Alejo).
+
+    Reemplaza a `desde_poblacion()`, que re-derivaba el lado empleador con tres
+    coeficientes de andamio sin fuente —caja = 0,18 × nómina, indemnización =
+    1,5 salarios, factor prestacional = 1,40 para todo el mundo—. El parquet
+    trae las tres cosas calculadas celda por celda contra el CST y el Art. 114-1,
+    y `data/parametros_legales.json` lo dice explícitamente en su nota sobre la
+    indemnización: ese archivo existe para reemplazar el `ingreso * 1.5` de acá.
+
+    Diferencias que importan y que no son cosméticas:
+
+    - **`n_empleados` excluye al dueño**; `EMPLEADOS_POR_CODIGO` lo incluía. Una
+      celda de "2-3 personas" son 1,5 empleados, no 3, y esa diferencia entra
+      derecho al veto por la vía del costo de nómina.
+    - **Cuenta propia (código 1) no está en el parquet**: `construir_empresas.py`
+      ya los excluye porque no tienen a quién despedir ni a quién informalizar.
+      Un tercio de los ocupados de Bogotá son cuenta propia y el simulador les
+      estaba preguntando a cuántos empleados despedían. Se reportan aparte con
+      `poblacion_cuenta_propia()`.
+    - **`share_formal` es continuo**: la celda entra con su fracción real fuera
+      de regla en vez del corte binario que partía la grilla en dos.
+
+    `peso` son trabajadores expandidos (a cuánta GENTE representa la celda) y
+    `n_empresas` son firmas expandidas (a cuántas UNIDADES). Son universos
+    distintos y se usan para cosas distintas: el primero pondera el agregado, el
+    segundo alimenta la fiscalización. Confundirlos es el defecto §3.5.
+    """
+    import json
+
+    import pandas as pd
+
+    df = pd.read_parquet(ruta)
+    exigidas = {
+        "empresa_id", "sector", "tamano_grupo", "n_empleados", "salario_mediano_cop",
+        "flujo_caja_mensual_cop", "costo_despido_por_empleado_cop",
+        "factor_prestacional", "share_formal", "trabajadores_expandidos",
+        "n_empresas_expandidas",
+    }
+    faltan = exigidas - set(df.columns)
+    if faltan:
+        raise ValueError(f"{ruta} no trae las columnas que C1 necesita: {sorted(faltan)}")
+
+    # Los cortes de tramo salen de `momentos.json` (R1), no de la mediana de esta
+    # tabla: son la misma partición que usa el resto del proyecto y recalcularla
+    # acá abriría dos definiciones de "t1" para el mismo dato.
+    try:
+        terciles = json.loads(Path(momentos).read_text(encoding="utf-8"))["terciles_ingreso_cop"]
+        t1_max, t2_max = float(terciles["t1_max"]), float(terciles["t2_max"])
+    except (OSError, KeyError, ValueError):
+        # SUPUESTO: sin `momentos.json` se cae a los cortes publicados en él a
+        # H+15. Se declara porque cambia la etiqueta del tramo, no los números.
+        t1_max, t2_max = 1_750_000.0, 3_000_000.0
+
+    fuera: list[Arquetipo] = []
+    for fila in df.itertuples(index=False):
+        salario = float(fila.salario_mediano_cop)
+        tramo = "t1" if salario <= t1_max else ("t2" if salario <= t2_max else "t3")
+        # SUPUESTO: la planta se redondea al entero más cercano, con piso 1. Es
+        # el mismo S9 que aplica `engine.veto.planta_viva`, y acá hace falta
+        # porque `n_empleados` viene fraccionario (1,5 = punto medio del rango).
+        n = max(1, int(round(float(fila.n_empleados))))
+        share_formal = float(fila.share_formal)
+        fuera.append(
+            Arquetipo(
+                id=str(fila.empresa_id),
+                sector=str(fila.sector),
+                tamano=str(fila.tamano_grupo),
+                # Se conserva por compatibilidad con el Protocol `Firma` y con
+                # `arquetipos_falsos()`; el estado que manda es el continuo.
+                formal=bool(share_formal >= 0.5),
+                tramo_ingreso=tramo,
+                n_trabajadores=n,
+                ingreso_por_trabajador=salario,
+                flujo_caja=float(fila.flujo_caja_mensual_cop),
+                costo_despido=float(fila.costo_despido_por_empleado_cop),
+                peso=float(fila.trabajadores_expandidos),
+                factor_prestacional=float(fila.factor_prestacional),
+                fraccion_informal_inicial=max(0.0, min(1.0, 1.0 - share_formal)),
+                n_empresas=float(fila.n_empresas_expandidas),
+            )
+        )
+
+    ids = [a.id for a in fuera]
+    if len(ids) != len(set(ids)):
+        repetidos = sorted({i for i in ids if ids.count(i) > 1})
+        raise ValueError(f"ids de arquetipo repetidos en {ruta}: {repetidos}")
+    return fuera
+
+
+def universo_de_firmas(arquetipos: list[Arquetipo]) -> float:
+    """Cuántas unidades productivas representa la grilla. Alimenta a `engine/`.
+
+    Es el denominador de la fiscalización: las inspecciones se reparten entre
+    FIRMAS fuera de regla, no entre trabajadores. La capa contaba personas y el
+    motor contaba empresas, y esa es exactamente la divergencia del defecto §3.5.
+
+    # SUPUESTO: se suma `n_empresas_expandidas` tal como lo publica
+    # `data/construir_empresas.py`. La review del PR #5 le anotó a esa columna
+    # que mezcla personas y empleados en su derivación (368.491 publicado contra
+    # 254.307 consistente). Es un dato de `data/` y se consume como está: si R1
+    # lo corrige, este número se mueve solo y la dirección es conocida —un
+    # universo más chico sube p(sanción) y por lo tanto ATENÚA la cascada—.
+    """
+    directo = sum(a.n_empresas for a in arquetipos)
+    if directo > 0:
+        return directo
+    # SUPUESTO: sin la columna del parquet (grilla de andamio), el universo de
+    # firmas se deriva del de trabajadores dividiendo el peso de cada celda
+    # entre su planta. Es aritmética, no un dato: una celda que representa a
+    # 1.000 trabajadores en plantas de 5 son 200 firmas. Se declara porque
+    # alimenta la p(sanción), y con la grilla real esta rama no se usa.
+    return sum(a.peso / max(1, a.n_trabajadores) for a in arquetipos)
+
+
+def poblacion_cuenta_propia(
+    ruta_poblacion: str | Path = "data/poblacion.parquet",
+) -> dict[str, float]:
+    """Los ocupados que la grilla de empleadores NO cubre, con su peso.
+
+    `data/empresas.parquet` excluye el código 1 (trabaja solo) porque una unidad
+    sin empleados no puede despedir ni informalizar a nadie. Eso es correcto y
+    deja fuera a un tercio de los ocupados de Bogotá, así que el número se
+    reporta en vez de desaparecer: sin esta línea, el agregado se leería como si
+    fuera toda la ciudad.
+    """
+    import pandas as pd
+
+    df = pd.read_parquet(ruta_poblacion)
+    peso = df.get("factor_expansion")
+    if peso is None:
+        peso = pd.Series(1.0, index=df.index)
+    solos = df["tamano_empresa"] == 1
+    total = float(peso.sum())
+    cubierto = float(peso[~solos].sum())
+    return {
+        "peso_cuenta_propia": float(peso[solos].sum()),
+        "peso_con_empleador": cubierto,
+        "fraccion_cuenta_propia": (float(peso[solos].sum()) / total) if total else 0.0,
+    }
+
+
 # --- El muestreo: lo que AgentTorch habría dado, en 20 líneas -----------------
 
 
@@ -276,6 +450,54 @@ def particionar_por_peso(
         if acumulado / total >= cobertura:
             return ordenados[: i + 1], ordenados[i + 1 :]
     return ordenados, []
+
+
+# --- B1: el presupuesto de preguntas se reparte por peso ---------------------
+
+# El número que se publica sale de promediar >=5 paráfrasis dentro de cada
+# ronda. Promediar 5 sorteos en vez de 1 baja el temblor por un factor de ~raiz(5),
+# y ese temblor era el problema: reformular la MISMA pregunta movía el resultado
+# 22,5 pp mientras cambiar la política solo lo movía 31,9 pp.
+N_PARAFRASIS_MIN = 3
+N_PARAFRASIS_MAX = 9
+
+
+def parafrasis_por_peso(
+    arquetipo: Arquetipo,
+    peso_maximo: float,
+    *,
+    minimo: int = N_PARAFRASIS_MIN,
+    maximo: int = N_PARAFRASIS_MAX,
+) -> int:
+    """Cuántas veces se le pregunta a este arquetipo, según cuánta gente pesa.
+
+    Con la población concentrada como está —unos pocos arquetipos cargan casi
+    todo el peso— el número final lo decide un puñado de lanzamientos de moneda
+    en las celdas grandes. Preguntarle lo mismo a todos reparte mal el
+    presupuesto: gasta en celdas que no mueven el agregado y deja sin muestrear
+    las que sí.
+
+    Con este reparto, misma plata y mucho menos temblor.
+
+    # SUPUESTO: la asignación va con la RAÍZ de la participación relativa, no
+    # con la participación misma. La raíz es lo que reparte cuando el error del
+    # estimador escala como 1/raiz(n) —duplicar la muestra no duplica la precisión—
+    # y además evita que una sola celda se coma todo el presupuesto. Es un
+    # parámetro de costo, no de modelo: cambia cuánto tiembla el número, no su
+    # valor esperado. Los extremos (3 y 9) salen del plan de correcciones.
+    """
+    if peso_maximo <= 0:
+        return minimo
+    razon = max(0.0, min(1.0, arquetipo.peso / peso_maximo)) ** 0.5
+    return int(max(minimo, min(maximo, round(minimo + (maximo - minimo) * razon))))
+
+
+def reparto_de_parafrasis(
+    arquetipos: list[Arquetipo], **kw
+) -> dict[str, int]:
+    """El reparto completo, para poder auditarlo y sumarlo antes de gastar."""
+    peso_maximo = max((a.peso for a in arquetipos), default=0.0)
+    return {a.id: parafrasis_por_peso(a, peso_maximo, **kw) for a in arquetipos}
 
 
 def cobertura_de(cabeza: list[Arquetipo], todos: list[Arquetipo]) -> float:
