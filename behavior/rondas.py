@@ -55,6 +55,9 @@ class Ronda:
     # de reglas fijas por el modo top-K). NO va en `a_contrato()`: `ronda.json`
     # está congelado desde H+4 y agregarle un campo exige avisar en el grupo ANTES.
     fraccion_poblacion_llm: float = 1.0
+    # Peso poblacional de cada arquetipo (suma de factores de expansión). Sin
+    # esto el dato A4 no se puede ponderar, y sin ponderar dice lo contrario.
+    pesos: dict[str, float] = field(default_factory=dict)
 
     def a_contrato(self) -> dict[str, Any]:
         """Solo los campos de `contracts/ronda.json`, para la API y el frontend."""
@@ -72,8 +75,34 @@ class Ronda:
             },
         }
 
-    def desglose_estrategias(self) -> dict[str, int]:
-        """Dato A4: qué estrategia domina, agregado sobre todos los arquetipos."""
+    def desglose_estrategias(self) -> dict[str, float]:
+        """Dato A4: qué estrategia domina, **ponderado por factor de expansión**.
+
+        Devuelve fracciones de la población, no conteos de arquetipos. Es la
+        misma regla que `MODELO.md` le impone a `tasa_informalidad` —*"siempre
+        ponderada; sin el factor no es la informalidad de la GEIH, es la de la
+        muestra"*— y aplica igual acá: sin ponderar, este desglose dice lo
+        CONTRARIO de lo que dice ponderado. Medido en la corrida del 23%:
+        por conteo domina `cumplir` (44 de 101 arquetipos), ponderado domina
+        `informalizar` (51,0% de la población) y `cumplir` cae a 18,1%.
+
+        Un arquetipo de microempresa informal representa a muchísima más gente
+        que uno de empresa mediana formal, y contar arquetipos los iguala.
+        """
+        total: Counter[str] = Counter()
+        peso_total = sum(self.pesos.values())
+        if not peso_total:
+            return {}
+        for aid, r in self.por_arquetipo.items():
+            peso = self.pesos.get(aid, 0.0)
+            votos = sum(r.distribucion.values()) or 1
+            for estrategia, n in r.distribucion.items():
+                total[estrategia] += peso * n / votos
+        return {k: v / peso_total for k, v in total.most_common()}
+
+    def desglose_estrategias_conteo(self) -> dict[str, int]:
+        """El conteo crudo de arquetipos. Para el feed y el diagnóstico, NO para
+        el dato A4: para eso hay que ponderar (ver `desglose_estrategias`)."""
         total: Counter[str] = Counter()
         for r in self.por_arquetipo.values():
             total.update(r.distribucion)
@@ -280,6 +309,7 @@ def correr(
             banda=_banda(resultados, tasa, arquetipos, peso_total),
             por_arquetipo=resultados,
             fraccion_poblacion_llm=fraccion_llm,
+            pesos={a.id: a.peso for a in arquetipos},
         )
         salida.append(r)
         if al_terminar_ronda:

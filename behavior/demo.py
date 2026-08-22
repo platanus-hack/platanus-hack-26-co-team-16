@@ -62,7 +62,7 @@ def _imprimir(rondas, cliente) -> None:
     print("-" * 78)
     for r in rondas:
         desglose = r.desglose_estrategias()
-        top = next(iter(desglose)) if desglose else "-"
+        top = next(iter(desglose)) if desglose else "-"  # ponderado, no por conteo
         print(
             f"{r.ronda:>5} {r.tasa_informalidad:>12.1%} {r.prob_fiscalizacion:>9.1%} "
             f"{r.empleo_relativo:>7.1%} {r.varianza_media:>9.2f}  {top}"
@@ -78,7 +78,11 @@ def _imprimir(rondas, cliente) -> None:
     if rondas[-1].fraccion_poblacion_llm < 1.0:
         print(f"top-K: {rondas[-1].fraccion_poblacion_llm:.1%} de la población "
               f"decidida por LLM; el resto por reglas fijas")
-    print(f"desglose final (dato A4): {rondas[-1].desglose_estrategias()}")
+    print("\ndesglose final (dato A4) — ponderado por factor de expansión:")
+    for k, v in rondas[-1].desglose_estrategias().items():
+        print(f"  {k:22s} {v:6.1%} de la población")
+    print(f"  (por conteo de arquetipos, sin ponderar: "
+          f"{rondas[-1].desglose_estrategias_conteo()})")
 
     vetadas = sum(len(x.vetadas) for r in rondas for x in r.por_arquetipo.values())
     fallbacks = sum(x.fallbacks for r in rondas for x in r.por_arquetipo.values())
