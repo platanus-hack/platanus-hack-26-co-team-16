@@ -17,6 +17,52 @@ Las ADR 0005-0009 (PR #3, Manuel) son canon. Qué hace esta capa con cada una:
 | **0008** · asimetría | La firma propone vía LLM, el trabajador calcula por regla determinista | 🔶 Avalada. Falta que el motor exponga `realizacion` como campo hermano de `veto`: el rechazo del trabajador **no puede** volver por el canal del veto, o el reintento le entrega al agente una razón que no es una restricción suya y el dato A4 mezcla "no pudo pagarlo" con "no se lo aceptaron" |
 | **0009** · determinismo | La caché es artefacto versionado con hash de manifiesto que la corrida imprime | ✅ `Cache.manifiesto()`. Cubre claves **y contenido**: editar una entrada a mano cambia el hash, así que no se puede "arreglar" un resultado tocando el caché sin que se note |
 
+## El barrido con banda — el dato A2 NO se sostiene
+
+Corrida del 2026-08-22: 7 políticas × 3 rondas × **5 paráfrasis** × 31 arquetipos
+(top-K 0,80) = **3.235 llamadas, $8,68**. Log crudo en
+[`barrido-2026-08-22.log`](barrido-2026-08-22.log). Reproducible con:
+
+```bash
+python3 -m behavior.demo --llm --real --cobertura 0.8 --parafrasis 5 \
+        --puntos 7,10,13.6,18,23,26,30 --tope 12
+```
+
+| política | brecha (dato A1) | p10 | p90 | ancho | ¿solapa con el vecino? |
+|---|---|---|---|---|---|
+| 7,0% | +33,4 pp | 55,7% | 69,0% | 13,3 pp | — |
+| 10,0% | +28,4 pp | 32,4% | 78,4% | 46,1 pp | **sí** (salto 5,0 vs banda 46,1) |
+| 13,6% | +41,8 pp | 62,5% | 77,8% | 15,3 pp | **sí** (salto 13,4 vs banda 15,3) |
+| 18,0% | +34,3 pp | 54,7% | 76,2% | 21,5 pp | **sí** (salto 7,4 vs banda 21,5) |
+| 23,0% | +37,4 pp | 61,7% | 72,0% | 10,3 pp | **sí** (salto 3,0 vs banda 10,3) |
+| 26,0% | +32,7 pp | 49,9% | 71,5% | 21,6 pp | **sí** (salto 4,6 vs banda 21,6) |
+| 30,0% | +45,0 pp | 72,7% | 78,8% | 6,1 pp | no (salto 12,3 vs banda 6,1) |
+
+**Conclusión: el dato A2 (el codo) no se puede afirmar y no va al pitch.** La serie
+**no es monótona** y en **5 de 6** pares vecinos las bandas se solapan. La banda
+mediana es de 15,3 pp y el rango completo entre las siete políticas es de
+16,7 pp: la incertidumbre de una política es casi tan grande como toda la
+variación entre políticas. No podemos distinguir el efecto del 7% del efecto del
+26%, ni el del 23% del 13,6% — que es justamente el debate público.
+
+Se mide con N=5 paráfrasis, que es la regla del plan §5 (la banda se construye
+sobre paráfrasis del prompt, no sobre temperatura). Con N=1 el mismo barrido
+parecía tener estructura; no la tenía.
+
+**Lo que SÍ sobrevive, y es el hallazgo del proyecto:**
+
+- **El dato A1 aguanta.** Las siete políticas dan una brecha de **+28 a +45 pp**
+  sobre la proyección oficial. El signo, el mecanismo y el orden de magnitud son
+  robustos aunque el nivel exacto no lo sea. La afirmación defendible es *"la
+  brecha está entre 28 y 45 puntos y no depende de qué alza elijas"*.
+- **La cascada aparece en los 7 puntos:** la probabilidad de sanción cae de 6,3%
+  a 2,6–3,4% en todos. El mecanismo es consistente aunque el nivel sea ruidoso.
+
+**Consecuencia para el motor:** el test *"el barrido es monótono donde debe
+serlo"* de [`engine/MODELO.md`](../engine/MODELO.md) va a fallar, y no por un bug
+— el fenómeno medido no es monótono. R2 necesita saberlo antes de escribir
+`barrido.py`.
+
 ## El modo top-K — por qué existe
 
 Con la grilla real (101 arquetipos) una corrida en frío son ~404 llamadas y el

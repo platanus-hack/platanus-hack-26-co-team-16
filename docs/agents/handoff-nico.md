@@ -9,6 +9,40 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 (mediodía) — top-K construido y EL BARRIDO CORRIDO. El dato A2
+  se cae, con evidencia. El A1 aguanta.**
+  - **Rama `rol/conductual-top-k`** (pusheada, PR sin abrir todavía a propósito:
+    cuelga de `rol/conductual`, que aún espera el merge del PR #4).
+  - **Cinco cambios juntos, una sola corrida en frío:** ronda 0 ingenua sin LLM
+    (ADR 0005) · `p(E)` exponencial (ADR 0007) · `Cache.manifiesto()` (ADR 0009)
+    · grilla real de 101 arquetipos · modo top-K.
+  - **La ronda 0 parte de la informalidad OBSERVADA (30,57%)**, leída de
+    `data/momentos.json`, no del 0,42 de andamio que había. Doce puntos de
+    diferencia en la base del número principal.
+  - **Verificación buena:** el peso de los arquetipos informales sobre el total
+    da **0,3057** — la reconstrucción por arquetipo reproduce el momento
+    observado de Alejo exactamente. Es medio candado 1 ya cerrado.
+  - **Determinismo nivel 2 (ADR 0009) verificado:** repetí la corrida sin key y
+    dio números idénticos, $0,00, 93/93 aciertos. El par `(seed 42, manifiesto
+    08d94cb3980bf4b1)` es lo que hace comparables dos corridas.
+  - **Bug encontrado corriendo: el dato A4 se agregaba por CONTEO de arquetipos.**
+    La tabla imprimía "estrategia dominante: cumplir" en la misma fila donde la
+    informalidad subía a 64,6%. Ponderado por factor de expansión domina
+    `informalizar` con 51,0% y `cumplir` cae a 18,1%. Corregido; ver el punto de
+    Dani abajo.
+  - **⚠️ EL BARRIDO CON N=5: el codo no existe.** 7 políticas × 3 rondas × 5
+    paráfrasis × 31 arquetipos = **3.235 llamadas, $8,68**. La serie **no es
+    monótona** y en **5 de 6** pares vecinos las bandas se solapan. Banda mediana
+    15,3 pp contra un rango total entre políticas de 16,7 pp. **No distinguimos
+    el 7% del 26%, ni el 23% del 13,6%.** Tabla completa en `behavior/README.md`,
+    log crudo en `behavior/barrido-2026-08-22.log`.
+  - **El A1 sí aguanta:** brecha de **+28 a +45 pp** sobre la proyección oficial
+    en las siete políticas, y la cascada aparece en todas (p. de sanción cae de
+    6,3% a 2,6–3,4%). La frase defendible: *"la brecha está entre 28 y 45 puntos
+    y no depende de qué alza elijas"*.
+  - **Gasto:** $8,68 (barrido) + $0,25 (corrida de verificación) hoy, ~$4,3
+    anoche. **~$13,2 de los $50.**
+
 - **2026-08-22 (mañana, 2) — PR #3 de Manuel mergeado. Avales dados y TRES
   divergencias de mi código contra las ADR que ahora son canon.**
   - **Aval dado a la ADR 0008** (asimetría firma/trabajador), con una precisión
@@ -102,19 +136,15 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [ ] **PR siguiente, todo junto en una sola corrida en frío** (las cinco cosas
-      invalidan la caché, así que separarlas cuesta cinco corridas):
-      ronda 0 como línea base sin LLM (ADR 0005) · `p(E)` exponencial
-      (ADR 0007) · hash de manifiesto de la caché (ADR 0009) · grilla real de
-      101 arquetipos · modo top-K.
-- [ ] **Modo top-K** (30 arquetipos al LLM, cola a reglas fijas ponderadas).
-      Es lo que vuelve a hacer viable el barrido con banda dentro del
-      presupuesto. Va con `# SUPUESTO:` y reportando qué fracción de la
-      población fue decidida por LLM.
-- [ ] **Barrido con N≥5 paráfrasis por punto**, para poder afirmar o descartar
-      el codo. Es el número que el pitch quiere y hoy no tenemos. **Depende del
-      top-K**: sin él son ~$37 y no caben. **Sigue siendo la tarea más
-      importante.**
+- [ ] **Abrir el PR de `rol/conductual-top-k`** apenas mergee el #4. Si se abre
+      antes, el diff arrastra los 19 commits del #4 y Manuel revisa dos veces lo
+      mismo. Alternativa si urge: cambiar el base branch a `rol/conductual`.
+- [x] ~~Modo top-K~~ — hecho. 31 arquetipos cubren el 80,5% de la población.
+- [x] ~~Barrido con N≥5 paráfrasis~~ — hecho. **El codo no existe** (ver arriba).
+- [ ] **Exportar la caché consolidada y versionarla.** Ahora es obligación de la
+      ADR 0009, no un "nice to have": sin ella el nivel 2 de determinismo no
+      existe para nadie fuera del equipo. La caché tiene ~5.100 entradas y el
+      demo del domingo tiene que correr sin key y sin red.
 - [ ] **ADR 0010** — reabrir el H10 de Manuel (input en lenguaje natural).
       Concede la ADR 0006 (la fiscalización no va en la política) y trae el
       mecanismo contra la fuga que el H10 no nombra: un parser LLM puede emitir
@@ -166,15 +196,16 @@ _Lo más reciente arriba._
    `MODELO.md`, hoy esa resta mide otra cosa. Lo arreglo yo en `behavior/`,
    pero conviene que quede claro entre los dos **antes** de que `engine/rondas.py`
    se escriba, para no terminar con dos calendarios.
-5. **⚠️ Lo más importante: no prometer el codo, y hay un choque con `IDEA.md`.**
-   `IDEA.md` §6 promete "muestra dónde está el codo (dato A2)" y `MODELO.md`
-   le pone a `barrido.py` un test de "monótono donde debe serlo". **Yo medí que
-   no es monótono**, y que la banda de 5 paráfrasis (20 pp de ancho a 18%) es
-   más ancha que la diferencia entre políticas vecinas (8,7 pp). Con 1
-   paráfrasis, el codo es ruido. No es opinión contra opinión: hay una
-   medición, y el guion se está construyendo encima. El dato A2 queda en duda
-   hasta que corra el barrido con banda; **la curva de la brecha (A1) sí se
-   sostiene.**
+5. **⚠️ LO MÁS IMPORTANTE: el dato A2 (el codo) está muerto, con evidencia.**
+   Barrido de 7 políticas con N=5 paráfrasis, $8,68: la serie **no es monótona**
+   y en **5 de 6** pares vecinos las bandas se solapan. Banda mediana 15,3 pp
+   contra 16,7 pp de rango total entre políticas. No distinguimos el 7% del 26%.
+   **Juanda:** el codo sale del guion. Lo que queda en su lugar es más
+   defendible: *"medimos si había un umbral, publicamos que la incertidumbre lo
+   tapa, y por eso reportamos rango y no punto"*. **Manuel:** el test "el
+   barrido es monótono donde debe serlo" de `MODELO.md` va a fallar, y no por un
+   bug — el fenómeno no es monótono. **El A1 sí aguanta:** brecha de +28 a
+   +45 pp en las siete políticas, con la cascada presente en todas.
 6. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
    mientras el LLM llega a 75,6%: el umbral de una regla fija escala con el
    ingreso en los dos lados, así que es idéntico para todos los arquetipos.
