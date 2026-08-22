@@ -85,6 +85,14 @@ def _prob_fiscalizacion(capacidad: float, peso_fuera_de_regla: float, peso_total
 
     Acá nace la cascada. El motor de Manuel tiene la versión que manda; esta es
     la que la capa usa para armar el agregado que ven los agentes.
+
+    DIVERGENCIA CONOCIDA con la ADR 0007, que ya es canon: el motor usa
+    `p(E) = 1 − exp(−C/max(E,1))` y esta es la forma abreviada `p ≈ C/E`. En el
+    régimen real coinciden (a 63,2% de informalidad: 3,16% vs 3,12%), pero en el
+    borde esta se rompe — con 2% de evasores da 100% y la exponencial da 63,2%.
+    Se adopta la exponencial en el PR del top-K: cambiar la fórmula cambia el
+    texto del prompt e invalida la caché en disco, así que se paga una sola
+    corrida en frío junto con los demás cambios que también la invalidan.
     """
     if peso_fuera_de_regla <= 0:
         return 1.0
@@ -118,6 +126,12 @@ def correr(
     historial: dict[str, list[str]] = {a.id: [] for a in arquetipos}
     salida: list[Ronda] = []
 
+    # DIVERGENCIA CONOCIDA con la ADR 0005, que ya es canon: allí la ronda 0 es
+    # la reacción INGENUA (la proyección oficial, que asume cumplimiento total) y
+    # solo las rondas 1-3 son mejor respuesta. Acá las cuatro son decisión de
+    # LLM. Eso gasta 25% más de presupuesto y hace que `brecha = ronda 3 −
+    # ronda 0` no sea la resta que define `engine/MODELO.md`. Se corrige en el
+    # PR del top-K, junto con los demás cambios que invalidan la caché.
     for n in range(rondas_totales):
         prob = _prob_fiscalizacion(capacidad_fiscalizacion, tasa * peso_total, peso_total)
 

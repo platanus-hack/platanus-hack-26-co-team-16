@@ -9,6 +9,39 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 (mañana, 2) — PR #3 de Manuel mergeado. Avales dados y TRES
+  divergencias de mi código contra las ADR que ahora son canon.**
+  - **Aval dado a la ADR 0008** (asimetría firma/trabajador), con una precisión
+    de mi capa: el rechazo del trabajador **no puede volver por el canal del
+    veto**. Ver "Bloqueado" abajo.
+  - **Aval dado a la ADR 0009**, que me crea una obligación concreta: la caché
+    deja de ser temporal y pasa a ser **artefacto versionado con hash de
+    manifiesto que la corrida imprime**. `Cache.exportar()` existe; el hash de
+    manifiesto **no**. Sin eso el nivel 2 de determinismo no existe para nadie
+    fuera del equipo.
+  - **⚠️ Divergencia 1 — la ronda 0 (ADR 0005). Es la más grave.** El canon dice
+    que la ronda 0 es *"la reacción ingenua: la proyección oficial, que asume
+    cumplimiento total"*. Mi `rondas.py` corre las 4 rondas como decisión de
+    LLM, incluida la 0. Dos consecuencias: (a) gasto 4 rondas de LLM donde el
+    diseño quiere 3 + una línea base calculada — **25% del presupuesto**; y
+    (b) `brecha = ronda 3 − ronda 0` es el producto entero según `MODELO.md`,
+    y hoy mi ronda 0 no es lo que esa resta supone. **El número principal (A1)
+    está midiendo otra cosa.**
+  - **Divergencia 2 — `prob_sancion` (ADR 0007).** Yo uso `p ≈ C/E` (la forma
+    abreviada del plan) con `min(1.0, ...)`. El canon es
+    `p(E) = 1 − exp(−C/max(E,1))`. En el régimen real coinciden (a 63,2% de
+    informalidad: 3,16% vs 3,12%), pero en el borde la mía **se rompe**: con 2%
+    de evasores da 100% y la exponencial da 63,2%. Mi docstring ya decía "el
+    motor de Manuel tiene la versión que manda"; ahora esa versión existe y hay
+    que adoptarla.
+  - **Divergencia 3 — ninguna.** La ADR 0006 (fiscalización fuera de `Politica`)
+    ya la cumplo: `capacidad_fiscalizacion` es parámetro de `correr()`, no un
+    campo del dict de política. Nada que cambiar.
+  - **Decisión de secuencia:** las tres divergencias, más el top-K y los 101
+    arquetipos, **cambian el texto del prompt y por lo tanto invalidan la caché
+    en disco**. Arregladas por separado son tres corridas en frío; juntas, una.
+    Van todas en el PR siguiente, no en este.
+
 - **2026-08-22 (mañana) — `main` mergeado (PR #1 y #2). Un bug serio que solo
   apareció al enchufar el parquet real de Alejo.**
   - **`tamano_empresa` es un CÓDIGO ORDINAL 1-10 de la GEIH (P3069), no un
@@ -69,6 +102,11 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
+- [ ] **PR siguiente, todo junto en una sola corrida en frío** (las cinco cosas
+      invalidan la caché, así que separarlas cuesta cinco corridas):
+      ronda 0 como línea base sin LLM (ADR 0005) · `p(E)` exponencial
+      (ADR 0007) · hash de manifiesto de la caché (ADR 0009) · grilla real de
+      101 arquetipos · modo top-K.
 - [ ] **Modo top-K** (30 arquetipos al LLM, cola a reglas fijas ponderadas).
       Es lo que vuelve a hacer viable el barrido con banda dentro del
       presupuesto. Va con `# SUPUESTO:` y reportando qué fracción de la
@@ -101,8 +139,8 @@ _Lo más reciente arriba._
   coincide campo a campo con `EJEMPLO`.
 - ~~Alejo — `data/poblacion.parquet`~~ — **resuelto** (PR #2). 6.692 filas,
   esquema exacto. Ver el bug de `tamano_empresa` arriba.
-- **Manuel — ADR 0008 espera MI aval** (y el de Alejo). Ya lo di con una
-  precisión que es de mi capa: si el trabajador rechaza la oferta, eso **no
+- **Manuel — ADR 0008: aval DADO** (falta el de Alejo). Con una precisión que
+  es de mi capa: si el trabajador rechaza la oferta, eso **no
   puede volver por el mismo canal que el veto**. Hoy `capa.py` reintenta ante
   un veto pasándole la razón al agente; si el rechazo del trabajador entra por
   ahí, el agente reintenta contra algo que no es una restricción física suya, y
@@ -122,7 +160,13 @@ _Lo más reciente arriba._
 3. **Juanda — el presupuesto cambió.** Con la grilla real (101 arquetipos), el
    barrido con banda cuesta ~$37 de $50. Con top-30 baja a ~$11. El techo sigue
    siendo real, pero el margen se estrechó.
-4. **⚠️ Lo más importante: no prometer el codo, y hay un choque con `IDEA.md`.**
+4. **Manuel — mi ronda 0 no es tu ronda 0 (ADR 0005).** Tú la defines como la
+   proyección oficial que asume cumplimiento total; yo la corro como una ronda
+   de LLM más. Como `brecha = ronda 3 − ronda 0` es "el producto entero" según
+   `MODELO.md`, hoy esa resta mide otra cosa. Lo arreglo yo en `behavior/`,
+   pero conviene que quede claro entre los dos **antes** de que `engine/rondas.py`
+   se escriba, para no terminar con dos calendarios.
+5. **⚠️ Lo más importante: no prometer el codo, y hay un choque con `IDEA.md`.**
    `IDEA.md` §6 promete "muestra dónde está el codo (dato A2)" y `MODELO.md`
    le pone a `barrido.py` un test de "monótono donde debe serlo". **Yo medí que
    no es monótono**, y que la banda de 5 paráfrasis (20 pp de ancho a 18%) es
@@ -131,19 +175,19 @@ _Lo más reciente arriba._
    medición, y el guion se está construyendo encima. El dato A2 queda en duda
    hasta que corra el barrido con banda; **la curva de la brecha (A1) sí se
    sostiene.**
-5. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
+6. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
    mientras el LLM llega a 75,6%: el umbral de una regla fija escala con el
    ingreso en los dos lados, así que es idéntico para todos los arquetipos.
    La dirección del candado 4 es la que esperábamos, pero es a parámetros de
    andamio sin calibrar — todavía no es EL número.
-6. **Dani: agrega por `familia`, no por `estrategia_propuesta`.** El modelo
+7. **Dani: agrega por `familia`, no por `estrategia_propuesta`.** El modelo
    inventa sinónimos (cinco nombres para "seguir informal" en 193 llamadas).
    Cada decisión trae las dos: la cruda para el feed, la familia para agregar.
-7. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
+8. **Los prompts no nombran país, ciudad, moneda ni año** — más estricto de lo
    que pide el plan. Los montos van en "unidades (u)". Eso deja el test de
    re-skinning (candado 3b) casi hecho. El motor convierte a COP; el agente
    nunca ve pesos.
-8. **Prompt caching de la API: medido, no aplica** (0 tokens cacheados en 193
+9. **Prompt caching de la API: medido, no aplica** (0 tokens cacheados en 193
    llamadas). La palanca real es el caché en disco: la repetición cuesta $0 y
    tarda 0,5 s. Eso además hace viable el demo en vivo.
 
