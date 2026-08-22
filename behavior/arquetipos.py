@@ -25,6 +25,25 @@ import numpy as np
 # en H+8. Cambiar esto cambia el número de llamadas al LLM, no el motor.
 SECTORES = ("comercio", "servicios", "industria", "construccion")
 TAMANOS = {"micro": 3, "pequena": 10, "mediana": 45}
+
+# `tamano_empresa` en `contracts/agente.json` es el código 1-10 de la variable
+# P3069 de la GEIH, NO un número de empleados. La equivalencia la documenta
+# Alejo en `contracts/README.md`; acá se traduce al punto medio de cada rango
+# porque el motor necesita un headcount para calcular caja e indemnizaciones.
+# SUPUESTO: el código 10 es "201 o más" — rango abierto, sin punto medio. Se usa
+# 300 y es el primer parámetro de esta capa que R5 debe someter a sensibilidad.
+EMPLEADOS_POR_CODIGO = {
+    1: 1,    # trabaja solo
+    2: 3,    # 2-3
+    3: 5,    # 4-5
+    4: 8,    # 6-10
+    5: 15,   # 11-19
+    6: 25,   # 20-30
+    7: 40,   # 31-50
+    8: 75,   # 51-100
+    9: 150,  # 101-200
+    10: 300,  # 201+  <- SUPUESTO, ver arriba
+}
 TRAMOS_INGRESO = ("t1", "t2")  # t1 = pegado al piso salarial, t2 = por encima
 
 
@@ -97,9 +116,19 @@ def desde_poblacion(ruta: str | Path) -> list[Arquetipo]:
     if faltan:
         raise ValueError(f"{ruta} no cumple contracts/agente.json; faltan: {sorted(faltan)}")
 
+    # `tamano_empresa` es un CÓDIGO ORDINAL 1-10 del DANE (P3069), no un número
+    # de empleados. Está documentado en `contracts/README.md`. Tratarlo como
+    # headcount metía a una firma de "201+ personas" con 10 trabajadores, y de
+    # ahí al flujo de caja que el veto usa como techo duro.
+    n_trab = df["tamano_empresa"].map(EMPLEADOS_POR_CODIGO)
+    if n_trab.isna().any():
+        malos = sorted(df.loc[n_trab.isna(), "tamano_empresa"].unique())
+        raise ValueError(f"{ruta}: códigos de tamano_empresa fuera de 1-10: {malos}")
+
     df = df.assign(
+        _n_trab=n_trab,
         _tamano=pd.cut(
-            df["tamano_empresa"], bins=[0, 4, 19, 10**9], labels=list(TAMANOS)
+            n_trab, bins=[0, 10, 50, 10**9], labels=list(TAMANOS)
         ).astype(str),
         # SUPUESTO: el corte t1/t2 es la mediana de ingreso de la muestra. Se
         # reemplaza por el piso salarial observado cuando R5 entregue la serie (V4).
@@ -112,7 +141,7 @@ def desde_poblacion(ruta: str | Path) -> list[Arquetipo]:
         ["sector", "_tamano", "formal", "_tramo"], observed=True
     ):
         ingreso = float(g["ingreso_mensual_cop"].median())
-        n = int(round(float(g["tamano_empresa"].median()))) or 1
+        n = int(round(float(g["_n_trab"].median()))) or 1
         fuera.append(
             Arquetipo(
                 id=f"{str(sector)[:3]}-{tamano[:4]}-{'for' if formal else 'inf'}-{tramo}",
