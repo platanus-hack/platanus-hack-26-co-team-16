@@ -3,14 +3,14 @@
 Qué modela: la decisión de mejor respuesta de UN arquetipo en UNA ronda.
 Entradas: un `Arquetipo`, el agregado de la ronda anterior, y el veto del motor.
 Salidas: `ResultadoArquetipo` — distribución de estrategias + decisiones vetadas.
-Supuestos: máximo 3 reintentos por arquetipo; luego `absorber` (contrato con R2).
+Supuestos: máximo 3 reintentos por arquetipo; luego `cumplir` (contrato con R2).
 
 El ciclo, que es la tesis del proyecto en 20 líneas:
 
     propuesta del LLM  ->  veto del motor  ->  ¿factible?
                                               sí -> entra al agregado
                                               no -> reintento con la razón encima
-                                                    (máximo 3, luego absorber)
+                                                    (máximo 3, luego cumplir)
 
 Yo NO aplico nada al estado del mundo. Propongo; Manuel veta y aplica.
 """
@@ -34,7 +34,22 @@ MAX_REINTENTOS = 3
 
 
 class Veto(Protocol):
-    """La interfaz con `engine/` (Manuel). Yo la consumo, no la implemento."""
+    """La interfaz con `engine/` (Manuel). Yo la consumo, no la implemento.
+
+    Dos cosas que R2 necesita saber de esta firma:
+
+    1. **`arquetipo.formal` es el estado INICIAL**, no el de la ronda en curso.
+       Una unidad que se informalizó en la ronda 1 llega acá en la ronda 2 con
+       `formal=True`. Si el veto necesita juzgar *"esta unidad ya opera fuera de
+       regla"*, tiene que sacarlo de su propio estado del mundo, no de este
+       objeto — o la firma tiene que llevarlo. Hoy `behavior/` lleva el estado
+       vivo por su cuenta (`rondas.correr()`), así que **hay dos estados que
+       pueden divergir** y conviene cerrar de dónde sale el que manda.
+    2. **`razon` sale hacia el modelo** en el reintento, así que pasa por
+       `higiene.verificar()`. Una razón con `$`, un año de 4 dígitos o la palabra
+       "gobierno" mata la corrida entera. R2 se comprometió a producir razones
+       que pasan limpias y a probarlo con un test.
+    """
 
     def __call__(self, decision: dict[str, Any], arquetipo: Arquetipo) -> dict[str, Any]:
         """Devuelve {'factible': bool, 'razon': str|None}."""
@@ -45,6 +60,22 @@ def veto_permisivo(decision: dict[str, Any], arquetipo: Arquetipo) -> dict[str, 
     """Doble de prueba: acepta todo. Solo para construir antes de que exista el
     motor. NO es el veto — el veto vive en `engine/` y lo escribe Manuel."""
     return {"factible": True, "razon": None}
+
+
+def situacion_planta(fraccion_informal: float) -> str:
+    """El texto que ve el agente sobre su propia planta, según su estado VIVO.
+
+    No sale del `Arquetipo`: sale del estado que dejó la ronda anterior. Un
+    arquetipo que informalizó su planta en la ronda 1 leía "toda formal" en la
+    ronda 2 —en la misma pantalla donde su historial decía "informalizar"—, y
+    respondiendo "mantener" volvía a contar como cumpliendo. Eso hacía bajar la
+    tasa de informalidad por una razón espuria.
+    """
+    if fraccion_informal <= 0.0:
+        return "toda formal"
+    if fraccion_informal >= 1.0:
+        return "toda informal"
+    return f"parte formal, parte informal ({fraccion_informal:.0%} fuera de regla)"
 
 
 def _plata(x: float) -> str:
@@ -81,13 +112,21 @@ def renderizar(
     prob_fiscalizacion: float,
     multa: float,
     historial: str = "",
+    fraccion_informal_previa: float | None = None,
 ) -> str:
-    """Rellena `prompts/arquetipo.md`. Solo mecánica; jamás el nombre."""
+    """Rellena `prompts/arquetipo.md`. Solo mecánica; jamás el nombre.
+
+    `fraccion_informal_previa` es el estado VIVO de la planta al empezar esta
+    ronda. Si no se da, se cae al estado inicial del arquetipo — que es correcto
+    solo en la primera ronda.
+    """
+    if fraccion_informal_previa is None:
+        fraccion_informal_previa = 0.0 if arquetipo.formal else 1.0
     plantilla = cargar_prompt("arquetipo.md")
     return plantilla.format(
         sector=arquetipo.sector,
         n_trabajadores=arquetipo.n_trabajadores,
-        situacion_planta=arquetipo.situacion_planta,
+        situacion_planta=situacion_planta(fraccion_informal_previa),
         ingreso_por_trabajador=_plata(arquetipo.ingreso_por_trabajador),
         flujo_caja=_plata(arquetipo.flujo_caja),
         costo_despido=_plata(arquetipo.costo_despido),
@@ -114,13 +153,19 @@ def decidir_arquetipo(
     multa: float,
     historial: str = "",
     n_parafrasis: int = 1,
+    fraccion_informal_previa: float | None = None,
 ) -> ResultadoArquetipo:
     """Una ronda para un arquetipo: N paráfrasis, cada una con su reintento.
 
     `n_parafrasis=1` para una corrida normal; `n_parafrasis=5` para la corrida
     con barra de error (regla del plan §5: la banda se construye sobre
     paráfrasis del prompt, no sobre temperatura).
+
+    `fraccion_informal_previa` es el estado vivo de la planta al empezar la
+    ronda: entra al texto del prompt y al `contexto` que consume la ablación.
     """
+    if fraccion_informal_previa is None:
+        fraccion_informal_previa = 0.0 if arquetipo.formal else 1.0
     sistema = cargar_prompt("sistema.md")
     base = renderizar(
         arquetipo,
@@ -131,6 +176,7 @@ def decidir_arquetipo(
         prob_fiscalizacion,
         multa,
         historial,
+        fraccion_informal_previa,
     )
     res = ResultadoArquetipo(arquetipo_id=arquetipo.id)
 
@@ -166,17 +212,25 @@ def decidir_arquetipo(
                         "prob_fiscalizacion": prob_fiscalizacion,
                         "multa": multa,
                         "ronda": ronda,
+                        "fraccion_informal_previa": fraccion_informal_previa,
                         "estrategias_vetadas": tuple(
                             d["estrategia_propuesta"] for d in res.vetadas
                         ),
                     },
                 )
-            except (RespuestaInvalida, ValueError) as e:
+                # `construir()` y `validar()` van DENTRO del try a propósito.
+                # Afuera, un `estrategia_propuesta` vacío —que el esquema JSON
+                # permite, no tiene `minLength`— escapaba del `for intento`, del
+                # `for instruccion` y de esta función entera, y mataba la corrida
+                # en el primer fallo. Adentro es un intento perdido, como un veto.
+                propuesta = contrato.validar(
+                    contrato.construir(arquetipo.id, ronda, cruda)
+                )
+            except (RespuestaInvalida, ValueError, TypeError) as e:
                 # Una respuesta mala es un intento perdido, no una corrida
                 # perdida. Se anota y se reintenta como si la hubiera vetado.
                 fallos_tecnicos.append(str(e))
                 continue
-            propuesta = contrato.validar(contrato.construir(arquetipo.id, ronda, cruda))
             veredicto = veto(propuesta, arquetipo)
             propuesta["veto"] = veredicto
             propuesta["intento"] = intento + 1
@@ -186,13 +240,17 @@ def decidir_arquetipo(
             res.vetadas.append(propuesta)
             razones_veto.append(str(veredicto.get("razon") or "sin razón declarada"))
 
+        # Fuera del `if`: el caso común es un fallo seguido de un reintento que
+        # SÍ funciona, y contándolo solo al llegar al fallback ese caso quedaba
+        # en cero. La tasa de fallo del modelo que reporta el README salía
+        # subcontada por ese camino.
+        res.fallos_tecnicos += len(fallos_tecnicos)
         if aceptada is None:
             aceptada = contrato.decision_fallback(
                 arquetipo.id, ronda, razones_veto or fallos_tecnicos
             )
             aceptada["fallos_tecnicos"] = fallos_tecnicos
             res.fallbacks += 1
-            res.fallos_tecnicos += len(fallos_tecnicos)
         # Se guardan las dos: la cruda (lo que inventó el modelo) y la familia
         # canónica (para agregar sin fragmentar en sinónimos).
         aceptada["familia"] = contrato.familia(aceptada["estrategia_propuesta"])

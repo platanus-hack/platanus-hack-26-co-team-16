@@ -19,6 +19,7 @@ import argparse
 import sys
 from typing import Any
 
+from behavior import contrato
 from behavior.ablacion import ClienteReglas
 from behavior.arquetipos import (
     Arquetipo,
@@ -38,6 +39,12 @@ def veto_doble_prueba(decision: dict[str, Any], arquetipo: Arquetipo) -> dict[st
     El veto real vive en `engine/` y lo escribe R2. Este solo implementa la
     restricción más obvia — no puedes despedir si no tienes con qué indemnizar —
     para que el camino de reintento se ejercite antes de que exista el motor.
+
+    LIMITACIÓN CONOCIDA, heredada de la firma del `Protocol Veto`: `arquetipo`
+    trae el estado INICIAL, así que la regla "ya opera fuera de regla" solo
+    acierta en la primera ronda. No produce un número falso —informalizar dos
+    veces satura en 1.0 igual— pero el veto real no puede depender de este campo
+    para eso. Ver el docstring de `capa.Veto`.
     """
     estrategia = decision["estrategia_propuesta"]
     n = decision["detalle"].get("empleados_a_despedir", 0)
@@ -86,12 +93,17 @@ def _imprimir(rondas, cliente) -> None:
 
     vetadas = sum(len(x.vetadas) for r in rondas for x in r.por_arquetipo.values())
     fallbacks = sum(x.fallbacks for r in rondas for x in r.por_arquetipo.values())
-    print(f"propuestas vetadas: {vetadas} · fallbacks a 'absorber': {fallbacks}")
+    print(f"propuestas vetadas: {vetadas} · fallbacks a '{contrato.FALLBACK}': {fallbacks}")
     print(f"\ncontrato ronda.json de la última ronda:\n  {rondas[-1].a_contrato()}")
 
     presupuesto = getattr(cliente, "presupuesto", None)
     if presupuesto is not None:
         print(f"\n{presupuesto.informe()}")
+    # En modo ablación el presupuesto cuenta 0 llamadas —correcto, no se llamó a
+    # ninguna API— pero se leía como si no hubiera pasado nada. Las decisiones de
+    # la regla fija sí se cuentan, en su propio contador.
+    if getattr(cliente, "llamadas", None) and not presupuesto.llamadas:
+        print(f"decisiones por regla fija: {cliente.llamadas} (sin API, $0)")
     cache = getattr(cliente, "cache", None)
     if cache is not None:
         print(f"caché disco: {cache.aciertos} aciertos / {cache.fallos} fallos "
@@ -130,16 +142,20 @@ def main(argv: list[str] | None = None) -> int:
     fuente = "poblacion.parquet" if args.real else "andamio"
     print(f"modo: {modo} · {len(arquetipos)} arquetipos ({fuente}) · "
           f"seed {args.seed} · {args.parafrasis} paráfrasis")
-    # La ronda 0 es la proyección oficial: parte de la informalidad OBSERVADA.
-    # Con datos reales sale de `momentos.json` (Alejo); con andamio es un número
-    # de andamio y se dice.
-    if args.real:
-        tasa_inicial = informalidad_observada()
-        print(f"informalidad observada (GEIH, momentos.json): {tasa_inicial:.1%}")
-    else:
-        # SUPUESTO: 42% es un número de andamio, no la GEIH. Con `--real` se
-        # reemplaza por el observado.
-        tasa_inicial = 0.42
+    # La ronda 0 es la proyección oficial: parte de la informalidad OBSERVADA,
+    # que se lee de `data/momentos.json` (R1) en los dos modos. Antes el modo
+    # andamio usaba un 0,42 sin fuente que el propio repo contradice — no era un
+    # número sin respaldo, era un número refutado por un dato ya mergeado. Y no
+    # es cosmético: `p(E) = 1 − exp(−C/tasa)` sube de 4,65% a 6,33% al corregirlo,
+    # y ese salto cruza el umbral de decisión de la ablación (ver README §4).
+    tasa_inicial = informalidad_observada()
+    print(f"informalidad observada (GEIH, momentos.json): {tasa_inicial:.1%}")
+    if not args.real:
+        # SUPUESTO: el dato observado se aplica sobre una grilla de arquetipos de
+        # andamio, cuya composición formal/informal es inventada. Es coherente
+        # para la ronda 0 (una tasa agregada del universo) pero la corrida de
+        # andamio sigue sin ser un resultado. Con `--real` desaparece la mezcla.
+        print("  (dato real sobre la grilla de andamio: la corrida no es un resultado)")
     if args.cobertura:
         cabeza, cola = particionar_por_peso(arquetipos, args.cobertura)
         print(f"top-K: {len(cabeza)} arquetipos al LLM, {len(cola)} a reglas fijas")

@@ -9,6 +9,50 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 (tarde) — los 11 puntos del review del PR #4, cerrados. Y el
+  candado 4 no discrimina: el hallazgo de la sesión.**
+  - **Rama `rol/conductual-top-k`.** El PR nuevo REEMPLAZA al #4 (que no se
+    mergea): así `main` nunca carga el bug del caché. Un merge en vez de dos.
+  - **Los 3 críticos, reproducidos antes de arreglarlos** y convertidos en
+    regresión ejecutable: `python3 -m behavior.pruebas` (34 checks, $0, sin API).
+    - **#1** el caché envenenado: con `estrategia_propuesta: ""` la corrida moría
+      con UNA llamada y la respuesta mala quedaba **grabada**; la re-corrida sin
+      API reventaba idéntico. Doble candado: `cliente.py` valida antes de
+      escribir, `capa.py` mete `construir()/validar()` dentro del `try`.
+    - **#2** el estado muerto: un arquetipo que informalizó su planta en R1 leía
+      *"tu planta: toda formal"* en R2, encima de su historial que decía
+      "informalizar". Y los despedidos resucitaban. Estado vivo por arquetipo
+      (dos dicts en `correr()`), `fraccion_fuera_de_regla()` acumulativa,
+      `empleo_relativo` arrastrado.
+    - **#3** el costo de formalizarse. Ver abajo, es lo importante.
+  - **⚠️ EL CANDADO 4 NO DISCRIMINA — y eso es el resultado.** Con el costo bien
+    especificado y el factor prestacional en 1,40 la ablación **todavía**
+    formaliza a todos... por **0,31 pp**: `p*` = 6,02% contra `p(ronda 0)` =
+    6,33%. Y el signo **se voltea en F = 1,4309**, dentro del rango 1,4-1,5 que
+    el supuesto **S1** de `engine/MODELO.md` ya declaraba incierto. El
+    entregable es el barrido, no el número:
+    `python3 -m behavior.ablacion --barrido-factor` ($0).
+  - **Los puntos #3 y #11 casi se cancelan, y nadie lo notó.** Corregir la tasa
+    inicial (0,42 → 30,57%) sube `p(E)` de 4,65% a 6,33%, y ese salto es justo lo
+    que cruza el umbral. Por separado dan resultados opuestos.
+  - **La spec del costo se eligió por fundamento ANTES de correr**, y sesga a
+    favor nuestro: suponer que el salario bruto no cambia al formalizarse
+    subestima el costo, o sea que empuja hacia "la ablación formaliza". Está
+    dicho así en el README y en el PR, no escondido.
+  - **Baratos cerrados:** `FALLBACK = "cumplir"` · tasa inicial sin default de
+    andamio · `fallos_tecnicos` fuera del `if` · caché antes del presupuesto ·
+    `muestrear()` → `_muestrear_local` · `cargar_contrato()` borrado · `assert`
+    de unicidad de ids. El **hash de manifiesto ya existía** (`Cache.manifiesto()`).
+  - **Dos huecos que encontré yo, no el review:** la property
+    `Arquetipo.situacion_planta` quedó huérfana al mover la situación al estado
+    vivo (borrada — era justo la que hacía mentir al prompt), y **el
+    `Protocol Veto` no ve el estado vivo**: `arquetipo.formal` es el estado
+    INICIAL, así que hay dos estados (el mío y el del motor) que pueden divergir.
+    Documentado en el docstring de `capa.Veto`; **hay que cerrarlo con Manuel.**
+  - **De acuerdo con las 4 decisiones de Manuel**, sin objeción: razones del veto
+    limpias de higiene, fallback `cumplir`, `muestrear()` en `engine/` con firma
+    `(arq, n, rng)`, y `C`/`0.18`/`1.5` suyos.
+
 - **2026-08-22 (mediodía) — top-K construido y EL BARRIDO CORRIDO. El dato A2
   se cae, con evidencia. El A1 aguanta.**
   - **Rama `rol/conductual-top-k`** (pusheada, PR sin abrir todavía a propósito:
@@ -136,9 +180,9 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [ ] **Abrir el PR de `rol/conductual-top-k`** apenas mergee el #4. Si se abre
-      antes, el diff arrastra los 19 commits del #4 y Manuel revisa dos veces lo
-      mismo. Alternativa si urge: cambiar el base branch a `rol/conductual`.
+- [ ] **Abrir el PR de `rol/conductual-top-k` contra `main`, REEMPLAZANDO al #4**
+      (se cierra sin mergear). Decidido con Manuel: un merge en vez de dos, y
+      `main` nunca carga el bug del caché.
 - [x] ~~Modo top-K~~ — hecho. 31 arquetipos cubren el 80,5% de la población.
 - [x] ~~Barrido con N≥5 paráfrasis~~ — hecho. **El codo no existe** (ver arriba).
 - [ ] **Exportar la caché consolidada y versionarla.** Ahora es obligación de la
@@ -206,11 +250,20 @@ _Lo más reciente arriba._
    barrido es monótono donde debe serlo" de `MODELO.md` va a fallar, y no por un
    bug — el fenómeno no es monótono. **El A1 sí aguanta:** brecha de +28 a
    +45 pp en las siete políticas, con la cascada presente en todas.
-6. **Con reglas fijas no hay cascada.** La ablación formaliza a todos (0%)
-   mientras el LLM llega a 75,6%: el umbral de una regla fija escala con el
-   ingreso en los dos lados, así que es idéntico para todos los arquetipos.
-   La dirección del candado 4 es la que esperábamos, pero es a parámetros de
-   andamio sin calibrar — todavía no es EL número.
+6. **⚠️ SUPERADO — el candado 4 no discrimina.** Lo que decía este punto ("con
+   reglas fijas no hay cascada") salía de una ablación mal especificada: la regla
+   comparaba el sobrecosto del aumento contra la sanción, o sea un delta contra
+   un nivel. Corregido, el resultado **no se voltea: queda en el filo**. Con
+   F = 1,40 la ablación todavía formaliza a todos, por 0,31 pp, y el signo cambia
+   en **F = 1,4309** — dentro del rango 1,4-1,5 que S1 de `MODELO.md` ya
+   declaraba incierto. **Juanda:** el candado 4 va a `VALIDATION.md` como barrido
+   con punto de quiebre publicado, no como número. **Manuel:** `p(E) → 1.0`
+   cuando E→0 crea un **estado absorbente** que ayuda a clavar la ablación en 0%;
+   conviene saberlo antes de cablear `fiscalizacion.py`. Lo que SÍ sobrevive es
+   el argumento estructural: el umbral de una regla fija escala con el ingreso en
+   los dos lados, así que es idéntico para todos los arquetipos y cruzan todos o
+   ninguno — verificado, la tabla es igual con 48 arquetipos de andamio y con los
+   101 reales. Esa homogeneidad es lo que el LLM no tiene.
 7. **Dani — el dato A4 se agrega de dos maneras y las dos importan.**
    **(a) Por `familia`, no por `estrategia_propuesta`:** el modelo inventa
    sinónimos (cinco nombres para "seguir informal" en 193 llamadas). Cada
@@ -229,6 +282,14 @@ _Lo más reciente arriba._
 9. **Prompt caching de la API: medido, no aplica** (0 tokens cacheados en 193
    llamadas). La palanca real es el caché en disco: la repetición cuesta $0 y
    tarda 0,5 s. Eso además hace viable el demo en vivo.
+
+10. **Manuel — el `Protocol Veto` no ve el estado vivo.** Es consecuencia del
+   crítico #2 y no lo nombró ninguno de los dos reviews: `arquetipo.formal` es el
+   estado INICIAL, así que en la ronda 2 el veto no puede saber por ese campo si
+   la unidad ya está fuera de regla. Hoy `behavior/` lleva su propio estado vivo
+   y el motor llevará el suyo: **son dos estados que pueden divergir.** O el
+   motor es la única fuente y yo leo de él, o la firma lleva el estado. Hay que
+   decidirlo antes de que `engine/rondas.py` se cierre.
 
 ## Supuestos que tomé
 

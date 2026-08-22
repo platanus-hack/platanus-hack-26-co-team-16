@@ -152,7 +152,7 @@ def correr(
     veto: Veto = veto_permisivo,
     capacidad_fiscalizacion: float = 0.02,
     multa_factor: float = 12.0,
-    tasa_informalidad_inicial: float = 0.42,
+    tasa_informalidad_inicial: float,
     n_parafrasis: int = 1,
     paralelismo: int = 8,
     cobertura_llm: float | None = None,
@@ -174,11 +174,39 @@ def correr(
     arquetipos que suman esa fracción de la población van al LLM y el resto se
     resuelve con las reglas fijas de `ablacion.ClienteReglas`. `None` = todos al
     LLM. Cada `Ronda` reporta `fraccion_poblacion_llm`.
+
+    `tasa_informalidad_inicial` es obligatoria a propósito: es el punto de
+    partida de la ronda 0 y sale de `data/momentos.json` (30,57% observado en la
+    GEIH). Tenía un default de andamio de 0,42 que el propio repo contradice, y
+    no era inocuo — `p(E)` sube de 4,65% a 6,33% al corregirlo, que es suficiente
+    para voltear la decisión de la ablación con reglas fijas.
+
+    El ESTADO de cada arquetipo persiste entre rondas: qué fracción de su planta
+    quedó fuera de regla y cuánto de su empleo original sobrevive. Sin eso, la
+    ronda n+1 contradice a la ronda n y las dos métricas del pitch mienten en
+    direcciones opuestas.
     """
     peso_total = sum(a.peso for a in arquetipos) or 1.0
     tasa = tasa_informalidad_inicial
     historial: dict[str, list[str]] = {a.id: [] for a in arquetipos}
     salida: list[Ronda] = []
+
+    # EL ESTADO VIVO entre rondas. Son dos diccionarios y nada más: el estado del
+    # mundo completo es de `engine/` y no se replica acá. Pero sin esto la ronda
+    # n+1 contradice lo que pasó en la ronda n, y de ahí salen dos números
+    # falsos: una unidad que informalizó su planta volvía a contar como formal
+    # (la tasa bajaba por una razón espuria — plausiblemente el "se devuelve" de
+    # la ronda 3 que reportaba el README), y los trabajadores despedidos
+    # resucitaban en cuanto la ronda siguiente no despedía a nadie.
+    frac_informal: dict[str, float] = {
+        a.id: (0.0 if a.formal else 1.0) for a in arquetipos
+    }
+    # Fracción de la planta ORIGINAL que sigue empleada. Arranca en 1.0 y solo
+    # baja: es acumulativa contra la línea base sin política, que es como
+    # `engine/MODELO.md` define `empleo_relativo` ("la base NO es la ronda 0").
+    # La ronda 0 —proyección oficial, cumplimiento total, nadie despide— ES esa
+    # línea base, así que empieza en 1.0 y coincide.
+    empleo: dict[str, float] = {a.id: 1.0 for a in arquetipos}
 
     # Ruteo del top-K. `ClienteReglas` es un reemplazo directo de la firma de
     # `proponer()`, así que el resto del bucle no distingue entre los dos.
@@ -256,6 +284,8 @@ def correr(
                 multa=a.ingreso_por_trabajador * multa_factor,
                 historial=texto_historial,
                 n_parafrasis=n_parafrasis,
+                # El estado que dejó la ronda anterior, no el del dataclass.
+                fraccion_informal_previa=frac_informal[a.id],
             )
 
         if paralelismo > 1:
@@ -270,30 +300,33 @@ def correr(
         for a in arquetipos:
             historial[a.id].append(resultados[a.id].estrategia_dominante)
 
+        # El estado con el que los arquetipos ENTRARON a esta ronda. Se guarda
+        # antes de pisarlo porque la banda lo necesita: cada paráfrasis parte del
+        # mismo punto de partida.
+        frac_previa = dict(frac_informal)
+
         # Nuevo agregado: para cada arquetipo, qué fracción de SU planta queda
-        # fuera de regla; después se pondera por cuánta gente representa.
-        # Se promedia primero entre paráfrasis, después entre arquetipos.
-        fuera = 0.0
+        # fuera de regla ACUMULANDO sobre lo que ya estaba; después se pondera
+        # por cuánta gente representa. Se promedia primero entre paráfrasis,
+        # después entre arquetipos.
         for a in arquetipos:
             ds = resultados[a.id].decisiones
-            frac = sum(
-                contrato.fraccion_fuera_de_regla(d, a.n_trabajadores, not a.formal)
+            frac_informal[a.id] = sum(
+                contrato.fraccion_fuera_de_regla(d, a.n_trabajadores, frac_previa[a.id])
                 for d in ds
             ) / max(1, len(ds))
-            fuera += a.peso * frac
-        tasa = min(1.0, fuera / peso_total)
 
-        # Empleo relativo: 1 - fracción ponderada de trabajadores despedidos.
-        # Promedia primero DENTRO del arquetipo (entre paráfrasis), después
-        # pondera ENTRE arquetipos por factor de expansión.
-        despedidos = 0.0
-        for a in arquetipos:
-            ds = resultados[a.id].decisiones
-            frac = sum(
+            # El empleo se ARRASTRA: lo que se despidió en una ronda no vuelve
+            # porque la siguiente absorba. Se descuenta sobre la planta original,
+            # que es la unidad en la que está medida la línea base.
+            despidos_ronda = sum(
                 min(1.0, d["detalle"].get("empleados_a_despedir", 0) / max(1, a.n_trabajadores))
                 for d in ds
             ) / max(1, len(ds))
-            despedidos += a.peso * frac
+            empleo[a.id] = max(0.0, empleo[a.id] - despidos_ronda)
+
+        tasa = min(1.0, sum(a.peso * frac_informal[a.id] for a in arquetipos) / peso_total)
+        empleo_relativo = sum(a.peso * empleo[a.id] for a in arquetipos) / peso_total
 
         r = Ronda(
             simulacion_id=simulacion_id,
@@ -302,11 +335,11 @@ def correr(
             politica={"tipo": "cambio_costo_laboral", "aumento_pct": aumento_pct},
             tasa_informalidad=tasa,
             prob_fiscalizacion=prob,
-            empleo_relativo=max(0.0, 1.0 - despedidos / peso_total),
+            empleo_relativo=empleo_relativo,
             # SUPUESTO: sin N paráfrasis la banda es degenerada (p10 = p90 = media).
             # Con n_parafrasis>=5 se llena de verdad; hasta entonces se reporta
             # como banda vacía en vez de inventar una.
-            banda=_banda(resultados, tasa, arquetipos, peso_total),
+            banda=_banda(resultados, tasa, arquetipos, peso_total, frac_previa),
             por_arquetipo=resultados,
             fraccion_poblacion_llm=fraccion_llm,
             pesos={a.id: a.peso for a in arquetipos},
@@ -318,8 +351,18 @@ def correr(
     return salida
 
 
-def _banda(resultados, tasa: float, arquetipos, peso_total: float) -> dict[str, float]:
-    """p10/p90 de la tasa entre paráfrasis. Degenerada si solo hubo una."""
+def _banda(
+    resultados, tasa: float, arquetipos, peso_total: float, frac_previa: dict[str, float]
+) -> dict[str, float]:
+    """p10/p90 de la tasa entre paráfrasis. Degenerada si solo hubo una.
+
+    SUPUESTO: las N paráfrasis parten todas del MISMO estado previo (el promedio
+    que dejó la ronda anterior), no de N trayectorias separadas. Seguir un árbol
+    de estados por paráfrasis multiplicaría las llamadas por N en cada ronda y es
+    otro proyecto; acá la banda mide dispersión de la decisión de ESTA ronda, no
+    de la historia completa. Se declara porque estrecha la banda respecto de la
+    que daría el árbol.
+    """
     n_votos = max(len(r.decisiones) for r in resultados.values())
     if n_votos < 2:
         return {"p10": tasa, "p90": tasa, "degenerada": True}
@@ -328,7 +371,7 @@ def _banda(resultados, tasa: float, arquetipos, peso_total: float) -> dict[str, 
         fuera = sum(
             a.peso
             * contrato.fraccion_fuera_de_regla(
-                resultados[a.id].decisiones[i], a.n_trabajadores, not a.formal
+                resultados[a.id].decisiones[i], a.n_trabajadores, frac_previa[a.id]
             )
             for a in arquetipos
         )

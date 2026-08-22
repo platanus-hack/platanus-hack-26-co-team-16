@@ -5,7 +5,8 @@ Qué modela: el agrupamiento sector × tamaño × formalidad × tramo de ingreso
   de miles de agentes desde la distribución de estrategias de su arquetipo.
 Entradas: `data/poblacion.parquet` (esquema `contracts/agente.json`), o el grid
   falso de `arquetipos_falsos()` mientras ese archivo no exista.
-Salidas: lista de `Arquetipo`; y estrategias por agente vía `muestrear()`.
+Salidas: lista de `Arquetipo`. El muestreo hacia agentes individuales es de
+  `engine/arquetipos.py` (ver `_muestrear_local` al final de este archivo).
 Supuestos: ver `# SUPUESTO:` en el cuerpo.
 
 Esta es la pieza de la verificación V10 (`docs/PLAN.md` §6). Ver el veredicto en
@@ -62,9 +63,11 @@ class Arquetipo:
     costo_despido: float
     peso: float = 1.0  # suma de factores de expansión: a cuánta gente representa
 
-    @property
-    def situacion_planta(self) -> str:
-        return "toda formal" if self.formal else "toda informal"
+    # `formal` es el estado INICIAL del arquetipo, el que trae la encuesta. No es
+    # su estado durante la corrida: eso lo lleva `rondas.correr()` y lo traduce a
+    # texto `capa.situacion_planta()`. Acá había una property que devolvía
+    # "toda formal"/"toda informal" desde este campo, y era justo la que hacía
+    # que la ronda 2 le dijera "toda formal" a quien ya se había informalizado.
 
 
 def arquetipos_falsos() -> list[Arquetipo]:
@@ -159,6 +162,18 @@ def desde_poblacion(ruta: str | Path) -> list[Arquetipo]:
                 peso=float(g["_peso"].sum()),
             )
         )
+    # El `id` se arma con `sector[:3]`, y hoy los 9 sectores reales dan prefijos
+    # únicos (verificado: 101 ids, 0 colisiones). Pero una colisión futura sería
+    # silenciosa y cara: dos arquetipos con el mismo id comparten `historial` y
+    # uno pisa al otro en el dict de resultados de `rondas.correr()`. Dos líneas
+    # de seguro valen más que ese rato de depuración.
+    ids = [a.id for a in fuera]
+    if len(ids) != len(set(ids)):
+        repetidos = sorted({i for i in ids if ids.count(i) > 1})
+        raise ValueError(
+            f"ids de arquetipo repetidos en {ruta}: {repetidos}. "
+            "El prefijo `sector[:3]` colisiona; hay que alargarlo."
+        )
     return fuera
 
 
@@ -172,13 +187,22 @@ def _semilla(seed: int, *partes: object) -> int:
     return int.from_bytes(hashlib.blake2b(crudo, digest_size=8).digest(), "big")
 
 
-def muestrear(
+def _muestrear_local(
     distribucion: dict[str, float],
     n: int,
     seed: int,
     *partes_semilla: object,
 ) -> list[str]:
     """Reparte `n` agentes entre las estrategias de su arquetipo, determinista.
+
+    ⚠️ **Este NO es el muestreo del proyecto.** El canónico vive en
+    `engine/arquetipos.py` con la firma que le asigna `engine/MODELO.md`
+    —`muestrear(arq, n, rng)`— y es el que consume el pipeline. Éste se conserva
+    con nombre privado como la evidencia de la verificación V10 (lo que
+    AgentTorch habría dado, en 20 líneas; ver `behavior/README.md`), no como
+    una segunda implementación en uso: dos funciones con el mismo nombre y
+    semillas distintas es un camino directo a dos resultados "deterministas"
+    que no coinciden.
 
     `distribucion` es {estrategia: peso}; los pesos se normalizan. Con un solo
     voto del LLM la distribución es degenerada (todos hacen lo mismo dentro del

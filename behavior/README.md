@@ -17,7 +17,36 @@ Las ADR 0005-0009 (PR #3, Manuel) son canon. Qué hace esta capa con cada una:
 | **0008** · asimetría | La firma propone vía LLM, el trabajador calcula por regla determinista | 🔶 Avalada. Falta que el motor exponga `realizacion` como campo hermano de `veto`: el rechazo del trabajador **no puede** volver por el canal del veto, o el reintento le entrega al agente una razón que no es una restricción suya y el dato A4 mezcla "no pudo pagarlo" con "no se lo aceptaron" |
 | **0009** · determinismo | La caché es artefacto versionado con hash de manifiesto que la corrida imprime | ✅ `Cache.manifiesto()`. Cubre claves **y contenido**: editar una entrada a mano cambia el hash, así que no se puede "arreglar" un resultado tocando el caché sin que se note |
 
+## Los 3 críticos del review del PR #4 — cerrados, con prueba
+
+`python3 -m behavior.pruebas` los ejecuta como regresión ($0, sin API). Cada uno
+reproduce el bug tal como lo reportaron @alejandrod-24 y @Manigreeen y verifica
+que hoy no ocurre.
+
+| # | Qué pasaba | Qué se hizo |
+|---|---|---|
+| **1** | Una `estrategia_propuesta` vacía —que el esquema JSON permite— mataba la corrida con **una sola llamada**, y como `proponer()` cacheaba antes de que nadie validara, la respuesta mala quedaba **grabada en disco**: la re-corrida sin API reventaba idéntico. Se disparaba justo en la re-corrida barata delante de un juez | Doble candado: `cliente.py` valida con `contrato.construir()` **antes** de escribir el caché, y `capa.py` mete `construir()`/`validar()` **dentro** del `try`. Una respuesta inválida ya no llega al disco ni tumba la corrida — es un intento perdido, como un veto |
+| **2** | `ya_informal = not a.formal` era estático las 4 rondas. Una unidad que informalizó su planta en R1 leía *"tu planta: toda formal"* en R2, encima de su propio historial que decía *"informalizar"*; si respondía "mantener", la tasa **bajaba** por una razón espuria. Y los despedidos **resucitaban** en cuanto la ronda siguiente no despedía | Estado vivo por arquetipo entre rondas (dos diccionarios en `rondas.correr()`, nada de estado del mundo — eso es de `engine/`). `fraccion_fuera_de_regla()` se vuelve acumulativa y `empleo_relativo` se arrastra contra la línea base sin política, que es como lo define `engine/MODELO.md` |
+| **3** | La regla fija comparaba el **sobrecosto** contra la sanción esperada, o sea un delta contra un nivel. El candado 4 salía de esa comparación | El costo formal completo. **Y el resultado cambió** — ver la sección del candado 4 abajo, que es lo más importante de este PR |
+
+Y los menores: `FALLBACK = "cumplir"` (canon `IDEA.md` §5.3/§5.7 — no era
+cosmético: para una unidad informal `absorber` puntúa 1.0 fuera de regla y
+`cumplir` 0.0, así que las dos capas habrían reportado tasas distintas con las
+mismas decisiones) · `tasa_informalidad_inicial` sin default de andamio, leída de
+`momentos.json` · `fallos_tecnicos` contado también cuando el reintento funciona ·
+caché escrito **antes** de registrar el gasto, para no re-pagar lo ya pagado ·
+`muestrear()` renombrado a `_muestrear_local` (el canónico es de `engine/`) ·
+`cargar_contrato()` borrado · `assert` de unicidad de ids en `desde_poblacion()`.
+
 ## El barrido con banda — el dato A2 NO se sostiene
+
+> ⚠️ **Medido ANTES del fix del estado vivo entre rondas** (crítico #2 del review
+> del PR #4). Con el bug, un arquetipo que informalizaba su planta volvía a
+> contar como formal la ronda siguiente, así que **los niveles de esta tabla se
+> van a mover**. No se re-mide en este PR: repetir el barrido cuesta ~$9 de un
+> techo de $50 y la conclusión que importa —que las bandas se solapan— no depende
+> del nivel sino del ancho. Se marca en vez de borrarse porque el hallazgo
+> negativo sigue en pie; el número exacto queda pendiente.
 
 Corrida del 2026-08-22: 7 políticas × 3 rondas × **5 paráfrasis** × 31 arquetipos
 (top-K 0,80) = **3.235 llamadas, $8,68**. Log crudo en
@@ -91,12 +120,13 @@ congelado desde H+4 y agregarle un campo exige avisar en el grupo antes.
 | Comando | Qué hace |
 |---|---|
 | `python3 -m behavior.higiene` | Escanea los prompts y falla si alguno nombra la política |
+| `python3 -m behavior.pruebas` | Las regresiones de los 3 críticos del review — sin API, $0 |
+| `python3 -m behavior.ablacion --barrido-factor` | La sensibilidad del candado 4 al supuesto S1 — $0 |
 | `python3 -m behavior.demo` | Corrida completa con reglas fijas — sin API key, $0 |
 | `python3 -m behavior.demo --real --cobertura 0.8` | Población real de la GEIH en modo top-K |
 | `python3 -m behavior.cache` | Tamaño del caché y su **hash de manifiesto** (ADR 0009) |
 | `python3 -m behavior.demo --barrido` | Barre 7 / 13,6 / 23 / 30% para buscar el codo |
 | `python3 -m behavior.demo --llm` | La capa LLM real (necesita credenciales) |
-| `python3 -m behavior.cache` | Estado del caché en disco |
 
 ## La regla de oro
 
@@ -165,10 +195,11 @@ contrato.py      contracts/decision.json: construir, validar, fallback
 cliente.py       API: ruteo de modelo, prompt caching, caché en disco, presupuesto
 cache.py         caché en disco por hash del prompt
 presupuesto.py   tope duro por corrida
-capa.py          propuesta -> veto -> reintento (máx 3) -> fallback 'absorber'
+capa.py          propuesta -> veto -> reintento (máx 3) -> fallback 'cumplir'
 rondas.py        el bucle: ronda 0 ingenua + 3 de mejor respuesta (ADR 0005)
 ablacion.py      la misma corrida con reglas fijas (candado 4 de validación)
 demo.py          corrida punta a punta sin motor y sin API key
+pruebas.py       las regresiones de los 3 críticos del review del PR #4
 ```
 
 El ciclo, que es la tesis del proyecto:
@@ -177,7 +208,7 @@ El ciclo, que es la tesis del proyecto:
 propuesta del LLM  ->  veto del motor  ->  ¿factible?
                                            sí -> entra al agregado de la ronda
                                            no -> reintento CON LA RAZÓN encima
-                                                 (máximo 3, luego 'absorber')
+                                                 (máximo 3, luego 'cumplir')
 ```
 
 `ablacion.py` es un reemplazo directo de `cliente.py`: misma firma de
@@ -221,6 +252,11 @@ perdido y se reintenta (`RespuestaInvalida` en `cliente.py`).
 
 ### 1. La cascada existe con LLM, y se ve
 
+> ⚠️ **Medida ANTES del fix del estado vivo entre rondas.** El "se devuelve" de la
+> ronda 3 (93,8% → 75,6%) es plausiblemente el bug y no el fenómeno: con el
+> estado muerto, una unidad que ya se había informalizado volvía a contar como
+> formal si respondía "mantener". Ver la corrida nueva más abajo.
+
 Corrida real, aumento 23%, 48 arquetipos:
 
 | ronda | informalidad | prob. de sanción |
@@ -236,6 +272,8 @@ evaden. **No converge**, y así hay que reportarlo (decisión D5): la ronda 2 se
 pasa y la 3 se devuelve. Eso es dinámica de mejor respuesta, no equilibrio.
 
 ### 2. ⚠️ El codo (dato A2) NO se puede afirmar todavía
+
+*(También pre-fix. Superado por el barrido con N=5 de arriba, que es el que manda.)*
 
 Barrido real de 7 niveles de política (1.160 llamadas, $3,04):
 
@@ -271,22 +309,101 @@ como la inventó) y `familia` (canónica, para agregar). Dani: agrega por
 `familia`; el nombre crudo sirve para el feed y para mostrar que el modelo
 inventa.
 
-### 4. Con reglas fijas no hay cascada — y ahora la diferencia es enorme
+### 4. ⚠️ El candado 4 no discrimina — y el hallazgo es ese, no un número
 
-Con los mismos parámetros de andamio, la ablación **formaliza a todo el mundo**
-(informalidad 0%) mientras el LLM llega a 75,6%. El umbral de una regla fija
-("sobrecosto > sanción esperada") escala con el ingreso en los dos lados, así
-que es idéntico para todos los arquetipos: cruzan todos o ninguno.
+**Esto reemplaza al *"con reglas fijas no hay cascada"* que decía este README
+antes.** Aquel número salía de una ablación mal especificada, y corregirla no lo
+volteó: lo dejó **en el filo**.
 
-Ojo con la lectura: esa diferencia es **a parámetros de andamio no calibrados**,
-así que todavía no es el número del candado 4. Pero la dirección es la que
-esperábamos, y la razón estructural (el umbral homogéneo) va a sobrevivir a la
-calibración.
+**Qué estaba mal.** La regla fija comparaba el **sobrecosto** del aumento
+(`0,23 × ingreso`) contra la sanción esperada. Eso es comparar un delta contra un
+nivel: para una unidad informal, formalizarse cuesta el costo formal **completo**,
+no solo lo que el aumento agrega. El umbral quedaba en `p > 1,92%`, así que
+cualquier probabilidad de fiscalización realista formalizaba a **todas** las
+unidades informales en la ronda 1 → informalidad 0% → `p(E)` salta a 100% → el
+sistema se clava ahí para siempre. El 0% no era un resultado, era un artefacto.
+
+**Cómo quedó** (`behavior/ablacion.py`, con `# SUPUESTO:` en el punto donde se toma):
+
+```
+costo de formalizarse   = ingreso × factor_prestacional × (1 + aumento)
+costo de seguir informal = ingreso + p × multa
+```
+
+**Y acá está el problema.** Con el factor prestacional en 1,40 —el extremo bajo
+del supuesto **S1** de [`engine/MODELO.md`](../engine/MODELO.md), declarado
+literalmente como *"≈1,4-1,5, sin cifra exacta verificada"*— la ablación
+**todavía** formaliza a todos. Pero por muy poco:
+
+| | valor |
+|---|---|
+| Punto de indiferencia de la regla fija, `p* = (F(1+a) − 1)/12` | **6,02%** |
+| `p(E)` en la ronda 0 con la informalidad observada (30,57%) | **6,33%** |
+| **Margen** | **0,31 pp** |
+
+Y el barrido sobre el rango que el propio modelo declaró incierto
+(`python3 -m behavior.ablacion --barrido-factor`, cuesta **$0**):
+
+| factor prestacional | informalidad final | p. sanción | conclusión |
+|---|---|---|---|
+| 1,4000 | 0,0% | 100,0% | sin cascada |
+| 1,4250 | 0,0% | 100,0% | sin cascada |
+| 1,4300 | 0,0% | 100,0% | sin cascada |
+| **1,4309** | — | — | **← aquí se voltea el candado 4** |
+| 1,4375 | 100,0% | 2,0% | **cascada con reglas fijas** |
+| 1,4500 | 100,0% | 2,0% | **cascada con reglas fijas** |
+| 1,5000 | 100,0% | 2,0% | **cascada con reglas fijas** |
+
+El punto de quiebre medido por bisección es **F = 1,4309**, idéntico al analítico
+`F* = (1 + 12·p)/(1 + a)`. Cae en el **31% inferior** del rango declarado de S1.
+
+**Conclusión, y es la que va al pitch:** con los parámetros actuales el candado 4
+**no discrimina**. No decimos "con reglas fijas no hay cascada" ni decimos "sí la
+hay": decimos que el signo del candado 4 **depende de un supuesto que el proyecto
+ya había declarado incierto antes de medirlo**, y publicamos el punto exacto
+donde se voltea. La afirmación defendible es:
+
+> *"La ablación separa al LLM de la regla fija solo si el factor prestacional
+> está por debajo de 1,43. Ese parámetro no lo tenemos verificado y lo dijimos
+> antes de medir. Aquí está el barrido completo."*
+
+**Tres cosas que hay que decir junto con esto:**
+
+1. **Los puntos #3 y #11 del review casi se cancelan.** Corregir la tasa inicial
+   de 0,42 al 30,57% observado sube `p(E)` de 4,65% a 6,33%, y ese salto es
+   justo lo que cruza el umbral. Aplicados por separado dan resultados opuestos;
+   juntos dejan el resultado en el filo. Ninguno de los dos reviews lo notó, y
+   es la razón por la que el número no se cayó limpiamente.
+2. **El resultado es idéntico con población real y con andamio** (verificado: 101
+   arquetipos y 48 dan la misma tabla). No es coincidencia — el umbral de una
+   regla fija escala con el ingreso **en los dos lados**, así que es el mismo
+   para todos los arquetipos y cruzan todos o ninguno. Esa homogeneidad es
+   precisamente lo que el LLM no tiene, y sigue siendo el argumento estructural
+   a favor de la capa conductual; lo que ya no se sostiene es el *número* que lo
+   respaldaba.
+3. **`p(E) → 1.0` cuando E → 0 crea un estado absorbente.** Es la
+   [ADR 0007](../docs/adr/0007-forma-funcional-prob-sancion.md) y es de R2, así
+   que no se toca desde acá; pero en la ablación **sí** muerde: en cuanto la
+   informalidad llega a 0, la probabilidad de sanción salta a 100% y nadie vuelve
+   a evadir nunca. El "0% para siempre" es en parte esa esquina de la fórmula, no
+   solo la conducta. **@Manigreeen** debería saberlo antes de cablear
+   `fiscalizacion.py`.
+
+**La especificación se eligió por fundamento, antes de correr, y hay que decir en
+qué dirección sesga.** Se supone que el salario bruto no cambia al formalizarse
+—solo se agregan las cargas— porque es la única alternativa que no exige inventar
+una brecha salarial informal/formal (el `0,85×` del andamio no es un dato). Esa
+elección **subestima** el costo de formalizarse, o sea que sesga a favor de que
+la ablación formalice, o sea **a favor de nuestro propio candado 4**. Con la
+especificación alternativa (formalizarse obliga a pagar el salario formal
+comparable) el costo sube a `2,03×` y la ablación produce cascada en todo el
+rango. Está dicho acá para que nadie tenga que descubrirlo leyendo el código.
 
 ### 5. Notas sueltas para el equipo
 
-- **`contracts/decision.json` todavía no existe en disco.** `contrato.py` valida
-  contra el ejemplo de `docs/PLAN.md` §4 y prefiere el archivo apenas aparezca.
+- **`contracts/decision.json` ya está congelado en `main`** y `contrato.py`
+  coincide con él campo a campo. La función `cargar_contrato()`, que existía para
+  el caso "todavía no existe", se borró.
 - **Los prompts no usan pesos.** Adentro todo es "unidades (u)"; la conversión
   es del motor.
 - **`informalizar_parcial` cuenta parcial.** Mueve solo la fracción de la planta
