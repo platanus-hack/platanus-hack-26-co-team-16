@@ -9,6 +9,54 @@
 
 _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber tu próxima sesión para no arrancar de cero._
 
+- 2026-08-22 (7ª sesión) — **`main` consolidado: los 5 PR abiertos mergeados. Cero abiertos.**
+  - **Por qué se hizo:** el equipo quería replanificar sobre una base única en vez de razonar
+    sobre cuatro ramas divergentes. El merge no fue la entrega: fue el prerequisito para
+    decidir qué cambiar.
+  - **Lo mergeado, en orden:** #7 `rol/backend` (Manuel, `engine/` + 44 tests) → #6
+    `rol/conductual-top-k` (Nico, ya APPROVED) → #5 `rol/datos` (mío) → #8
+    `docs/contrato-agentes` (mío) → #9 `docs/estado-consolidado` (el informe).
+    Los cuatro daban `MERGEABLE/CLEAN` y **no compartían un solo archivo**: cero conflictos.
+  - **La regla 3 se cumplió en los cuatro.** El #6 ya tenía review humana. Para el #7 y el #5
+    corrí la review en Codex (modelo y sesión distintos, que es lo que la regla pide
+    literalmente) y publiqué los informes como comentario **antes** de mergear. El #8 son 15
+    líneas de docs, revisado a ojo. **Aquí es donde los `.codex/agents/*.toml` pagaron:**
+    `peeky` corrió desde su `.toml` sin gastar contexto de la sesión principal.
+  - **Verificado sobre el `main` final, no afirmado:** `pytest engine/ -q` → **44 passed**;
+    `python -m behavior.pruebas` → todas las regresiones pasan; `data/parametros_legales.py`
+    regenera su JSON byte por byte idéntico.
+  - **El informe consolidado está en `main`:** `docs/agents/estado-consolidado-2026-08-22.md`.
+    Es la base factual para la replanificación — qué existe, qué corre, las 6 costuras rotas
+    con `archivo:línea`, y la decisión de arquitectura pendiente.
+
+  **Los tres hallazgos que este merge destapó** (los verifiqué contra el código, no son
+  reporte crudo de agente):
+
+  - 🔴 **El veto del motor nunca se entera de nada.** `behavior/rondas.py` no menciona
+    `EstadoVivo` ni `registrar` **ni una vez**, así que si se cablea `veto=veto_del_motor(estado)`
+    el veto ve el estado inicial para siempre: en la ronda 2+ puede autorizar despedir a quien
+    ya fue despedido. **Y ningún test lo detecta:** `engine/test_veto.py` actualiza el estado a
+    mano (2 llamadas a `.registrar()`) y **nunca llama a `correr()`**. Hoy no hay corrida
+    integrada de verdad.
+  - 🟠 **El mismo código ordinal, dos traducciones — me toca con Nico.**
+    `data/construir_empresas.py:42-58` traduce el código 2 como **2,5** y el 3 como **4,5**;
+    `behavior/arquetipos.py:35-45` los traduce como **3** y **5**. Encima `data/` resta al
+    dueño y `behavior/` no. `contracts/README.md:38-40` afirma que las tablas son idénticas:
+    **no lo son.** Misma familia que el bug de `tamano_empresa` del PR #4, igual de silencioso.
+  - 🟠 **Bug mío en la indemnización.** `data/parametros_legales.json:440-453` declara los dos
+    tramos del Art. 64 CST pero solo materializa `meses_de_salario_bajo_10_smlmv`, y
+    `construir_empresas.py:154-155` lo usa **siempre**. El costo de despido queda inflado ~40%
+    arriba de 10 SMLMV. Medido: `emp-agro_mineria-t07` recibe 2,3333 meses cuando le tocan 1,6667.
+
+  **Dos cosas que hice mal y cómo quedaron:**
+
+  - Commiteé el informe directo sobre `main` local. Lo moví a rama con `git switch -c` +
+    `git branch -f main origin/main` **antes de pushear**, y entró por PR como manda la regla 1.
+    Nada salió mal, pero la lección es no hacer `git switch main` para escribir.
+  - Le dije al equipo que el orden de merge importaba por la dependencia de tests
+    (`engine/test_veto.py` importa `behavior`). Codex señaló que **el árbol final es idéntico
+    en cualquier orden** y tiene razón: el orden solo importa si verificas en cada paso.
+
 - 2026-08-22 (6ª sesión) — **Los 4 críticos quedaron integrados y pusheados en 2 PR.**
   - **El problema no era el contenido de los agentes, era el cableado.** Cuatro agentes
     escritos en cuatro sesiones distintas: `juez-hackathon`, `juez-tecnico`, `juez-cientifico`
@@ -192,6 +240,20 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
 - [x] Costo legal de la formalidad con fuente → `data/parametros_legales.json` (4ª sesión).
 - [x] Los 4 críticos internos versionados, con frontera cerrada y declarados en `AGENTS.md`
       (6ª sesión, 2 PR: `rol/datos` y `docs/contrato-agentes`).
+- [x] Consolidar `main`: los 5 PR mergeados con review en los cuatro (7ª sesión).
+- [ ] 🔴 **Escribir el test de integración que falta**: dos rondas con `EstadoVivo`,
+      `EstadoFiscalizacion` y `veto_del_motor` reales. Sin él la costura crítica es una
+      opinión; con él es un fallo rojo. **Cruza `engine/` y `behavior/`, así que no es mío
+      solo** — hay que acordarlo con Manuel y Nico.
+- [ ] 🟠 **Arreglar la indemnización** (`construir_empresas.py:154-155`): elegir el tramo por
+      salario en vez de usar siempre el bajo. Es mío y es una tarde de nada.
+- [ ] 🟠 **Cerrar con Nico la tabla del código ordinal**: una sola traducción y una sola
+      semántica (¿el dueño cuenta o no?). Y corregir `contracts/README.md:38-40`, que hoy
+      afirma que son idénticas.
+- [ ] 🟠 **Que `behavior/` consuma `empresas.parquet`** en vez de los coeficientes de andamio
+      `0.18` y `1.5` de `arquetipos.py:100-101`. Es el motivo por el que construí esa tabla.
+- [ ] **Avisarle a Juanda que `make test` está ciego a los 44 tests** (corre `pytest tests/`,
+      los tests viven en `engine/`). `Makefile` y `tests/` son suyos. Va con lo de abajo.
 - [ ] **Pedirle a Juanda que `AGENTS.md` mencione los dos puertos de agentes** (`.claude/agents/*.md` y `.codex/agents/*.toml`) y la regla de regenerarlos juntos.
 - [ ] **Pedirle a Juanda en el PR `docs/contrato-agentes`** que corrija la línea de
       `.claude/agents/<nombre>/` → `.claude/agents/<nombre>.md`. Es suya; no se toca desde
@@ -203,19 +265,34 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
 
 ## Bloqueado / esperando a alguien
 
-- 🔴 **Manuel / `engine/`: cero líneas de código en `main`.** Es el camino crítico de todo lo
-  que sigue y el archivo que AGENTS.md manda leer primero (`engine/rondas.py`). El spec
-  (`engine/MODELO.md`) está excelente y completo — archivo, función, test y supuesto por
-  concepto — pero no hay implementación. **C3 (H+10, "corre punta a punta") no se puede
-  cerrar.** Ya no me bloquea a mí: `poblacion.parquet`, `empresas.parquet` y
-  `parametros_legales.json` están listos y son todo lo que el motor necesita de datos.
-- 🔴 **Dani / `web/`: cero líneas.** Sin interfaz no hay demo, y C3 la incluye.
-- **PR #5 espera un revisor distinto de mí** (regla 3). Es docs-only (mi handoff + la
-  advertencia en `contracts/README.md`); cualquiera del equipo puede mergearlo en 2 min.
-- Nico: la conversación de arquetipos (mi 67 vs su 101) sigue pendiente — para el standup.
-  Ahora hay un motivo más para cerrarla: `behavior/arquetipos.py` calcula `flujo_caja` y
-  `costo_despido` con coeficientes de andamio que ya tienen reemplazo con fuente en
-  `empresas.parquet`. Que los lea de ahí en vez de recalcularlos.
+_Actualizado en la 7ª sesión: lo de "`engine/` en cero" YA NO ES CIERTO._
+
+- ✅ **RESUELTO — `engine/` ya está en `main`** (PR #7): `veto.py`, `fiscalizacion.py`,
+  `seed.py`, 1.466 líneas y **44 tests que pasan**. Lo que decía este handoff sobre "cero
+  líneas" quedó viejo el 22 de agosto.
+- 🔴 **Pero C3 ("corre punta a punta") SIGUE SIN PODERSE CERRAR, por otra razón.** Ya no falta
+  el motor: falta el **cable**. `behavior/rondas.py` no menciona `EstadoVivo` ni `registrar`,
+  así que el veto del motor ve el estado inicial para siempre. Las interfaces encajan
+  (`Arquetipo` satisface el Protocol `Firma` campo por campo, `veto_del_motor()` devuelve
+  exactamente el callable que `correr()` acepta) — **la conexión es posible hoy y nadie la ha
+  hecho**. Es probablemente el cambio de mayor valor por línea del proyecto.
+- 🔴 **La decisión de arquitectura que bloquea ese cable: ¿quién orquesta el bucle?**
+  `engine/rondas.py` no existe, `AGENTS.md:11` lo declara *"si solo lees un archivo…"*, y
+  `docs/PLAN.md:197-198` se lo asigna a R2 y a R3 **a la vez**. Dos caminos: (a) `engine/`
+  orquesta y `behavior/` solo propone, o (b) `behavior/` sigue orquestando pero recibe y
+  actualiza el estado del motor. **Un wrapper vacío en `engine/rondas.py` sería peor que nada:**
+  escondería los dos estados en vez de reconciliarlos. Esto se decide en grupo, no por PR.
+- 🔴 **Dani / `web/`: sigue sin código.** Solo el prototipo HTML. Y `api/` también está en cero,
+  así que aunque `web/` arranque no hay a qué conectarse.
+- **Juanda:** `make test` corre `pytest tests/` y `tests/` solo tiene un README, así que el
+  comando oficial del repo **imprime "No hay tests todavia" mientras 44 pasan** en `engine/`.
+  `Makefile` y `tests/` son suyos. Tampoco hay `requirements.txt` ni `pyproject.toml` y el
+  código usa numpy, pandas, requests y anthropic: nadie puede reproducir el entorno desde cero.
+- **Nico:** la conversación de arquetipos (mi 67 vs su 101) sigue pendiente, y ahora hay **dos**
+  motivos más. Uno: `behavior/arquetipos.py:100-101` sigue con los coeficientes de andamio
+  `0.18` y `1.5` que `empresas.parquet` ya reemplaza con fuente legal. Dos: las dos capas
+  traducen el mismo código ordinal `P3069` con tablas distintas (2,5/4,5 contra 3/5) y una
+  resta al dueño y la otra no.
 
 ## Supuestos que tomé
 
