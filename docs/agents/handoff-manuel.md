@@ -9,7 +9,7 @@
 
 _Lo más reciente arriba._
 
-- **2026-08-22 — Sesión de fundamentación. Cero código, a propósito.**
+- **2026-08-22 — Sesión de fundamentación. Cero código, a propósito.** → [PR #3](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/3), abierto y esperando revisión de alguien distinto de mí.
 
   El repo estaba **escrito, no decidido**: documentación densa y buena, pero con huecos
   tapados por buena prosa. Se encontraron **10, todos de backend**, y se cerraron 9. La
@@ -43,10 +43,15 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [ ] **Siguiente sesión: escribir `engine/`.** El orden está en
-      [`engine/MODELO.md`](../../engine/MODELO.md). Empezar por `seed.py` y `fiscalizacion.py`
-      (determinismo desde el primer commit, y el corazón de la cascada).
-- [ ] Abrir PR de `rol/backend` → `main`. **Lo revisa alguien distinto de mí** (regla 3 de `AGENTS.md`).
+- [x] Abrir PR de `rol/backend` → `main`. → [PR #3](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/3).
+- [ ] **Que alguien distinto de mí lo revise** (regla 3 de `AGENTS.md`). Es lo único que bloquea el merge.
+- [ ] **Siguiente sesión: escribir `engine/`.** El orden ya no hay que pensarlo, está en
+      [`engine/MODELO.md`](../../engine/MODELO.md): 10 archivos, cada uno con su ancestro
+      teórico, su test y su supuesto. Empezar por `seed.py` (determinismo desde el primer
+      commit) y `fiscalizacion.py` (el corazón de la cascada, con `C` ya anclado en la cifra
+      de la OIT).
+- [ ] Tras el merge: pedirle a Juanda que registre este bloque en
+      [`docs/agents/handoff.md`](handoff.md), que es de un solo escritor y no lo puedo tocar.
 
 ## Bloqueado / esperando a alguien
 
