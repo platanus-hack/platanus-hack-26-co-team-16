@@ -8,3 +8,9 @@ raw/GEIH_*/
 # de R1 (107 KB, 6.692 filas) y todo el equipo construye contra el. Regenerable
 # con los dos scripts de esta carpeta; sha256 de la fuente en raw/DESCARGA.json.
 !poblacion.parquet
+
+# Misma excepcion, mismo criterio: empresas.parquet es el lado empleador que el
+# veto de engine/ necesita (18 KB, 81 filas). Se regenera con
+# `python data/construir_empresas.py` a partir de poblacion.parquet y
+# parametros_legales.json.
+!empresas.parquet

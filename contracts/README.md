@@ -30,6 +30,15 @@ de datos del ANDA (`microdatos.dane.gov.co/index.php/catalog/900/data-dictionary
 Los valores del ejemplo son ilustrativos del **tipo y formato**; los reales salen de
 `data/poblacion.parquet`.
 
+> **⚠️ `tamano_empresa` es un código ordinal 1–10, NO un número de empleados.**
+> Leerlo como headcount es un error silencioso: los códigos topan en 10, así que ninguna
+> validación revienta — pero una firma de "201+ personas" entra al modelo con 10
+> trabajadores, y de ahí el error se propaga a nómina, flujo de caja y al techo duro del
+> veto. Ya pasó una vez (PR #4, `behavior/`). Todo cálculo de caja o costos —
+> `engine/costos.py` incluido — debe traducir el código a headcount primero; la
+> traducción de referencia es `EMPLEADOS_POR_CODIGO` en `behavior/arquetipos.py`
+> (punto medio de cada rango; código 10 = 300, marcado `# SUPUESTO:`).
+
 ## `decision.json` y `ronda.json`
 
 Copiados tal cual de `docs/PLAN.md` §4 — la interfaz del veto (Manuel↔Nico) y del agregado

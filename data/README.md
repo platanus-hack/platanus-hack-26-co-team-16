@@ -24,6 +24,8 @@ script y verifica el sha256 contra `raw/DESCARGA.json`.
 ```bash
 python data/descargar_geih.py       # baja y descomprime los 6 zips + DESCARGA.json
 python data/construir_poblacion.py  # crudo -> poblacion.parquet + momentos.json
+python data/parametros_legales.py   # normativa -> parametros_legales.json
+python data/construir_empresas.py   # poblacion + normativa -> empresas.parquet
 ```
 
 Determinista sin seed: no hay muestreo, solo transformación; dos corridas producen
@@ -57,9 +59,60 @@ archivos idénticos byte a byte (verificado por sha256).
 | `poblacion.parquet` | 6.692 agentes-trabajadores de Bogotá, esquema = `contracts/agente.json` | Suma de `factor_expansion` = **4.199.644 ocupados** — comparable con la serie oficial de ocupados de Bogotá del DANE |
 | `momentos.json` | Objetivos de calibración: informalidad total (**30,6%** con el proxy), por sector y por tamaño (micro 66,7% / pyme 10,6% / grande 0,8%), percentiles salariales, terciles | Contrastar contra la [serie oficial de empleo informal del DANE](https://www.dane.gov.co/index.php/estadisticas-por-tema/mercado-laboral/empleo-informal-y-seguridad-social) — candado 1 de `VALIDATION.md` |
 
-**Hallazgo V9 (para R5):** el "spike" de masa salarial existe y es visible — **12,1% de toda
-la masa salarial de Bogotá está exactamente en 1.750.000 COP** (la moda observada; confirmar
-contra el SMLMV 2026 con la serie de decretos, V4).
+**Hallazgo V9 — cerrado, y V4 con él.** El "spike" de masa salarial existe y es visible:
+**12,1% de toda la masa salarial de Bogotá está exactamente en 1.750.000 COP**. El SMLMV 2026
+verificado es **1.750.905 COP** (Decreto 1469 de 2025), o sea la moda observada **es** el
+salario mínimo, redondeado por el encuestado. La población reproduce el spike sin que nadie
+se lo haya impuesto: es el primer indicio de que los microdatos y la política se tocan donde
+deben. El aumento del 23% del caso demo también queda verificado contra el decreto
+(1.423.500 → 1.750.905 = +23,0%), no supuesto.
+
+## El lado empleador: `parametros_legales.json` y `empresas.parquet`
+
+La GEIH es una encuesta de **hogares**: cada fila es una persona. Pero el veto del motor
+([ADR 0003](../docs/adr/0003-veto-de-factibilidad.md)) decide sobre una **firma**. Estos dos
+archivos construyen ese lado sin inventarlo.
+
+**`parametros_legales.json`** — el costo legal de la formalidad, tasa por tasa, cada una con
+su norma y su URL (Ley 100, Ley 21/1982, Decreto 1772/1994, Arts. 186/249/306/64 del CST,
+Art. 114-1 del ET). Reemplaza el supuesto S1 de `engine/MODELO.md` ("factor prestacional
+≈1,4–1,5, sin cifra exacta verificada") y el coeficiente `ingreso * 1.5` que `behavior/`
+usaba como andamio para el despido.
+
+Dos hallazgos que cambian el modelo, no solo el número:
+
+1. **El factor prestacional no es un número con incertidumbre: son dos, y el tamaño del
+   empleador decide cuál.** El Art. 114-1 del Estatuto Tributario exonera de salud patronal
+   (8,5%), SENA (2%) e ICBF (3%) a quien emplee **2 o más** trabajadores que ganen menos de
+   10 SMLMV. Un empleador de **un solo** trabajador paga esos 13,5 puntos. El rango completo
+   va de **1,384 a 1,583**, y el motor debe **asignar** el factor que corresponde a cada
+   firma, no promediar el rango.
+2. **El auxilio de transporte (249.095 COP) es un costo fijo, no un porcentaje.** Sobre el
+   salario mínimo pesa **14,2%**; sobre un salario de 4 millones no se paga. Encarece la
+   formalidad justo en el tramo bajo, que es donde vive la informalidad.
+
+**`empresas.parquet`** — 81 celdas de empleador (sector × código de tamaño `P3069`), con
+headcount, nómina, mezcla formal/informal, costo de la formalidad y a cuántas empresas reales
+representa cada celda.
+
+| Control | Valor |
+|---|---|
+| Empresas expandidas de Bogotá | **368.491** |
+| Trabajadores con empleador | 3.235.639 |
+| Cuenta propia (código 1, sin nómina) | 964.004 — **22,9%** de los ocupados |
+| Celdas que pierden la exoneración del Art. 114-1 | 10 de 81 |
+
+El resultado que importa para el pitch: **formalizar a un trabajador cuesta hasta 74,9% sobre
+su salario en una micro, contra 40,3% en una grande.** Esa regresividad no es un parámetro
+que hayamos elegido — sale de la frontera de la exoneración, del auxilio fijo y de la clase
+de riesgo, las tres verificables contra la norma.
+
+**Lo que estos archivos NO resuelven.** La GEIH no observa ingresos, activos ni márgenes de
+las empresas, así que **el flujo de caja no se puede derivar de ella**. Se emite como un
+supuesto explícito y parametrizado (`MARGEN_SOBRE_NOMINA = 0.18`, rango de barrido
+0,05–0,40) para que viva en **un solo lugar con nombre**, en vez de aparecer como un `0.18`
+suelto dentro de otra carpeta. Es el parámetro número uno que R5 debe barrer: el veto lo usa
+como techo duro.
 
 ## Verificación V2 — panel rotativo: **NO en los microdatos públicos**
 
