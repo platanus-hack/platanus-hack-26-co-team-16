@@ -64,6 +64,25 @@ GEIH (DANE) ──ingesta──▶ data/poblacion.parquet
 - **`api/`** — FastAPI: `POST /simulaciones` (política + seed) → corre el motor → persiste cada ronda en Supabase.
 - **`web/`** — Next.js: slider de política (7 / 13,6 / 23%), gráfica "proyección oficial vs curva de cascada", mapa distributivo por sector × tramo de ingreso con bandas, feed Realtime de decisiones, 3–4 historias narradas.
 
+### 4.1 Build vs buy — qué se reutiliza y qué se construye
+
+Regla del insumo de Manuel (§4.8), adoptada: **ninguna librería entra al plan sin URL abierta por un humano, y por cada una se dice qué ahorra y qué habría que construir igual.** Si una herramienta nos ahorra el 100%, el 25% técnico se va con ella — los jueces leen el repo con agentes y un wrapper se detecta en 30 segundos.
+
+| Herramienta (insumo Manuel §4.1) | Qué ahorraría | Qué construiríamos igual | Veredicto |
+|---|---|---|---|
+| **AgentSociety** (Tsinghua) | Entorno urbano+social+económico completo | Todo nuestro modelo laboral: no trae GEIH, ni margen formal/informal, ni fiscalización endógena | **Leer el paper, no correrlo** (veredicto del propio insumo: "instalación cara"). Se cita como prior art en el README. |
+| **OASIS** (1M agentes) | Escala de agentes en redes sociales | Nuestro caso no es una red social; la escala nuestra viene del factor de expansión de la GEIH, no del runtime | **Robar el diseño, no correrlo** (veredicto del insumo). De su paper se toma el patrón de agregados compartidos entre agentes. |
+| **Mesa** | Scheduler por agente, grillas espaciales, visualización browser | Nuestro bucle son 4 rondas **vectorizadas sobre un dataframe** (pandas/numpy) — el scheduler OOP por agente de Mesa es más lento y no aporta nada sin componente espacial | **No entra.** El motor son ~300 líneas de numpy/pandas que son exactamente la ingeniería que el juez debe encontrar en `engine/`. |
+| **AgentTorch** | La idea de arquetipos: LLM por grupo, no por agente | El muestreo de distribuciones por arquetipo (~50 líneas) | **Se adopta la IDEA (ya está: D4), no la dependencia.** V10 en §6: alguien abre el repo por si hay algo importable, con veredicto en H+3. |
+| **Concordia** (DeepMind) | Manejo de prompts/contexto para agentes narrativos | Solo tenemos 3–4 historias narradas — no amerita un framework | **No entra.** Se cita como prior art. |
+| **NetLogo** | Modelos ABM clásicos validados | No existe modelo NetLogo de informalidad laboral colombiana | **No entra.** |
+| **SUMO / MATSim** | Tráfico y movilidad | Nada: el caso ya no es movilidad (D1) y el simulador de tráfico está excluido (§9) | **No entra.** |
+| **DoWhy** | Pipeline de refutación causal | Nuestra validación es calibración + backtest (§5), no un grafo causal; meterlo sin usarlo de verdad es decoración detectable | **No entra en las 36h.** Se nombra en VALIDATION.md como camino futuro. |
+| **sbi / MSM formal** (insumo jdtorres) | Calibración bayesiana rigurosa | Calibración simple contra momentos ya cubre el nivel 1 | **No entra.** Referencia metodológica en VALIDATION.md. |
+| **pandas / numpy / FastAPI / Next.js / Supabase / SDK Anthropic con prompt caching** | Toda la infraestructura aburrida | — | **Sí, todo.** Reutilizar infraestructura probada ≠ importar el motor: la lógica de `engine/` y `behavior/` es 100% nuestra, y eso es lo que defiende el 25%. |
+
+**La línea para el Q&A y para `ARCHITECTURE.md`:** *"leímos AgentSociety, OASIS y AgentTorch; adoptamos el patrón de arquetipos de AgentTorch y el agregado compartido de OASIS, y decidimos NO importar sus runtimes porque nuestro modelo cabe en un motor vectorizado propio que se puede leer completo en una tarde."* Eso convierte "no usamos las librerías" en una decisión de ingeniería documentada con alternativas descartadas — exactamente lo que el agente del juez busca.
+
 **Contratos de datos (se congelan en H+4 con estos ejemplos, no con tipos vacíos — la advertencia sobre stubs de dos insumos):**
 
 `contracts/agente.json` — una fila de la GEIH transformada:
@@ -135,6 +154,7 @@ Es la pregunta que decide el track (los cinco insumos coinciden). Cuatro candado
 | V7 | Espejo a repo personal + Render/Vercel conectados | Integración | **H+1** | Es mecánico (instrucciones en el README del repo). Sin plan B porque no puede fallar: se hace primero. |
 | V8 | Elasticidades / "efecto faro" en literatura para nivel 2 de calibración | Validación | H+10 | Se valida solo con backtest propio (nivel 2 de §5); el efecto faro se menciona como trabajo futuro. |
 | V9 | Que el "spike" salarial en el mínimo sea visible en la GEIH descargada | Validación | H+8 | Se calibra contra informalidad por sector únicamente. |
+| V10 | Abrir el repo de **AgentTorch**: ¿tiene algo importable para el muestreo por arquetipos o se implementa a mano? (regla: ninguna librería sin URL abierta) | Conductual (R3) | H+3 | Implementarlo a mano: son ~50 líneas de muestreo de distribuciones. El plan ya asume este caso (§4.1). |
 
 ## 7. Reparto de trabajo — 5 roles (nombres se asignan en la cena; recomendación en §13)
 
