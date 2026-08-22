@@ -12,24 +12,67 @@
 
 ---
 
+---
+
+## Alcance real a H+12: se escriben tres de los diez
+
+Este mapa define 10 archivos. **La sesión de auditoría del 2026-08-22 09:52 decidió escribir
+tres**, y documentar los otros siete como trabajo futuro en vez de dejarlos a medias.
+
+La razón no es de tiempo, es de dónde está el valor: **la tesis del proyecto ya corrió** en
+`behavior/` (informalidad 63,2% → 75,6% con la probabilidad de sanción cayendo 4,8% → 2,1%,
+medido contra la API real). Lo que falta no es reimplementar ese bucle: es volver real el
+número que ya salió.
+
+| Archivo | Por qué entra | Qué reemplaza |
+|---|---|---|
+| ✅ `seed.py` | Hoy el `seed` de `behavior/` es **decorativo**: seed 42 y seed 99 dan salida idéntica salvo la etiqueta. Nada en el bucle es estocástico | Nada. Es nuevo |
+| ✅ `fiscalizacion.py` | `p(E) = 1 − exp(−C/max(E,1))` con `C` anclado en la cifra de la OIT. Es la cascada, y es lo único que no se resuelve prompteando | La forma abreviada `p ≈ C/E` de `behavior/rondas.py` |
+| ✅ `veto.py` | El veto es la interfaz entera con R3, y hoy corre contra **dos dobles de prueba** (`veto_permisivo` y `veto_doble_prueba`) | Los dos dobles de prueba |
+
+**Los siete que no se escriben** (`mundo.py`, `costos.py`, `trabajador.py`, `arquetipos.py`,
+`agregado.py`, `rondas.py`, `barrido.py`) se declaran como límite en `VALIDATION.md`, no se
+dejan como `TODO`. La regla *"cero `TODO: implementar` dentro de `engine/`"* sigue en pie.
+
+> **Excepción:** `arquetipos.py` puede entrar cuarto si sobra tiempo, porque sin `muestrear()`
+> **el mapa distributivo (dato A3) no se puede dibujar** y Dani se queda sin una de las cuatro
+> piezas de la pantalla.
+
+### Una restricción del veto que no era obvia
+
+Las razones del veto **viajan dentro del prompt de reintento** que `behavior/capa.py` le manda
+al modelo, y ese prompt pasa por `higiene.verificar()`. O sea que una razón con un `$`, un año
+de cuatro dígitos o la palabra "gobierno" **mata la corrida con `ContaminacionError`**.
+
+`vetar()` produce razones que pasan `higiene.revisar()` limpias, y hay un test que lo prueba.
+Es un compromiso público en el review del PR #4, no una preferencia.
+
+---
+
 ## El mapa
 
 | Concepto | Ancestro teórico | Archivo | Función | Test que lo prueba | Supuesto que carga |
 |---|---|---|---|---|---|
-| **Determinismo** | [`numpy` SeedSequence](https://numpy.org/doc/stable/reference/random/parallel.html) | `seed.py` | `generador_raiz(seed)` · `stream_de_ronda(k)` | Dos corridas, mismo seed, resultado idéntico | Misma máquina y versiones ([ADR 0009](../docs/adr/0009-frontera-del-determinismo.md)) |
+| **Determinismo** | [`numpy` SeedSequence](https://numpy.org/doc/stable/reference/random/parallel.html) | ✅ **`seed.py`** | `generador_raiz(seed)` · `stream_de_ronda(seed, ronda)` · `stream_nombrado(seed, ronda, *nombre)` · `manifiesto(seed)` | ✅ `engine/test_seed.py`, 10 casos. El que importa: la derivación es estable **entre procesos** (se corre en subprocesos con `PYTHONHASHSEED` distinto) | Misma máquina y versiones ([ADR 0009](../docs/adr/0009-frontera-del-determinismo.md)), que es lo que imprime `manifiesto()` |
 | **Estado del mundo** | ODD elemento 2 | `mundo.py` | `cargar_poblacion()` · `EstadoFiscalizacion` · `EstadoMundo` | La población cargada valida contra `contracts/agente.json` | — |
 | **La política** | — | `mundo.py` | `Politica.como_mecanica()` | La mecánica generada **no contiene** el nombre de la política ni años | — |
 | **Costo formal** | Allingham-Sandmo 1972 | `costos.py` | `costo_formal(salario, factor_prestacional)` | Monotonía en el salario | ⚠️ **factor prestacional ≈ 1,4-1,5**, sin cifra exacta verificada. Barrido de sensibilidad |
 | **Costo informal** | Allingham-Sandmo 1972 | `costos.py` | `costo_informal(salario, p, sancion)` | Crece con `p` | Pérdida de acceso a crédito y clientes formales **no se modela**. Se declara |
-| **Fiscalización endógena** | A-S con `p` endógeno + [PNAS 2021](https://www.pnas.org/doi/10.1073/pnas.2108507118) | **`fiscalizacion.py`** | `prob_sancion(C, E)` = `1 − exp(−C/max(E,1))` | Decreciente en `E`; en `[0,1)` para todo `E`; **corrida de control con `p` fijo no produce cascada** | ⚠️ **inspecciones por inspector por trimestre**, sin fuente. Es el supuesto más importante del motor |
-| **Capacidad de inspección** | [OIT 2023-24](https://www.ilo.org/es/projects-and-partnerships/projects/mayor-capacidad-de-la-inspeccion-del-trabajo-en-colombia): 1.300 inspectores | `mundo.py` | `capacidad_trimestre()` | Cambiar la capacidad mueve `p` en la dirección esperada | Conversión anual→trimestral no es uniforme; fracción dirigida a Bogotá y a los sectores del modelo |
-| **Veto de factibilidad** | [ADR 0003](../docs/adr/0003-veto-de-factibilidad.md) | **`veto.py`** | `vetar(decision, firma)` → `{factible, razon}` | Una propuesta sin caja se rechaza **con razón**; 3 reintentos y luego `cumplir` | Qué cuenta como "caja disponible" en un trimestre |
+| **Fiscalización endógena** | A-S con `p` endógeno + [PNAS 2021](https://www.pnas.org/doi/10.1073/pnas.2108507118) | ✅ **`fiscalizacion.py`** | `prob_sancion(C, E)` = `1 − exp(−C/max(E,1))` · `es_degenerado(E)` · `satura(C, E)` | ✅ `engine/test_fiscalizacion.py`, 17 casos: decreciente en `E`, probabilidad para todo `E`, y coincide con `C/E` en el régimen real. **Falta la corrida de control con `p` fijo**: necesita `rondas.py`, va como límite a `VALIDATION.md` | ⚠️ S2 (inspecciones por inspector, sin fuente, el más importante del motor), S5 y S10 |
+| **Capacidad de inspección** | [OIT 2023-24](https://www.ilo.org/es/projects-and-partnerships/projects/mayor-capacidad-de-la-inspeccion-del-trabajo-en-colombia): 1.300 inspectores | ✅ **`fiscalizacion.py`** (no `mundo.py`: sin `mundo.py` escrito, `EstadoFiscalizacion` va donde vive su fórmula) | `EstadoFiscalizacion.capacidad()` · `.evasores(fracción)` · `.con(...)` para el barrido | ✅ El barrido mueve `p` en la dirección esperada y no muta el estado; la clase es inmutable, o sea no es una perilla (ADR 0006) | S10: fracción de la planta nacional dirigida al universo del modelo |
+| **Veto de factibilidad** | [ADR 0003](../docs/adr/0003-veto-de-factibilidad.md) | ✅ **`veto.py`** | `vetar(decision, firma, estado)` → `{factible, razon}` · `veto_del_motor(estado)` · `EstadoVivo` | ✅ `engine/test_veto.py`, 17 casos. Incluye el compromiso público: **todas** las razones pasan `higiene.revisar()` limpias | S8 (la caja del trimestre) y S9 (redondeo de la planta) |
 | **Decisión del trabajador** | 🔶 [ADR 0008](../docs/adr/0008-asimetria-firma-trabajador.md) | `trabajador.py` | `acepta_informal(neto_f, neto_i, prima)` | Con prima 0 acepta siempre que el neto informal sea mayor | ⚠️ **prima de protección**: cuánto vale pensión + salud + cesantías para el trabajador. Sensibilidad obligatoria |
 | **Arquetipos** | [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md) (idea de AgentTorch) | `arquetipos.py` | `construir_arquetipos()` · `muestrear(arq, n, rng)` | El muestreo con el mismo seed es idéntico; las proporciones respetan la distribución del arquetipo | Los agentes dentro de un arquetipo son **intercambiables en su conducta** |
 | **Agregado** | Patrón de OASIS | `agregado.py` | `Agregado.de_ronda(estado)` | El agregado que ven los arquetipos es el de la ronda **anterior**, no el de la actual | — |
 | **Métricas** | — | `agregado.py` | `tasa_informalidad()` · `empleo_relativo()` · `banda()` · `brecha()` | Salida valida contra `contracts/ronda.json`; la informalidad está **ponderada** por factor de expansión | La línea base de `empleo_relativo` es el mundo sin política |
 | **Scheduler de rondas** | ODD elemento 3 · [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md) | **`rondas.py`** | `correr(mundo, politica, seed)` → 4 rondas | Ronda 0 es la proyección ingenua; el orden dentro de la ronda es fijo | Mejor respuesta **con rezago**, no punto fijo simultáneo |
 | **Barrido del codo** | Dato A2 · equilibrios múltiples ([JPubE 2007](https://www.sciencedirect.com/science/article/abs/pii/S0047272707000497)) | `barrido.py` | `barrer(rango_aumento)` | El barrido es reproducible y monótono donde debe serlo | La resolución del barrido no crea ni borra el codo |
+
+> **Una divergencia con el boceto de arriba, a propósito.** Este mapa proponía
+> `stream_de_ronda(k)`, con un solo argumento. Eso obliga a guardar la raíz en estado de
+> módulo, y entonces el determinismo pasa a depender del orden de importación y de quién
+> sembró primero. La firma real lleva el seed explícito: `stream_de_ronda(seed, ronda)`.
+> Sin estado global no hay carrera que descubrir a las 4am.
 
 **Si solo lees un archivo, lee `rondas.py`.** Es donde vive la tesis: el bucle de mejor
 respuesta y el punto exacto donde la fiscalización se recalcula.
@@ -65,8 +108,13 @@ Los `# SUPUESTO:` que el motor **va a** tomar. Escribirlos antes evita reconstru
 | S5 | **Conversión de capacidad anual a trimestral** | Bajo-medio | La inspección no se reparte uniforme en el año; se declara |
 | S6 | **Agentes del mismo arquetipo son intercambiables en conducta** | Medio | Consecuencia de [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md), ya declarada en `VALIDATION.md` |
 | S7 | **Costo informal ignora pérdida de crédito y de clientes formales** | Medio: subestima el costo de informalizar, o sea **sobreestima la cascada** | Sesgo de dirección **conocida**. Se declara: nuestra cascada es una cota superior por este canal |
+| S8 | **La caja de la ronda son 3 meses del `flujo_caja` de la firma**, y se puede destinar completa a un desembolso de una vez (sin reservas y sin crédito) | **Alto en el veto**: decide cuántos despidos son factibles. Con el doble de prueba (1 mes) la corrida de ablación producía **96 vetos**; con S8, **0**, y el empleo de la ronda 3 pasa de 100% a 85,7% | Dirección conocida: sin crédito el veto es **más estricto**, luego `n_vetos` y `n_fallback` son cota superior. Barrido sobre `MESES_POR_RONDA` |
+| S9 | **La planta viva se redondea al entero más cercano** | Bajo, salvo en plantas chicas — que con la GEIH son el caso común (mediana 3) | Declarado en `planta_viva()`. Se puede medir cuántos vetos cambian con piso vs techo |
+| S10 | **La fracción de la planta nacional de inspectores que actúa sobre el universo del modelo (≈0,15)** | **Alto**: multiplica `C` directamente, igual que S2 | Son dos factores que la GEIH puede medir (participación de la ciudad y de los sectores). Se reemplazan con `momentos.json`; mientras tanto entran al mismo barrido que S2 |
 
-S7 es del tipo que conviene decir primero: sabemos hacia dónde nos equivocamos.
+S7 es del tipo que conviene decir primero: sabemos hacia dónde nos equivocamos. **S8 es el que
+más mueve el número hoy**, y por eso se reporta con la medición al lado en vez de con una
+promesa de sensibilidad.
 
 ---
 
