@@ -192,7 +192,17 @@ def correr(
     salida: list[Ronda] = []
 
     # EL ESTADO VIVO entre rondas. Son dos diccionarios y nada más: el estado del
-    # mundo completo es de `engine/` y no se replica acá. Pero sin esto la ronda
+    # mundo completo es de `engine/` y no se replica acá.
+    #
+    # PUNTO DE SUTURA CON engine/ — ANDAMIO, bloqueado por R2 (crítico #2 del
+    # review del PR #4). Estos dos dicts son hoy la única fuente del estado vivo,
+    # y el motor va a llevar el suyo: son dos estados que pueden divergir. Cuando
+    # `engine/` exponga `fraccion_informal_previa` por `arquetipo_id` (float en
+    # [0,1], al empezar cada ronda, antes de renderizar el prompt), estas dos
+    # líneas pasan de ESCRIBIRSE a LEERSE del motor y el bloque que las actualiza
+    # más abajo se borra. El resto del bucle no cambia: la fracción ya viaja
+    # hasta el prompt y hasta el `contexto` de la ablación. La especificación
+    # completa está en `docs/agents/handoff-nico.md`, punto 10. Pero sin esto la ronda
     # n+1 contradice lo que pasó en la ronda n, y de ahí salen dos números
     # falsos: una unidad que informalizó su planta volvía a contar como formal
     # (la tasa bajaba por una razón espuria — plausiblemente el "se devuelve" de

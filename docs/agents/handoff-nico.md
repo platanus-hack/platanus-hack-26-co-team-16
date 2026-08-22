@@ -273,6 +273,20 @@ _Lo más reciente arriba._
    los dos lados, así que es idéntico para todos los arquetipos y cruzan todos o
    ninguno — verificado, la tabla es igual con 48 arquetipos de andamio y con los
    101 reales. Esa homogeneidad es lo que el LLM no tiene.
+6b. **El A1 se re-midió post-fix y sobrevive; la banda se triplica.** De las
+   siete políticas del barrido solo se volvió a pagar la del caso demo (23%,
+   503 llamadas, $1,38, población real). Brecha **+37,4 → +33,3 pp**: dentro del
+   rango que ya se reportaba, o sea que el fix del estado vivo **no tumba el dato
+   titular**. Pero la banda pasa de 10,3 a **33,9 pp**. **Juanda:** eso no
+   debilita el guion, lo endurece — la conclusión "no podemos afirmar el codo"
+   queda más firme, y la frase defendible es *"la brecha es de +33 pp con un
+   intervalo de +17 a +51; el signo es robusto, la magnitud no"*. **Y una
+   corrección incómoda:** el README decía que el reflujo de la ronda 3 era
+   "plausiblemente el bug". Se midió y **sigue ahí** (87,5% → 63,8%), porque
+   `cumplir` devuelve la planta a regla y la informalidad puede bajar sin que
+   nada esté roto. Ya está corregido en el README. Las otras seis políticas
+   siguen siendo pre-fix y no hay que citarlas como si no lo fueran.
+
 7. **Dani — el dato A4 se agrega de dos maneras y las dos importan.**
    **(a) Por `familia`, no por `estrategia_propuesta`:** el modelo inventa
    sinónimos (cinco nombres para "seguir informal" en 193 llamadas). Cada
@@ -300,6 +314,39 @@ _Lo más reciente arriba._
    motor es la única fuente y yo leo de él, o la firma lleva el estado. Hay que
    decidirlo antes de que `engine/rondas.py` se cierre.
 
+   **La especificación, para que Manuel la implemente sin preguntar.** Esto es
+   lo único que `behavior/` necesita de `engine/` para cerrar el crítico #2; no
+   pido el estado del mundo completo, solo el pedazo que entra al prompt.
+
+   | | |
+   |---|---|
+   | **Qué** | La fracción de la planta del arquetipo que está fuera de regla al EMPEZAR la ronda |
+   | **Nombre** | `fraccion_informal_previa` — el que ya consumen `capa.decidir_arquetipo()` y el `contexto` de la ablación |
+   | **Tipo** | `float` en `[0,1]`. `0.0` = toda la planta en regla, `1.0` = toda fuera |
+   | **Clave** | Por `arquetipo_id` (el `id` de `behavior/arquetipos.py`) |
+   | **Quién manda** | `engine/`. Es la ÚNICA fuente; `behavior/` deja de calcularlo |
+   | **Cuándo** | Al empezar cada ronda `n ≥ 1`, ANTES de renderizar el prompt |
+   | **Análogo** | Lo mismo para el empleo: fracción de la planta ORIGINAL que sigue empleada, acumulativa contra la línea base sin política |
+
+   **El punto de sutura, exacto.** En `behavior/rondas.py`, dentro de `correr()`,
+   están los dos diccionarios que hoy hacen de andamio:
+
+   ```python
+   frac_informal: dict[str, float] = {a.id: (0.0 if a.formal else 1.0) for a in arquetipos}
+   empleo:        dict[str, float] = {a.id: 1.0 for a in arquetipos}
+   ```
+
+   Cuando `engine/` exponga el estado, esos dos dicts dejan de escribirse y pasan
+   a LEERSE del motor; el resto del bucle no cambia una línea, porque
+   `fraccion_informal_previa` ya viaja hasta el prompt y hasta el `contexto`.
+   El bloque de actualización que hoy los pisa (después de resolver la ronda) es
+   lo que se borra.
+
+   **Mientras tanto** el andamio se queda, porque sin él la ronda n+1 contradice
+   a la ronda n y las dos métricas del pitch mienten. Está marcado como andamio
+   en el comentario del código, no escondido. **Este punto queda ABIERTO y
+   bloqueado por R2.**
+
 ## Supuestos que tomé
 
 _Además del `# SUPUESTO:` en el código, para que R5 los recoja en `VALIDATION.md`._
@@ -322,8 +369,11 @@ _Además del `# SUPUESTO:` en el código, para que R5 los recoja en `VALIDATION.
   no un supuesto.
 - **Mejor respuesta simultánea:** el agregado que ve un arquetipo es el de la
   ronda anterior completa, no el que se va formando dentro de la ronda.
-- **Máximo 3 reintentos** tras veto, luego fallback a `absorber`; el fallback
-  queda marcado con `fue_fallback: True` para que se pueda contar.
+- **Máximo 3 reintentos** tras veto, luego fallback a `cumplir` — canon de
+  `docs/IDEA.md` §5.3 y §5.7 y de `engine/MODELO.md`, cambiado en este PR
+  (antes decía `absorber`, y la divergencia no era inocua: para una unidad
+  informal `absorber` puntúa 1.0 fuera de regla y `cumplir` puntúa 0.0). El
+  fallback queda marcado con `fue_fallback: True` para que se pueda contar.
 - **El determinismo del proyecto en esta capa lo da el caché en disco**, no el
   modelo: con el caché poblado la corrida relee exactamente las mismas
   respuestas. Es un hecho del diseño y así hay que reportarlo.

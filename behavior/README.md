@@ -43,10 +43,13 @@ caché escrito **antes** de registrar el gasto, para no re-pagar lo ya pagado ·
 > ⚠️ **Medido ANTES del fix del estado vivo entre rondas** (crítico #2 del review
 > del PR #4). Con el bug, un arquetipo que informalizaba su planta volvía a
 > contar como formal la ronda siguiente, así que **los niveles de esta tabla se
-> van a mover**. No se re-mide en este PR: repetir el barrido cuesta ~$9 de un
-> techo de $50 y la conclusión que importa —que las bandas se solapan— no depende
-> del nivel sino del ancho. Se marca en vez de borrarse porque el hallazgo
-> negativo sigue en pie; el número exacto queda pendiente.
+> van a mover**. Repetir el barrido entero cuesta ~$9 de un techo de $50, así que
+> **se re-midió UNA política** —la del caso demo, 23%— y las otras seis quedan
+> pre-fix. Resultado en «La corrida post-fix»: la brecha aguanta (+37,4 → +33,3 pp)
+> pero **la banda se triplica** (10,3 → 33,9 pp), o sea que la conclusión que
+> importa —que las bandas se solapan y el codo no se puede afirmar— sale
+> **reforzada**. Se marca en vez de borrarse porque el hallazgo negativo sigue
+> en pie; los niveles exactos de las otras seis quedan pendientes.
 
 Corrida del 2026-08-22: 7 políticas × 3 rondas × **5 paráfrasis** × 31 arquetipos
 (top-K 0,80) = **3.235 llamadas, $8,68**. Log crudo en
@@ -84,6 +87,8 @@ parecía tener estructura; no la tenía.
   sobre la proyección oficial. El signo, el mecanismo y el orden de magnitud son
   robustos aunque el nivel exacto no lo sea. La afirmación defendible es *"la
   brecha está entre 28 y 45 puntos y no depende de qué alza elijas"*.
+  **Verificado post-fix en un punto de los siete** (23% → +33,3 pp, dentro del
+  rango): el fix del estado vivo no tumba A1. Los otros seis puntos son pre-fix.
 - **La cascada aparece en los 7 puntos:** la probabilidad de sanción cae de 6,3%
   a 2,6–3,4% en todos. El mecanismo es consistente aunque el nivel sea ruidoso.
 
@@ -252,10 +257,15 @@ perdido y se reintenta (`RespuestaInvalida` en `cliente.py`).
 
 ### 1. La cascada existe con LLM, y se ve
 
-> ⚠️ **Medida ANTES del fix del estado vivo entre rondas.** El "se devuelve" de la
-> ronda 3 (93,8% → 75,6%) es plausiblemente el bug y no el fenómeno: con el
-> estado muerto, una unidad que ya se había informalizado volvía a contar como
-> formal si respondía "mantener". Ver la corrida nueva más abajo.
+> ⚠️ **Medida ANTES del fix del estado vivo entre rondas**, y una de las cosas
+> que decía acá resultó **falsa al medirla**. Este README afirmaba que el "se
+> devuelve" de la ronda 3 era *"plausiblemente el bug y no el fenómeno"*. Se
+> re-midió con el estado arreglado y **el reflujo sigue ahí** (87,5% → 63,8%),
+> así que no era el bug. El mecanismo es legítimo: `cumplir` devuelve la planta
+> entera a regla, así que la informalidad **puede bajar** sin que nada esté roto.
+> La corrida post-fix está abajo, en «La corrida post-fix».
+>
+> Los NIVELES de esta tabla sí se mueven con el fix; se conserva por trazabilidad.
 
 Corrida real, aumento 23%, 48 arquetipos:
 
@@ -270,6 +280,57 @@ El mecanismo se comporta como dice la tesis: más agentes fuera de regla → la
 capacidad fija se reparte entre más → la probabilidad de sanción cae → más
 evaden. **No converge**, y así hay que reportarlo (decisión D5): la ronda 2 se
 pasa y la 3 se devuelve. Eso es dinámica de mejor respuesta, no equilibrio.
+
+### 1b. La corrida post-fix — la única medida sobre el código que va a `main`
+
+De las siete políticas del barrido, **una** se volvió a medir con el estado vivo
+arreglado: la del caso demo (23%). Las otras seis siguen siendo pre-fix y están
+marcadas como tales. Reproducible con:
+
+```bash
+python3 -m behavior.demo --llm --real --aumento 23 --parafrasis 5 \
+        --cobertura 0.80 --tope 2.00
+```
+
+101 arquetipos, top-K 0,80 (31 al LLM = 80,5% de la población), N=5 paráfrasis,
+503 llamadas, **$1,38**.
+
+| ronda | informalidad | prob. de sanción | empleo |
+|---|---|---|---|
+| 0 (proyección oficial) | 30,6% | 6,3% | 100,0% |
+| 1 | 59,0% | 6,3% | 100,0% |
+| 2 | 87,5% | 3,3% | 98,9% |
+| 3 | 63,8% | 2,3% | 98,7% |
+
+**ANTES y DESPUÉS del fix, en el punto del caso demo:**
+
+| | pre-fix (barrido) | post-fix | lectura |
+|---|---|---|---|
+| brecha (dato A1) | +37,4 pp | **+33,3 pp** | **A1 sobrevive**: cae dentro del rango +28 a +45 que ya se reportaba |
+| p10 / p90 de la tasa final | 61,7% / 72,0% | **47,9% / 81,8%** | — |
+| ancho de la banda | 10,3 pp | **33,9 pp** | **la incertidumbre se TRIPLICA** |
+| p. de sanción final | 2,1% | 2,3% | la cascada aguanta |
+
+**Tres cosas que hay que decir, y una incomoda:**
+
+1. **El dato A1 aguanta el fix.** +33,3 pp sobre la proyección oficial, con el
+   signo y el mecanismo intactos. Es el hallazgo del proyecto y sigue en pie.
+2. **La banda se triplica, y eso empeora el dato A2, no lo mejora.** Con 33,9 pp
+   de ancho en un solo punto, la conclusión de que las bandas se solapan y el
+   codo no se puede afirmar queda **más firme**, no menos. Traducido a la brecha,
+   el intervalo de esta política sola va de ~+17 a ~+51 pp: el signo es robusto,
+   la magnitud no está clavada.
+3. **El reflujo de la ronda 3 NO era el bug.** Este README decía que
+   probablemente lo era. Se midió y sigue ahí (87,5% → 63,8%). La explicación es
+   mecánica y legítima: `cumplir` devuelve la planta entera a regla
+   (`contrato.fraccion_fuera_de_regla` → 0.0), así que la informalidad puede
+   bajar en una ronda sin que nada esté roto. **No converge**, y así se reporta
+   (decisión D5): es dinámica de mejor respuesta, no equilibrio.
+
+**Lo que sigue sin medirse post-fix:** las otras seis políticas del barrido.
+Repetirlo entero cuesta ~$9. La conclusión del A2 no depende de los niveles sino
+de los anchos, y los anchos empeoraron, así que no cambia de signo — pero los
+números de esas seis filas son pre-fix y no hay que citarlos como si no lo fueran.
 
 ### 2. ⚠️ El codo (dato A2) NO se puede afirmar todavía
 
