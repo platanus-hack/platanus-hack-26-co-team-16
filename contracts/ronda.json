@@ -1,0 +1,10 @@
+{
+  "simulacion_id": "sim-042",
+  "seed": 42,
+  "ronda": 2,
+  "politica": { "tipo": "cambio_costo_laboral", "aumento_pct": 23 },
+  "tasa_informalidad": 0.583,
+  "prob_fiscalizacion": 0.041,
+  "empleo_relativo": 0.968,
+  "banda": { "p10": 0.571, "p90": 0.596 }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "geih-2026-m06-00417",
+  "tipo": "trabajador",
+  "ciudad": "Bogotá",
+  "sector": "comercio",
+  "tamano_empresa": 4,
+  "ingreso_mensual_cop": 1450000,
+  "formal": false,
+  "educacion": "media",
+  "factor_expansion": 312.7,
+  "arquetipo": "com-micro-informal-t2"
+}
