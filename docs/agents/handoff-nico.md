@@ -2,12 +2,53 @@
 
 > **Tu memoria entre sesiones.** Léelo al abrir tu sesión de agente, actualízalo antes de cerrarla.
 > Este archivo es solo tuyo: nadie más lo edita, así nunca da conflicto de merge.
-> Tus carpetas: `behavior/` · Tu rama: `rol/conductual`
+> Tus carpetas: `behavior/` · Tu rama: `rol/conductual-top-k` (la de trabajo; `rol/conductual` ya se mergeó en el PR #4)
 > Tu misión, entregables y prompt de arranque: [`docs/ROLES.md`](../ROLES.md)
 
 ## Dónde quedé
 
 _Lo más reciente arriba._
+
+- **2026-08-22 (noche) — PR #6 listo para review. A1 re-medido post-fix, y una
+  afirmación del README resultó falsa.**
+  - **[PR #6](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/6)**
+    abierto contra `main`, MERGEABLE/CLEAN, cuerpo completo escrito. Es
+    **fix-forward**, no reemplazo del #4: `main` ya carga el bug.
+  - **Nada de código nuevo en esta sesión.** Los 11 puntos ya estaban cerrados en
+    `0f9fccf`. Lo de esta sesión fue: verificar corriendo, re-medir A1, escribir
+    la especificación para R2, y corregir un error del README.
+  - **Verificación (regla 4: el reporte de un agente es un reclamo).**
+    `pruebas` en verde · `higiene` 7/7 exit 0 · `demo` 4 rondas sin excepciones ·
+    `ablacion --barrido-factor` reproduce F=1,4309 · dos corridas mismo seed,
+    byte a byte idénticas.
+  - **El dato A1 post-fix: SOBREVIVE.** Se re-pagó una de las siete políticas
+    (23%, población real, N=5, top-K 0,80): 503 llamadas, **$1,38**.
+    Brecha **+37,4 → +33,3 pp**, dentro del rango que ya se reportaba.
+    Trayectoria 30,6% → 59,0% → 87,5% → 63,8%, sanción 6,3% → 2,3%.
+  - **⚠️ La banda se TRIPLICA: 10,3 → 33,9 pp.** No debilita el proyecto, endurece
+    el hallazgo del A2: las bandas se solapan todavía más. La frase para el pitch
+    es *"+33 pp con intervalo de +17 a +51; el signo y el mecanismo son robustos,
+    la magnitud no está clavada"*.
+  - **⚠️ Corrección: el reflujo de la ronda 3 NO era el bug.** El README decía que
+    "plausiblemente" lo era. Se midió con el estado arreglado y **sigue ahí**
+    (87,5% → 63,8%). Mecanismo legítimo: `cumplir` devuelve la planta entera a
+    regla, así que la informalidad puede bajar sin que nada esté roto. Corregido
+    en el README en vez de borrado.
+  - **Las otras seis políticas del barrido siguen siendo pre-fix.** Están marcadas.
+    No citarlas como si no lo fueran. Re-medirlas cuesta ~$9.
+  - **Presupuesto de la capa: $10,06** de $50 ($8,68 barrido + $1,38 esta sesión).
+
+  **Lo que queda abierto al cerrar:**
+  1. **Crítico #2 — bloqueado por R2.** La especificación de lo que `behavior/`
+     necesita de `engine/` está escrita (punto 10 de este handoff) y el punto de
+     sutura marcado en `rondas.py` (`grep "PUNTO DE SUTURA"`). No construir motor
+     dentro de `behavior/`.
+  2. **#10 — avisarle a @DanRin9** del campo `degenerada` en `banda`. Es
+     comunicación, no código. **Sigue pendiente.**
+  3. **El PR #6 necesita review de alguien distinto** (regla 3 del flujo).
+  4. **Para R5:** no hay `requirements.txt` (faltaban `anthropic` y `pyarrow` en
+     la máquina) y el caché está gitignoreado, así que hoy un extraño no puede
+     reproducir esto. Si queremos demo sin API key, hay que commitear un caché.
 
 - **2026-08-22 (tarde) — los 11 puntos del review del PR #4, cerrados. Y el
   candado 4 no discrimina: el hallazgo de la sesión.**
