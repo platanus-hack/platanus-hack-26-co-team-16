@@ -10,6 +10,21 @@
 
 Un simulador de políticas públicas que no responde *"¿funciona la política?"* sino **"¿cuánta gente la cumple y a quién le cae encima?"**. La población de agentes se instancia desde personas reales anonimizadas de los microdatos de la GEIH del DANE (✅ única fuente verificada de los cinco insumos) — no se inventa nadie. Un motor determinista con seed calcula costos y **veta** las reacciones imposibles que propone una capa LLM que descubre estrategias de adaptación (informalizar, absorber, despedir, evadir). Los agentes deciden en 3–4 rondas de mejor respuesta viendo lo que hacen los demás: como la fiscalización es fija, más evasión baja la probabilidad de sanción y produce la **cascada** que el modelo oficial no ve. Demo: el aumento del salario mínimo del 23% en Bogotá, validado contra ~20 alzas históricas cuyo resultado ya se conoce, sin decirle nunca al modelo el nombre de la política.
 
+### 1.1 El aporte: los cuatro datos que hoy no existen — el desarrollo se mide contra esto
+
+Cada feature del sistema debe producir (o servir a) uno de estos cuatro datos. Lo que no sirva a ninguno, no se construye.
+
+| # | El dato nuevo | Quién no lo tiene hoy | Qué pieza del sistema lo produce |
+|---|---|---|---|
+| A1 | **Cuánta gente cumple de verdad.** La proyección oficial asume cumplimiento total; nadie publica "de los 2,4M, X se informalizan y el aumento real de ingresos es Z". | DANE, ministerio, Fedesarrollo — el número no existe | La ronda 3 (`Simulacion.brecha()`) |
+| A2 | **La forma de la curva: dónde está el codo.** La econometría da elasticidades (línea recta); el bucle de fiscalización puede producir un umbral donde la cascada se dispara. Si el 7% y el 13,6% se absorben y el 23% cruza el umbral, el debate real no es "23 vs 13,6" sino "antes o después del codo". | Nadie — requiere el bucle endógeno | El **barrido de `aumento_pct`** en el motor (ver §4) + la curva en la interfaz |
+| A3 | **A quién le cae encima.** El desglose por sector × tamaño × ingreso que el promedio nacional esconde — la pregunta política que decide si una reforma sobrevive. | Cualquier actor de la mesa de concertación | El mapa distributivo, posible porque las correlaciones vienen reales de la GEIH |
+| A4 | **Por qué evade cada quien.** El menú de estrategias reales (informalizar parcial, bajar horas, renegociar) y cuál domina en qué segmento — cada estrategia responde a una política distinta (más inspectores no le hacen nada al que no le alcanza la plata). | Ningún modelo con estrategias enumeradas a mano | La capa LLM + el veto, agregado por arquetipo |
+
+**Para quién:** el que decide (gobierno, el litigio abierto) deja de elegir entre tres números ciegos · el que discute (concejal, gremio, periodista) obtiene la capacidad que hoy está encerrada en meses/economistas/PDF, vuelta interrogable · el que la sufre puede verse en el mapa ("gente como yo, ¿gana o pierde?").
+
+**El límite, declarado (es parte del pitch, no debilidad):** no entregamos el futuro, entregamos **el rango** con banda y con el error del backtest publicado. El aporte es convertir un supuesto invisible ("la gente cumple") en un número medible con margen de error.
+
 ## 2. La frase del pitch
 
 > **"El gobierno subió el salario mínimo 23% asumiendo que la gente cumple. Nosotros simulamos, con 240.000 hogares reales del DANE, cuánta gente cumple de verdad — y a quién le cae encima."**
@@ -62,7 +77,7 @@ GEIH (DANE) ──ingesta──▶ data/poblacion.parquet
 - **`engine/`** — estado del mundo, costos (formal = salario × factor prestacional; informal = salario negociado + riesgo de sanción), probabilidad de fiscalización endógena (capacidad fija / universo de evasores), **veto de factibilidad**, scheduler de rondas, determinismo con seed desde el primer commit.
 - **`behavior/`** — prompts por arquetipo (solo mecánica, nunca el nombre de la política), caché en disco con hash del prompt, presupuesto tope por corrida con corte duro, ruteo Haiku/modelo grande.
 - **`api/`** — FastAPI: `POST /simulaciones` (política + seed) → corre el motor → persiste cada ronda en Supabase.
-- **`web/`** — Next.js: slider de política (7 / 13,6 / 23%), gráfica "proyección oficial vs curva de cascada", mapa distributivo por sector × tramo de ingreso con bandas, feed Realtime de decisiones, 3–4 historias narradas.
+- **`web/`** — Next.js: slider de política (7 / 13,6 / 23% + barrido fino precomputado para mostrar el codo — dato A2), gráfica "proyección oficial vs curva de cascada", mapa distributivo por sector × tramo de ingreso con bandas (dato A3), desglose de estrategias por segmento (dato A4), feed Realtime de decisiones, 3–4 historias narradas.
 
 ### 4.1 Build vs buy — qué se reutiliza y qué se construye
 
@@ -82,6 +97,23 @@ Regla del insumo de Manuel (§4.8), adoptada: **ninguna librería entra al plan 
 | **pandas / numpy / FastAPI / Next.js / Supabase / SDK Anthropic con prompt caching** | Toda la infraestructura aburrida | — | **Sí, todo.** Reutilizar infraestructura probada ≠ importar el motor: la lógica de `engine/` y `behavior/` es 100% nuestra, y eso es lo que defiende el 25%. |
 
 **La línea para el Q&A y para `ARCHITECTURE.md`:** *"leímos AgentSociety, OASIS y AgentTorch; adoptamos el patrón de arquetipos de AgentTorch y el agregado compartido de OASIS, y decidimos NO importar sus runtimes porque nuestro modelo cabe en un motor vectorizado propio que se puede leer completo en una tarde."* Eso convierte "no usamos las librerías" en una decisión de ingeniería documentada con alternativas descartadas — exactamente lo que el agente del juez busca.
+
+### 4.2 Dominio del motor — qué cabe y qué no (para que nadie prometa de más en el pitch ni en el código)
+
+El motor es general para UNA clase de problemas: **cambio de costos/incentivos + capacidad de fiscalización + población, donde la trampa es una opción**. No es universal, y decirlo es parte de la credibilidad.
+
+| Caso | ¿Cabe? | Por qué |
+|---|---|---|
+| Salario mínimo → informalidad | ✅ (la demo) | Cambio de costo laboral + inspección fija + GEIH |
+| Tarifa TransMilenio → colados | ✅ | Misma estructura (era el plan B de D1) |
+| Impuesto a un sector → evasión | ✅ | Misma estructura exacta |
+| Subsidio por estrato → reporte falso | ✅ | El "costo" es el subsidio perdido; la fiscalización es la verificación |
+| Pico y placa → segundo carro | ⚠️ | La estructura cabe; faltan datos de parque automotor |
+| Trancón por un clásico, evacuación por sismo, epidemia | ❌ | Son física de flujo/contagio, no equilibrio de incentivos — otra máquina (SUMO/MATSim, excluida en §9) |
+
+**Regla de desarrollo:** si un feature solo tiene sentido para casos ❌, no se construye. **Línea para el Q&A:** *"un túnel de viento no simula terremotos y nadie se lo reprocha — lo grave no es no cubrir el trancón, sería decir que lo cubrimos"*. La generalidad se pitchea como tesis, no como catálogo: toda política que cambia incentivos tiene un supuesto de cumplimiento, y este motor lo mide — en cualquier ciudad donde la gente no cumple por defecto.
+
+**Requisito de motor derivado del dato A2 (§1.1):** `engine/` debe poder correr un **barrido de `aumento_pct`** (no solo 7/13,6/23) para localizar el codo de la cascada, con los puntos del barrido precomputados para la demo. Es el mismo motor en un `for`; lo que cambia es que la interfaz muestra la curva umbral completa, no tres puntos.
 
 **Contratos de datos (se congelan en H+4 con estos ejemplos, no con tipos vacíos — la advertencia sobre stubs de dos insumos):**
 
@@ -245,7 +277,7 @@ Convenciones que el agente del juez encuentra: `# SUPUESTO:` grepeable en el pun
 | 0:45–1:05 | **El aporte técnico en una frase:** "la teoría de juegos necesita que un economista escriba las estrategias; nosotros las descubrimos con miles de colombianos reales y resolvemos la mejor respuesta". |
 | 1:05–2:30 | **DEMO en vivo** (escenarios precomputados + video de respaldo): calibración base → slider al 23% → ronda 0 (la línea del gobierno) → rondas 1–3 (la cascada) → el mapa de quién pierde → una historia con cara. |
 | 2:30–3:00 | **El número de validación:** le pedimos que prediga alzas que ya pasaron, sin dejarle ver el resultado ni el nombre. Se equivocó por X. Ese X está en `VALIDATION.md` y `make validate` lo reproduce. |
-| 3:00–3:30 | **Escala:** esto sirve en cualquier ciudad donde el supuesto de cumplimiento se rompe — Bogotá, Lima, CDMX, Manila — y es innecesario en Copenhague. Qué sigue si no fueran 36 horas. |
+| 3:00–3:30 | **Escala:** esto sirve para cualquier política que cambie incentivos, en cualquier ciudad donde el supuesto de cumplimiento se rompe — Bogotá, Lima, CDMX, Manila — y es innecesario en Copenhague. Cierre: **"hoy Colombia decide el salario mínimo sabiendo cuánto quiere subir; nosotros le mostramos cuánto va a llegar — y a quién."** |
 
 ## 13. Lo que no pude resolver — decisiones de humanos, para la cena
 
