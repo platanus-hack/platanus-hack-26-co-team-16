@@ -3,3 +3,8 @@
 # `python data/descargar_geih.py` reproduce la descarga.
 raw/*.zip
 raw/GEIH_*/
+
+# Excepcion al *.parquet del .gitignore raiz: poblacion.parquet es EL entregable
+# de R1 (107 KB, 6.692 filas) y todo el equipo construye contra el. Regenerable
+# con los dos scripts de esta carpeta; sha256 de la fuente en raw/DESCARGA.json.
+!poblacion.parquet
