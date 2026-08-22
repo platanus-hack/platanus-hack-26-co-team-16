@@ -1,0 +1,5 @@
+# Crudos de la GEIH: ~60+ MB por mes — no van al repo publico.
+# La URL exacta, fecha y sha256 quedan en raw/DESCARGA.json y en data/README.md;
+# `python data/descargar_geih.py` reproduce la descarga.
+raw/*.zip
+raw/GEIH_*/
