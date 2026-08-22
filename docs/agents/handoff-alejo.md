@@ -9,6 +9,32 @@
 
 _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber tu próxima sesión para no arrancar de cero._
 
+- 2026-08-22 (3ª sesión) — **PR #4 APROBADO Y MERGEADO a `main`. Advertencia `tamano_empresa` en `contracts/README.md`.**
+  - **Segunda review del PR #4 (APPROVE, 15:08 UTC), con evidencia reproducida, no creída:**
+    higiene 7/7 · demo 4 rondas / 96 vetos / $0 · dos corridas byte a byte idénticas ·
+    `desde_poblacion()` contra el parquet real → 101 arquetipos, 36/34/31 por tamaño,
+    `n` 1–300, 0 ids duplicados, peso total 4.199.644 (= los ocupados expandidos exactos) ·
+    `EMPLEADOS_POR_CODIGO` cuadra código a código con los rangos P3069 del README.
+  - **⚠️ Conflicto de reviews a resolver con cabeza fría:** la review de la 2ª sesión
+    (CHANGES_REQUESTED, 14:27 UTC, "3 críticos") fue sobre el MISMO tip (`afee16d`, 13:12 UTC)
+    que yo aprobé. En mi pasada no encontré los 3 tal como están descritos abajo. Lo que SÍ
+    veo latente y hay que llevar al PR top-K de Nico como issues (el merge ya está, no se
+    re-litiga): (a) **caché envenenable** — si el modelo devuelve JSON válido al esquema pero
+    con `estrategia_propuesta` vacía, `cliente.py` lo cachea ANTES de que
+    `contrato.construir()` reviente con ValueError, y el reintento usa el mismo prompt → mismo
+    hash → mismo veneno; los 3 intentos queman contra la entrada cacheada. (b) **La crítica a
+    la ablación es metodológicamente válida**: la regla fija formaliza a todos por
+    construcción (con aumento 0, sobrecosto 0 < sanción → `cumplir`), así que el "0% vs
+    75,6%" del candado 4 es en parte artefacto de cómo se escribió la regla. El PR lo
+    matiza ("a parámetros de andamio"), pero conviene endurecer la regla nula antes de
+    presentar el candado 4.
+  - **`contracts/README.md`:** bloque de advertencia (código ordinal 1–10, no headcount, con
+    puntero a `EMPLEADOS_POR_CODIGO`) commiteado y pusheado en `rol/datos` (llegó a los dos
+    remotos: el doble pushurl del espejo SÍ está en este clon). **PR #5 retitulado** para
+    cubrir handoff + advertencia; sigue abierto **sin revisor** — no auto-mergear, pedirlo.
+  - **Borrador del mensaje al grupo listo** (quedó en el chat de la sesión): aval ADR 0008
+    con la precisión de Nico + aviso de contratos congelados para `realizacion` en
+    `decision.json` y `trimestre`/`n_vetos`/`n_fallback` en `ronda.json`. **FALTA ENVIARLO.**
 - 2026-08-22 (2ª sesión) — **PR #2 MERGEADO. Review de PR #4 (Nico) publicada: CHANGES_REQUESTED.**
   - Revisé `behavior/` completo + pasada profunda verificada. 3 críticos (caché envenenado
     por respuestas vacías `capa.py:179`, estado estático entre rondas `rondas.py:189`,
@@ -40,8 +66,13 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
 ## En qué estoy trabajando
 
 - [x] Descarga GEIH (C1) · contratos (H+4) · parquet + momentos (H+8) · README · V2
-- [x] Review cruzada del PR #4 de Nico (CHANGES_REQUESTED, 2026-08-22)
-- [ ] **Aval del ADR 0008** (me esperan Nico y los diagramas). Leer y responder en el grupo.
+- [x] Review cruzada del PR #4 de Nico — cerrada: APPROVE con evidencia reproducida, mergeado
+- [x] Advertencia `tamano_empresa` en `contracts/README.md` (en PR #5, abierto)
+- [ ] **Enviar el mensaje al grupo** (borrador listo): aval ADR 0008 + aviso de cambio
+      aditivo en contratos (`realizacion` en `decision.json`; `trimestre`/`n_vetos`/
+      `n_fallback` en `ronda.json`). Tras el ok del grupo: hacer los dos cambios en un PR.
+- [ ] Llevar los dos hallazgos latentes del PR #4 (caché envenenable por estrategia vacía,
+      regla nula de la ablación demasiado blanda) al PR top-K de Nico como comentarios.
 - [ ] Definir con Nico los arquetipos FINALES (~H+14). Hoy: 67 celdas
       sector×tamaño×formal×tercil con colapso <60 obs. Mi propuesta (dejada en la review
       del PR #4): que `behavior/desde_poblacion()` agrupe por MI columna `arquetipo` en
@@ -52,8 +83,9 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
 
 ## Bloqueado / esperando a alguien
 
-- Nico: respuesta a la review del PR #4 (los 3 críticos, ~2h de fix) y la conversación
-  de arquetipos. Pedida 2026-08-22 en la review.
+- **PR #5 espera un revisor distinto de mí** (regla 3). Es docs-only (mi handoff + la
+  advertencia en `contracts/README.md`); cualquiera del equipo puede mergearlo en 2 min.
+- Nico: la conversación de arquetipos (mi 67 vs su 101) sigue pendiente — para el standup.
 
 ## Supuestos que tomé
 
