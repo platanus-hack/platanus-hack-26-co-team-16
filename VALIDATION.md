@@ -236,6 +236,17 @@ el número y el pitch se mantiene. El codo (A2) sigue sin afirmarse hasta que el
 
 No es el resultado de V0 —V0 no se ha corrido— pero está medido y se deja escrito:
 
+**El comparador oficial, año contra año, mismo trimestre y misma fuente.** Los dos boletines del
+DANE, publicados con un año de diferencia:
+
+| Bogotá D.C., proporción de ocupados informales | abr–jun |
+|---|---|
+| [Boletín 13-ago-2025](https://www.dane.gov.co/files/operaciones/GEIH/bol-GEIHEISS-abr-jun2025.pdf) — **2025** (pre-política) | **35,6%** |
+| [Boletín 13-ago-2026](https://www.dane.gov.co/files/operaciones/GEIH/bol-GEIHEISS-abr-jun2026.pdf) — **2026** (segundo trimestre bajo el decreto) | **33,3%** |
+| **Cambio observado** | **−2,3 pp** |
+
+Contra eso, lo que el modelo predice:
+
 | | Informalidad Bogotá |
 |---|---|
 | Modelo con +23%, post-fix: ronda 0 → ronda 3 | 30,6% → **63,8%** (brecha **+33,3 pp**) |
@@ -243,10 +254,13 @@ No es el resultado de V0 —V0 no se ha corrido— pero está medido y se deja e
 | **Observado**, proxy propio abr–jun 2026 | **31,2%** |
 | **Observado**, oficial DANE abr–jun 2026 | **33,3%** |
 
-El valor observado cae **fuera de la banda del propio modelo**, por unos 15 pp bajo su límite
-inferior. La cobertura de M4 es **0**. Y la dirección tampoco coincide: el DANE reporta que la
-informalidad de Bogotá **bajó** (37,1% → 33,8% entre los trimestres móviles a febrero de 2025 y
-2026), mientras el modelo predice que sube.
+Tres cosas, y ninguna es el resultado de V0:
+
+1. **El observado cae fuera de la banda del propio modelo**, unos 15 pp bajo su límite inferior. La
+   cobertura de M4 es **0**.
+2. **El signo no coincide.** El modelo predice que la informalidad sube 33 pp; bajó 2,3.
+3. **La persistencia (B1) le gana por mucho.** Predecir "2026 = 2025" da un error de **2,3 pp**. Para
+   que el modelo tuviera `skill > 0` tendría que errar por menos que eso, y erra por decenas.
 
 *Los números del modelo son la corrida post-fix del 23% (`behavior/README.md`). **Las otras seis
 políticas del barrido son pre-fix y no deben citarse como vigentes.***
