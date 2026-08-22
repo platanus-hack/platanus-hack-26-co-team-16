@@ -26,9 +26,9 @@ número que ya salió.
 
 | Archivo | Por qué entra | Qué reemplaza |
 |---|---|---|
-| `seed.py` | Hoy el `seed` de `behavior/` es **decorativo**: seed 42 y seed 99 dan salida idéntica salvo la etiqueta. Nada en el bucle es estocástico | Nada. Es nuevo |
-| `fiscalizacion.py` | `p(E) = 1 − exp(−C/max(E,1))` con `C` anclado en la cifra de la OIT. Es la cascada, y es lo único que no se resuelve prompteando | La forma abreviada `p ≈ C/E` de `behavior/rondas.py` |
-| `veto.py` | El veto es la interfaz entera con R3, y hoy corre contra **dos dobles de prueba** (`veto_permisivo` y `veto_doble_prueba`) | Los dos dobles de prueba |
+| ✅ `seed.py` | Hoy el `seed` de `behavior/` es **decorativo**: seed 42 y seed 99 dan salida idéntica salvo la etiqueta. Nada en el bucle es estocástico | Nada. Es nuevo |
+| ✅ `fiscalizacion.py` | `p(E) = 1 − exp(−C/max(E,1))` con `C` anclado en la cifra de la OIT. Es la cascada, y es lo único que no se resuelve prompteando | La forma abreviada `p ≈ C/E` de `behavior/rondas.py` |
+| ✅ `veto.py` | El veto es la interfaz entera con R3, y hoy corre contra **dos dobles de prueba** (`veto_permisivo` y `veto_doble_prueba`) | Los dos dobles de prueba |
 
 **Los siete que no se escriben** (`mundo.py`, `costos.py`, `trabajador.py`, `arquetipos.py`,
 `agregado.py`, `rondas.py`, `barrido.py`) se declaran como límite en `VALIDATION.md`, no se
@@ -53,7 +53,7 @@ Es un compromiso público en el review del PR #4, no una preferencia.
 
 | Concepto | Ancestro teórico | Archivo | Función | Test que lo prueba | Supuesto que carga |
 |---|---|---|---|---|---|
-| **Determinismo** | [`numpy` SeedSequence](https://numpy.org/doc/stable/reference/random/parallel.html) | `seed.py` | `generador_raiz(seed)` · `stream_de_ronda(k)` | Dos corridas, mismo seed, resultado idéntico | Misma máquina y versiones ([ADR 0009](../docs/adr/0009-frontera-del-determinismo.md)) |
+| **Determinismo** | [`numpy` SeedSequence](https://numpy.org/doc/stable/reference/random/parallel.html) | ✅ **`seed.py`** | `generador_raiz(seed)` · `stream_de_ronda(seed, ronda)` · `stream_nombrado(seed, ronda, *nombre)` · `manifiesto(seed)` | ✅ `engine/test_seed.py`, 10 casos. El que importa: la derivación es estable **entre procesos** (se corre en subprocesos con `PYTHONHASHSEED` distinto) | Misma máquina y versiones ([ADR 0009](../docs/adr/0009-frontera-del-determinismo.md)), que es lo que imprime `manifiesto()` |
 | **Estado del mundo** | ODD elemento 2 | `mundo.py` | `cargar_poblacion()` · `EstadoFiscalizacion` · `EstadoMundo` | La población cargada valida contra `contracts/agente.json` | — |
 | **La política** | — | `mundo.py` | `Politica.como_mecanica()` | La mecánica generada **no contiene** el nombre de la política ni años | — |
 | **Costo formal** | Allingham-Sandmo 1972 | `costos.py` | `costo_formal(salario, factor_prestacional)` | Monotonía en el salario | ⚠️ **factor prestacional ≈ 1,4-1,5**, sin cifra exacta verificada. Barrido de sensibilidad |
@@ -67,6 +67,12 @@ Es un compromiso público en el review del PR #4, no una preferencia.
 | **Métricas** | — | `agregado.py` | `tasa_informalidad()` · `empleo_relativo()` · `banda()` · `brecha()` | Salida valida contra `contracts/ronda.json`; la informalidad está **ponderada** por factor de expansión | La línea base de `empleo_relativo` es el mundo sin política |
 | **Scheduler de rondas** | ODD elemento 3 · [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md) | **`rondas.py`** | `correr(mundo, politica, seed)` → 4 rondas | Ronda 0 es la proyección ingenua; el orden dentro de la ronda es fijo | Mejor respuesta **con rezago**, no punto fijo simultáneo |
 | **Barrido del codo** | Dato A2 · equilibrios múltiples ([JPubE 2007](https://www.sciencedirect.com/science/article/abs/pii/S0047272707000497)) | `barrido.py` | `barrer(rango_aumento)` | El barrido es reproducible y monótono donde debe serlo | La resolución del barrido no crea ni borra el codo |
+
+> **Una divergencia con el boceto de arriba, a propósito.** Este mapa proponía
+> `stream_de_ronda(k)`, con un solo argumento. Eso obliga a guardar la raíz en estado de
+> módulo, y entonces el determinismo pasa a depender del orden de importación y de quién
+> sembró primero. La firma real lleva el seed explícito: `stream_de_ronda(seed, ronda)`.
+> Sin estado global no hay carrera que descubrir a las 4am.
 
 **Si solo lees un archivo, lee `rondas.py`.** Es donde vive la tesis: el bucle de mejor
 respuesta y el punto exacto donde la fiscalización se recalcula.
