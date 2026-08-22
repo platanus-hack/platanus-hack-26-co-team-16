@@ -129,4 +129,17 @@ Cuando cables uno de estos, actualiza la línea aquí en el mismo PR.
 
 El repo puede alojar automatización propia cuando una necesidad se repita: skills en `.claude/skills/<nombre>/`, agentes en `.claude/agents/<nombre>/`. No hay carpetas ni placeholders pre-creados a propósito: un agente construido antes de que la necesidad sea real es peor que no tenerlo. En 36 horas, la barra para crear uno es alta.
 
-La regla de review del punto 3 del flujo de trabajo aplica use quien use la herramienta que use, y no depende de ningún modelo en particular.
+Los que pasaron esa barra son **cuatro críticos adversariales internos**: tres jueces, uno por eje, y un reconciliador. Ninguno tiene `Edit`, ninguno toca la carpeta de un dueño, ninguno corre nada que llame al proveedor de LLM, y los cuatro escriben su informe en `docs/agents/<nombre-del-agente>/`.
+
+| Agente | Comando | Qué pregunta | Su vara | Cuándo se usa |
+|---|---|---|---|---|
+| `juez-hackathon` | `/juez` | *¿quién usa esto y quién lo paga el lunes?* — negocio, pitch y propuesta de valor | el mercado | Antes de cada ensayo del pitch |
+| `juez-tecnico` | `/juez-tecnico` | *¿esto corre, escala y es reproducible?* — arquitectura, stack y ejecución real | los estándares de la industria | Antes de cada PR grande y del feature freeze |
+| `juez-cientifico` | `/juez-cientifico` | *¿esto es cierto?* — formas funcionales, coherencia dimensional, estabilidad, bandas | la matemática | Antes de cada PR que toque `engine/`, `behavior/` o `data/` |
+| `peeky` | `/peeky` | *¿el repo es consistente consigo mismo?* — que cada elemento diga qué es, para qué existe y cómo encaja | **el propio repo** | Antes de abrir un PR, o cuando una carpeta se sienta pegada con cinta |
+
+**`peeky` no es un cuarto juez.** Los tres jueces miden la calidad contra una vara externa; él reconcilia el repositorio contra sí mismo, y su hallazgo tipo nunca es *"esto está mal diseñado"* sino *"estos dos hechos del repo no pueden ser ciertos a la vez, y aquí están las dos líneas"*. Es el único sin `WebSearch`, a propósito: cinco personas en cinco ramas producen deriva más rápido de lo que cualquiera la detecta a mano, y esa deriva no se arregla consultando afuera.
+
+Un informe de agente **no es normativo**: es un hallazgo con fecha, no una decisión. Lo que se confirme y cambie el modelo se gradúa a un ADR en `docs/adr/` o a una fila del registro de supuestos de `engine/MODELO.md`. Si no se gradúa, no pasó.
+
+La regla de review del punto 3 del flujo de trabajo aplica use quien use la herramienta que use, y no depende de ningún modelo en particular. Un agente de crítica **no sustituye** esa review: es una sesión más, y su reporte también es un reclamo.

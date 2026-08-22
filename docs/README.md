@@ -19,6 +19,7 @@ Todo lo que un agente o una persona necesita para trabajar en este repo está ac
 | [`agents/context.md`](agents/context.md) | El glosario del dominio | Antes de nombrar una variable, función o archivo |
 | [`agents/handoff-<tu-nombre>.md`](agents/) | Tu memoria entre sesiones | Al abrir y al cerrar cada sesión |
 | [`agents/handoff.md`](agents/handoff.md) | Qué está mergeado en `main` + el roadmap transversal | Cuando quieras saber el estado real |
+| [`agents/juez-*/`, `agents/peeky/`](agents/) | Informes fechados de los cuatro críticos internos: los tres jueces (`juez-hackathon`, `juez-tecnico`, `juez-cientifico`) y el reconciliador de coherencia (`peeky`). **No son normativos:** son hallazgos con fecha, no decisiones — lo que se confirme y cambie el modelo se gradúa a un ADR o al registro de supuestos de `../engine/MODELO.md` | Antes de un PR grande, para no re-descubrir lo ya señalado |
 
 El contrato de trabajo (dueños, ramas, PR, restricciones no-negociables) está un nivel arriba, en [`../AGENTS.md`](../AGENTS.md), porque lo carga toda herramienta de agentes automáticamente.
 
