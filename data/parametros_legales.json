@@ -1,0 +1,465 @@
+{
+  "fuente": "Normativa laboral y tributaria colombiana vigente en 2026 - recopilada y verificada por data/parametros_legales.py",
+  "vigencia": 2026,
+  "salario": {
+    "smlmv_cop": 1750905,
+    "smlmv_anterior_cop": 1423500,
+    "aumento_pct": 0.23,
+    "auxilio_transporte_cop": 249095,
+    "auxilio_transporte_tope_smlmv": 2,
+    "auxilio_como_pct_del_smlmv": 0.1423
+  },
+  "tasas_empleador": {
+    "pension": 0.12,
+    "salud": 0.085,
+    "caja_compensacion": 0.04,
+    "sena": 0.02,
+    "icbf": 0.03,
+    "arl_por_clase": {
+      "I": 0.00522,
+      "II": 0.01044,
+      "III": 0.02436,
+      "IV": 0.0435,
+      "V": 0.0696
+    },
+    "prima_servicios": 0.0833,
+    "cesantias": 0.0833,
+    "intereses_cesantias": 0.01,
+    "vacaciones": 0.0417
+  },
+  "exoneracion_114_1": {
+    "min_trabajadores": 2,
+    "tope_salario_smlmv": 10,
+    "conceptos_exonerados": [
+      "salud_empleador",
+      "sena",
+      "icbf"
+    ],
+    "puntos_porcentuales": 0.135,
+    "nota": "El empleador con UN solo trabajador no esta exonerado y paga 13,5 puntos mas. La frontera cae en el micro-empleador, que es donde vive el 66,7% de la informalidad de Bogota (momentos.json)."
+  },
+  "clase_riesgo_por_sector": {
+    "agro_mineria": "V",
+    "industria": "III",
+    "construccion_utilities": "V",
+    "comercio": "I",
+    "transporte": "IV",
+    "alojamiento_comida": "II",
+    "servicios_empresariales": "I",
+    "adm_publica_edu_salud": "III",
+    "otros_servicios": "I",
+    "no_informa": "III"
+  },
+  "factor_prestacional_por_sector": {
+    "agro_mineria": {
+      "exonerado": {
+        "clase_riesgo": "V",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.0696,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.4479,
+        "factor": 1.4479
+      },
+      "no_exonerado": {
+        "clase_riesgo": "V",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.0696,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.5829,
+        "factor": 1.5829
+      }
+    },
+    "industria": {
+      "exonerado": {
+        "clase_riesgo": "III",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.02436,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.40266,
+        "factor": 1.40266
+      },
+      "no_exonerado": {
+        "clase_riesgo": "III",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.02436,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.53766,
+        "factor": 1.53766
+      }
+    },
+    "construccion_utilities": {
+      "exonerado": {
+        "clase_riesgo": "V",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.0696,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.4479,
+        "factor": 1.4479
+      },
+      "no_exonerado": {
+        "clase_riesgo": "V",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.0696,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.5829,
+        "factor": 1.5829
+      }
+    },
+    "comercio": {
+      "exonerado": {
+        "clase_riesgo": "I",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.00522,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.38352,
+        "factor": 1.38352
+      },
+      "no_exonerado": {
+        "clase_riesgo": "I",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.00522,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.51852,
+        "factor": 1.51852
+      }
+    },
+    "transporte": {
+      "exonerado": {
+        "clase_riesgo": "IV",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.0435,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.4218,
+        "factor": 1.4218
+      },
+      "no_exonerado": {
+        "clase_riesgo": "IV",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.0435,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.5568,
+        "factor": 1.5568
+      }
+    },
+    "alojamiento_comida": {
+      "exonerado": {
+        "clase_riesgo": "II",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.01044,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.38874,
+        "factor": 1.38874
+      },
+      "no_exonerado": {
+        "clase_riesgo": "II",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.01044,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.52374,
+        "factor": 1.52374
+      }
+    },
+    "servicios_empresariales": {
+      "exonerado": {
+        "clase_riesgo": "I",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.00522,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.38352,
+        "factor": 1.38352
+      },
+      "no_exonerado": {
+        "clase_riesgo": "I",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.00522,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.51852,
+        "factor": 1.51852
+      }
+    },
+    "adm_publica_edu_salud": {
+      "exonerado": {
+        "clase_riesgo": "III",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.02436,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.40266,
+        "factor": 1.40266
+      },
+      "no_exonerado": {
+        "clase_riesgo": "III",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.02436,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.53766,
+        "factor": 1.53766
+      }
+    },
+    "otros_servicios": {
+      "exonerado": {
+        "clase_riesgo": "I",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.00522,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.38352,
+        "factor": 1.38352
+      },
+      "no_exonerado": {
+        "clase_riesgo": "I",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.00522,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.51852,
+        "factor": 1.51852
+      }
+    },
+    "no_informa": {
+      "exonerado": {
+        "clase_riesgo": "III",
+        "exonerado": true,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.0,
+          "arl": 0.02436,
+          "caja_compensacion": 0.04,
+          "sena": 0.0,
+          "icbf": 0.0,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.40266,
+        "factor": 1.40266
+      },
+      "no_exonerado": {
+        "clase_riesgo": "III",
+        "exonerado": false,
+        "desglose": {
+          "pension_empleador": 0.12,
+          "salud_empleador": 0.085,
+          "arl": 0.02436,
+          "caja_compensacion": 0.04,
+          "sena": 0.02,
+          "icbf": 0.03,
+          "prima_servicios": 0.0833,
+          "cesantias": 0.0833,
+          "intereses_cesantias": 0.01,
+          "vacaciones": 0.0417
+        },
+        "sobrecosto_pct": 0.53766,
+        "factor": 1.53766
+      }
+    }
+  },
+  "factor_prestacional_rango": {
+    "min": 1.38352,
+    "max": 1.5829,
+    "nota": "El rango NO es incertidumbre: es estructura. El extremo bajo es un empleador exonerado en un sector de riesgo I; el alto, un empleador de un solo trabajador en riesgo V. El motor debe asignar el factor que corresponde a cada firma, no promediar."
+  },
+  "indemnizacion_despido": {
+    "articulo": "Art. 64 CST, contrato a termino indefinido",
+    "dias": {
+      "bajo_10_smlmv": {
+        "dias_primer_ano": 30,
+        "dias_ano_adicional": 20
+      },
+      "desde_10_smlmv": {
+        "dias_primer_ano": 20,
+        "dias_ano_adicional": 15
+      }
+    },
+    "antiguedad_anos_supuesta": 3,
+    "meses_de_salario_bajo_10_smlmv": 2.3333,
+    "nota": "Reemplaza el coeficiente de andamio `ingreso * 1.5` de behavior/arquetipos.py, que no tenia fuente."
+  },
+  "fuentes": {
+    "smlmv_2026": "Decreto 1469 de 2025 (29-dic-2025); suspension revocada por el Consejo de Estado en julio de 2026. https://www.hklaw.com/en/insights/publications/2025/12/colombia-decreta-aumento-del-salario-minimo-y-auxilio-de-transporte",
+    "pension_salud": "Ley 100 de 1993. Reforma pensional (Ley 2381 de 2024) suspendida por Auto 841/2025 de la Corte Constitucional; en 2026 rige la Ley 100. https://actualicese.com/aportes-a-pension-2026/",
+    "arl": "Decreto 1772 de 1994 (tarifas) y Decreto 1607 de 2002 (clasificacion). https://sgsst.com.co/decretos/decreto-1607-de-2002/",
+    "parafiscales": "Ley 21 de 1982 (caja 4%, SENA 2%) y Ley 89 de 1988 (ICBF 3%).",
+    "exoneracion": "Art. 114-1 del Estatuto Tributario, adicionado por la Ley 1607 de 2012 y modificado por la Ley 1819 de 2016.",
+    "prestaciones": "Codigo Sustantivo del Trabajo, Arts. 306 (prima), 249 (cesantias), 186 (vacaciones) y Ley 52 de 1975 (intereses).",
+    "indemnizacion": "Art. 64 del Codigo Sustantivo del Trabajo. https://leyes.co/codigo_sustantivo_del_trabajo/64.htm"
+  }
+}
