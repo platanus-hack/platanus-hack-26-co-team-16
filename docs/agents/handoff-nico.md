@@ -11,8 +11,12 @@ _Lo más reciente arriba._
 
 - **2026-08-22 (tarde) — los 11 puntos del review del PR #4, cerrados. Y el
   candado 4 no discrimina: el hallazgo de la sesión.**
-  - **Rama `rol/conductual-top-k`.** El PR nuevo REEMPLAZA al #4 (que no se
-    mergea): así `main` nunca carga el bug del caché. Un merge en vez de dos.
+  - **Rama `rol/conductual-top-k`.** ⚠️ **El #4 se mergeó igual** (35b8dbd,
+    15:21, trece minutos después del APPROVED de Alejo), así que el plan de
+    "reemplazarlo sin mergear" ya no aplica: **`main` HOY carga el bug del caché
+    envenenado y el `FALLBACK = "absorber"` divergente.** Verificado contra
+    `origin/main`, no supuesto. Este PR pasa de reemplazo a corrección de algo
+    que ya está en producción. Mismo contenido, más urgencia.
   - **Los 3 críticos, reproducidos antes de arreglarlos** y convertidos en
     regresión ejecutable: `python3 -m behavior.pruebas` (34 checks, $0, sin API).
     - **#1** el caché envenenado: con `estrategia_propuesta: ""` la corrida moría
@@ -180,9 +184,14 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [ ] **Abrir el PR de `rol/conductual-top-k` contra `main`, REEMPLAZANDO al #4**
-      (se cierra sin mergear). Decidido con Manuel: un merge en vez de dos, y
-      `main` nunca carga el bug del caché.
+- [ ] **Abrir el PR de `rol/conductual-top-k` contra `main`.** El #4 ya está
+      mergeado, así que este PR corrige `main` en vez de reemplazar al #4.
+- [ ] **Correr la corrida en frío con LLM.** No se hizo en esta sesión (sin
+      credenciales a mano). Dos cambios tocan el texto del prompt —la situación
+      de planta viva y la tasa inicial en modo andamio—, así que el caché quedó
+      parcialmente invalidado. Medido: la ronda 1 en `--real` conserva el caché
+      completo (31/31), así que cuesta bastante menos que el techo de $0,61. Los
+      números del LLM del README son PRE-fix y están marcados como tales.
 - [x] ~~Modo top-K~~ — hecho. 31 arquetipos cubren el 80,5% de la población.
 - [x] ~~Barrido con N≥5 paráfrasis~~ — hecho. **El codo no existe** (ver arriba).
 - [ ] **Exportar la caché consolidada y versionarla.** Ahora es obligación de la
