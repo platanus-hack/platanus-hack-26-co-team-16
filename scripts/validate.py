@@ -38,17 +38,23 @@ def _ejecutar(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def candado_g1() -> Resultado:
-    """Determinismo punta a punta: seed + caché + versiones."""
+    """Determinismo punta a punta: seed + caché + versiones.
+
+    Acumula TODOS los motivos en vez de devolver el primero. Con retorno
+    temprano, arreglar `anthropic` destapaba el siguiente bloqueo y daba la
+    impresión de que la compuerta estaba a un paso de cerrar cuando le faltaban
+    tres. Un estado que oculta lo que viene después no sirve para planear.
+    """
+    faltan = []
     requisitos = RAIZ / "requirements.txt"
     if not requisitos.exists():
-        return Estado.BLOQUEADO, "falta requirements.txt"
-    texto = requisitos.read_text(encoding="utf-8").lower()
-    if "anthropic==" not in texto:
-        return Estado.BLOQUEADO, "anthropic no está instalado ni fijado; no hay entorno reconstruible"
-    corredor = RAIZ / "scripts" / "run_simulacion.py"
-    if not corredor.exists():
-        return Estado.BLOQUEADO, "falta scripts/run_simulacion.py para comparar dos corridas completas"
-    return Estado.BLOQUEADO, "falta un artefacto canónico de salida y manifiesto de caché para comparar"
+        faltan.append("falta requirements.txt")
+    elif "anthropic==" not in requisitos.read_text(encoding="utf-8").lower():
+        faltan.append("anthropic sin fijar (no está instalado)")
+    if not (RAIZ / "scripts" / "run_simulacion.py").exists():
+        faltan.append("falta scripts/run_simulacion.py para comparar dos corridas completas")
+    faltan.append("falta el artefacto canónico de salida y el manifiesto de caché")
+    return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
 
 
 def candado_g2() -> Resultado:
@@ -152,18 +158,44 @@ def _imprimir_v0(n: dict[str, float]) -> None:
     print("\nEL NÚMERO · V0")
     print(f"  Error del backtest:          {n['error_absoluto_pp']:.2f} pp (firmado modelo-observado: {n['error_firmado_pp']:+.2f} pp)")
     print(f"  Skill vs persistencia (B1):  {skill_txt}")
-    print(f"  Cobertura de la banda:       {'sí' if n['cobertura'] else 'no'}")
-    print(f"  Ancho de la banda:           {n['ancho_banda_pp']:.1f} pp")
+    # "banda" NO: con N=5 el p10/p90 es el minimo y el maximo de las cinco
+    # parafrasis (en esperanza, los percentiles 16,7 y 83,3). Llamarlo banda
+    # sugiere un intervalo calibrado que no es. Ver VALIDATION.md, "Método".
+    print(f"  Cobertura del rango:         {'sí' if n['cobertura'] else 'no'}")
+    print(f"  Ancho del rango:             {n['ancho_banda_pp']:.1f} pp  (entre paráfrasis, no calibrado)")
     print("  Corridas:                    BLOQUEADO: el repo no registra N>=5 trayectorias comparables")
     print(f"  Proxy 2025 ene-jun:          {n['pre_ene_jun_pct']:.2f}%")
     print(f"  Proxy 2026 ene-jun:          {n['post_ene_jun_pct']:.2f}%")
     print(f"  Delta observado:             {n['delta_ene_jun_pp']:+.2f} pp")
 
 
+def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
+    """El rango entre paráfrasis: cobertura Y agudeza, siempre juntas.
+
+    Es una MEDICIÓN, así que devuelve PASA en cuanto se puede computar: el
+    resultado se publica, no se aprueba. La cobertura 0 no es un fallo del
+    candado, es el dato. Existe como fila propia porque `VALIDATION.md` la
+    declara en la tabla, y un documento que anuncia una fila que el ejecutor no
+    imprime es exactamente la deriva que este trabajo existe para evitar.
+    """
+    if numeros is None:
+        return Estado.BLOQUEADO, "sin V0 no hay contra qué medir la cobertura"
+    cobertura = "sí" if numeros["cobertura"] else "no"
+    return (
+        Estado.PASA,
+        f"cobertura={cobertura}; ancho={numeros['ancho_banda_pp']:.1f} pp "
+        "(rango entre paráfrasis, NO un p10/p90 calibrado)",
+    )
+
+
 def main() -> int:
     resultados = [("G1 reproducibilidad", candado_g1()), ("G2 no contaminación", candado_g2()), ("G3 calibración base", candado_g3())]
     estado_v0, detalle_v0, numeros = medicion_v0()
-    resultados.extend([("M1/M2 backtest y habilidad", (estado_v0, detalle_v0)), ("M3 ablación", medicion_m3())])
+    resultados.extend([
+        ("M1/M2 backtest y habilidad", (estado_v0, detalle_v0)),
+        ("M3 ablación", medicion_m3()),
+        ("M4 rango entre paráfrasis", medicion_m4(numeros)),
+    ])
 
     print("VALIDACIÓN PRE-REGISTRADA")
     for nombre, (estado, detalle) in resultados:

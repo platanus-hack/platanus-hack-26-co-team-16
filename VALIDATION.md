@@ -18,8 +18,8 @@
 ```
 Error del backtest:            37,37 pp   (firmado modelo - observado: +37,37 pp)
 Skill vs persistencia (B1):    -8,182
-Cobertura de la banda:         NO
-Ancho de la banda:             33,9 pp
+Cobertura del rango:           NO
+Ancho del rango:               33,9 pp  (entre parafrasis, NO calibrado)
 Corridas:                      BLOQUEADO - el repo no registra N>=5 trayectorias comparables
 
 Proxy Bogota, GEIH 2025 ene-jun:   34,64 %
@@ -33,7 +33,7 @@ Reproducible con: `make validate` · sale con código **1** mientras haya compue
 ### Veredicto: **rama B — la cascada agregada está falsada**
 
 El modelo predice que la informalidad de Bogotá **sube 33 puntos** con el alza del 23%; **bajó 4**.
-Signo contrario, un orden de magnitud, el observado **fuera de la banda del propio modelo**, y **la
+Signo contrario, un orden de magnitud, el observado **fuera del propio rango del modelo**, y **la
 persistencia le gana ocho veces**: predecir "2026 = 2025" erra por 4,07 pp y el modelo por 37,37.
 
 **Dos escalas independientes coinciden, así que no es artefacto del proxy:**
@@ -70,13 +70,13 @@ Convertir en medición algo que era compuerta es exactamente cómo se fabrica un
 
 | # | Candado | Tipo | Umbral, fijado ANTES de correr | Estado |
 |---|---|---|---|---|
-| **G1** | Reproducibilidad | Compuerta | Dos corridas con el mismo `(seed, manifiesto de caché, versiones)` dan salida idéntica | 🟡 `requirements.txt` y `scripts/reproduce.py` existen; falta fijar `anthropic`, que no está instalado |
+| **G1** | Reproducibilidad | Compuerta | Dos corridas con el mismo `(seed, manifiesto de caché, versiones)` dan salida idéntica | 🔴 **tres bloqueos**, no uno: `anthropic` sin fijar · falta `scripts/run_simulacion.py` · falta el artefacto canónico y el manifiesto de caché |
 | **G2** | No contaminación | Compuerta | `python -m behavior.higiene` sale 0 **y** el re-skinning mueve el agregado ≤ el ancho del rango entre paráfrasis | 🟡 higiene ✅; `Reskin` implementado (`behavior/capa.py`, `demo.py --reskin`) pero **falta correr y registrar el par canónica/re-skinneada** |
-| **G3** | Calibración base | Compuerta | Informalidad total dentro de **±2 pp** del objetivo de `momentos.json`, **y** se respeta el orden micro > pyme > grande | 🔴 sin corrida formal sin política |
+| **G3** | Calibración base | Compuerta | Informalidad total dentro de **±2 pp** del objetivo de `momentos.json`, **y** se respeta el orden micro > pyme > grande | 🔴 **no existe productor**: ningún script genera la corrida sin política que el candado necesita |
 | **M1** | Backtest | Medición | Se publica. Sin umbral | ✅ **37,37 pp** |
 | **M2** | Habilidad | Medición | Se publica, incluso negativo | ✅ **skill −8,182** |
 | **M3** | Ablación | Medición | Se publica con su sensibilidad al factor prestacional | ✅ y ya **no** depende de ese factor (ver Candado 4) |
-| **M4** | Banda | Medición | Cobertura **y** agudeza, siempre juntas | ✅ cobertura **0**, ancho 33,9 pp |
+| **M4** | Rango entre paráfrasis | Medición | Cobertura **y** agudeza, siempre juntas | ✅ cobertura **0**, ancho 33,9 pp. **No es un p10/p90 calibrado** (ver *Método*) |
 
 **Por qué G3 con ±2 pp.** El candado 1 es la condición de que todo lo demás signifique algo
 (`docs/IDEA.md` §5.5). Laxo lo vuelve decorativo; apretado invita a ajustar parámetros hasta pegarle,
@@ -275,10 +275,8 @@ señalarlos nosotros:
 
 ## Las dos ramas, decididas antes de ver el número
 
-Estaban escritas en el pre-registro `2d4aa7e`, con los datos de 2025 sin descargar. Se transcriben
-sin ampliarlas.
-
-**Rama A — la cascada agregada sobrevive.** `|error| ≤ 5 pp` **y** `skill > 0` contra B1.
+**Rama A — la cascada agregada sobrevive.** `|error| ≤ 5 pp` **y** `skill > 0` contra B1. Se reporta
+el número y el pitch se mantiene. El codo (A2) sigue sin afirmarse hasta que el barrido lo soporte.
 
 **Rama B — falsada.** Cualquier otro resultado. Tres movimientos, ninguno improvisado:
 
@@ -286,15 +284,20 @@ sin ampliarlas.
 2. **Se acota el claim, y el acotamiento es este y no otro:** el modelo simula el margen
    **formal → informal dentro de los ocupados que ya tienen empleador**. No simula la tasa agregada
    de informalidad que publica el DANE, que además se mueve por composición, por entradas y salidas
-   del empleo y por ciclo. Estaba escrito de antemano justamente para que no se pudiera estirar
-   después.
-3. **Se nombran los confusores que el modelo ya declara no cubrir** — la reforma laboral (Ley 2466 de
-   2025), la jornada de 42 horas desde el 15-jul-2026, el ciclo — **como límite declarado (D8), nunca
-   como excusa.** La diferencia entre las dos cosas es si se dicen antes o después de conocer el
-   resultado.
+   del empleo y por ciclo. Está escrito ahora justamente para que no se pueda estirar después.
+3. **Se nombran los confusores que el modelo ya declara no cubrir** — la reforma laboral (Ley 2466
+   de 2025), la jornada de 42 horas desde el 15-jul-2026, el ciclo — **como límite declarado (D8),
+   nunca como excusa.** La diferencia entre las dos cosas es si se dicen antes o después de conocer
+   el resultado. Por eso van aquí.
+
+> Lo de arriba es **la transcripción literal del commit `2d4aa7e`**, sin una coma cambiada.
+> Verificable:
+> `diff <(git show 2d4aa7e:VALIDATION.md | sed -n '/^## Las dos ramas/,/^### Lo que ya se sabe/p') ...`
+> Lo de abajo se escribió **después** de conocer el número, y por eso va separado.
 
 **Se activó la B.** `error = 37,37 pp`, `skill = −8,182`, cobertura `NO`: ninguna de las dos
-condiciones de la A se cumple, ni de cerca.
+condiciones de la rama A se cumple, ni de cerca. Los tres movimientos se aplican tal como están
+escritos arriba, sin agregar ninguno.
 
 ## Supuestos tomados
 
