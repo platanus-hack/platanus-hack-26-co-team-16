@@ -40,6 +40,16 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
   - **Verificación, no reclamo:** un script recorrió los 4 comandos → 4 `subagent_type` → 4
     agentes → 4 carpetas de informes, confirmó que **ninguno tiene `Edit`** y resolvió los 40
     enlaces relativos. Todo verde.
+  - **Los 4 agentes viven en DOS formatos y hay que mantener la paridad a mano.**
+    `.claude/agents/<n>.md` lo lee Claude Code; `.codex/agents/<n>.toml` lo lee Codex.
+    Los `.toml` estaban en disco sin versionar (103 KB) y entraron en `0d2a952`. Verifiqué
+    la paridad parseando el TOML y haciendo diff línea por línea contra el `.md`: **0
+    diferencias en los cuatro**. De paso apareció un bug real — `juez-tecnico.toml`
+    apuntaba a `.Codex/settings.json`, que no existe (sustitución automática de más al
+    portar); corregido a `.claude/settings.json`.
+    **Regla: si editas un `.md`, regeneras su `.toml` en el mismo commit.** Nada sincroniza
+    los dos puertos automáticamente, y dos versiones del mismo agente diciendo cosas
+    distintas es exactamente el hallazgo tipo de peeky.
   - **Sigue abierto el bug de `AGENTS.md` que marcó la 5ª sesión:** dice que los agentes van
     en `.claude/agents/<nombre>/` (carpeta) y Claude Code lee archivos planos
     `.claude/agents/<nombre>.md`. **No se arregló** — está en la misma sección que edita
@@ -182,6 +192,7 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
 - [x] Costo legal de la formalidad con fuente → `data/parametros_legales.json` (4ª sesión).
 - [x] Los 4 críticos internos versionados, con frontera cerrada y declarados en `AGENTS.md`
       (6ª sesión, 2 PR: `rol/datos` y `docs/contrato-agentes`).
+- [ ] **Pedirle a Juanda que `AGENTS.md` mencione los dos puertos de agentes** (`.claude/agents/*.md` y `.codex/agents/*.toml`) y la regla de regenerarlos juntos.
 - [ ] **Pedirle a Juanda en el PR `docs/contrato-agentes`** que corrija la línea de
       `.claude/agents/<nombre>/` → `.claude/agents/<nombre>.md`. Es suya; no se toca desde
       `rol/datos`.
