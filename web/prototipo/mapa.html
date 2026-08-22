@@ -1,0 +1,1125 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototipo de movimiento — el mapa vivo</title>
+
+<!--
+  ETAPA 2 · Prototipo de movimiento — NO es el producto.
+  Archivo autocontenido, sin dependencias, sin build, sin red.
+  Su único trabajo es responder "¿se siente bien?": ritmo, densidad, color y timing,
+  antes de construir el web/ real en Next.js (etapa 3).
+
+  Todos los datos son FALSOS y están rotulados como tales en pantalla.
+  La forma del agregado por ronda replica contracts/ronda.json (docs/PLAN.md §4)
+  para que la etapa 3 solo tenga que cambiar la fuente.
+
+  Panel de afinación: abrir con ?tune en la URL.
+-->
+
+<style>
+  /* ─── Tokens. Los que el panel de afinación toca se reescriben en :root en vivo ─── */
+  :root {
+    --papel:        #ffffff;
+    --tinta:        #14161a;
+    --tinta-suave:  #6d7480;
+    --tinta-tenue:  #a8aeb8;
+    --regla:        #e6e8ec;
+
+    --halo:         #6b7280;   /* el gris del campo de densidad */
+    --dano:         #bf3b2b;   /* el único color saturado del sistema */
+    --oficial:      #9aa0a6;
+
+    --halo-op:      0.30;      /* opacidad máxima del campo gris */
+    --dano-op:      0.62;      /* opacidad máxima del campo de daño */
+    --halo-r:       17;        /* radio del halo, en px del lienzo de densidad */
+    --celda-r:      1.7;       /* radio de la celda */
+    --umbral:       0.60;      /* incumplimiento nuevo a partir del cual la celda "cae" */
+    --dur-ronda:    1500;      /* ms por transición entre rondas */
+    --stagger:      0.55;      /* cuánto se escalona la propagación (0 = todas a la vez) */
+
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--papel);
+    color: var(--tinta);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ─── Estructura ─── */
+  .hoja {
+    display: grid;
+    grid-template-columns: minmax(420px, 1fr) minmax(400px, 460px);
+    height: 100vh;
+  }
+
+  /* ─── Columna izquierda: el mapa ─── */
+  .lienzo-col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid var(--regla);
+  }
+
+  .enunciado {
+    padding: 34px 44px 22px;
+  }
+  .kicker {
+    font-size: 10.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--tinta-tenue);
+    margin-bottom: 14px;
+  }
+  .frase {
+    font-family: var(--serif);
+    font-size: 27px;
+    line-height: 1.32;
+    font-weight: 400;
+    margin: 0;
+    max-width: 22em;
+  }
+  .frase .pct {
+    display: inline-block;
+    position: relative;
+    font-variant-numeric: tabular-nums;
+    border-bottom: 2px solid var(--tinta);
+    padding: 0 2px;
+    cursor: ew-resize;
+    user-select: none;
+  }
+  .frase .pct:focus { outline: none; background: #f2f3f5; }
+
+  .lienzo-caja { position: relative; flex: 1; min-height: 0; }
+  #mapa { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .rotulo-mapa {
+    position: absolute;
+    left: 44px; bottom: 22px;
+    max-width: 25em;
+    font-size: 11px;
+    color: var(--tinta-tenue);
+    line-height: 1.5;
+  }
+
+  .contador-flotante {
+    position: absolute;
+    right: 30px; top: 18px;
+    text-align: right;
+  }
+  .contador-flotante .big {
+    font-family: var(--serif);
+    font-size: 46px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--dano);
+  }
+  .contador-flotante .lbl {
+    font-size: 11px;
+    color: var(--tinta-suave);
+    max-width: 13em;
+    margin-top: 6px;
+    margin-left: auto;
+  }
+
+  /* ─── Columna derecha: aparato de lectura ─── */
+  .panel {
+    overflow-y: auto;
+    padding: 34px 34px 40px;
+  }
+  .bloque { margin-bottom: 30px; }
+  .bloque:last-child { margin-bottom: 0; }
+  .titulo {
+    font-size: 10.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--tinta-tenue);
+    margin-bottom: 12px;
+  }
+  .sub { font-size: 11.5px; color: var(--tinta-suave); margin-top: 9px; line-height: 1.5; }
+
+  .cifras { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--regla); border: 1px solid var(--regla); }
+  .cifra { background: var(--papel); padding: 12px 13px; }
+  .cifra .v { font-family: var(--serif); font-size: 25px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .cifra .k { font-size: 10.5px; color: var(--tinta-suave); margin-top: 4px; }
+  .cifra.destacada .v { color: var(--dano); }
+
+  canvas.grafico { width: 100%; display: block; }
+
+  /* barras de estrategias */
+  .estrategia { margin-bottom: 9px; }
+  .estrategia .fila { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .estrategia .pista { height: 5px; background: #f0f1f3; }
+  .estrategia .barra { height: 5px; background: var(--tinta); transition: width .25s linear; }
+  .estrategia.mala .barra { background: var(--dano); }
+
+  .historia {
+    border-left: 2px solid var(--dano);
+    padding: 2px 0 2px 14px;
+    font-family: var(--serif);
+    font-size: 14.5px;
+    line-height: 1.5;
+    opacity: 0;
+    transition: opacity .6s ease;
+  }
+  .historia.visible { opacity: 1; }
+  .historia .fuente { font-family: var(--sans); font-size: 10.5px; color: var(--tinta-tenue); margin-top: 8px; }
+
+  /* ─── Controles ─── */
+  .controles {
+    border-top: 1px solid var(--regla);
+    padding: 16px 44px 20px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--tinta);
+    background: none;
+    border: 1px solid var(--regla);
+    padding: 6px 13px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--tinta-tenue); }
+  button.on { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
+
+  .rondas { display: flex; gap: 6px; }
+  .rondas button { min-width: 34px; padding: 6px 8px; }
+
+  .slider-caja { flex: 1; min-width: 220px; }
+  input[type=range] { width: 100%; accent-color: var(--tinta); }
+  .marcas { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--tinta-tenue); margin-top: 3px; }
+
+  /* ─── Panel de afinación ─── */
+  #tune {
+    position: fixed; right: 14px; bottom: 14px; z-index: 50;
+    background: var(--papel);
+    border: 1px solid var(--regla);
+    box-shadow: 0 8px 28px rgba(0,0,0,.10);
+    padding: 14px 16px;
+    width: 262px;
+    font-size: 11.5px;
+    display: none;
+  }
+  #tune.abierto { display: block; }
+  #tune h4 { margin: 0 0 10px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-tenue); }
+  #tune label { display: block; margin-bottom: 9px; }
+  #tune .lab { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  #tune input[type=range] { width: 100%; }
+  #tune input[type=color] { width: 100%; height: 24px; border: 1px solid var(--regla); padding: 0; background: none; }
+  #tune .salida { margin-top: 10px; font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: var(--tinta-suave); word-break: break-all; }
+
+  .aviso-falso {
+    position: fixed; left: 0; top: 0; z-index: 40;
+    background: var(--tinta); color: var(--papel);
+    font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 4px 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="aviso-falso">Datos falsos · prototipo de movimiento</div>
+
+<div class="hoja">
+
+  <!-- ════════ IZQUIERDA: el mapa ════════ -->
+  <section class="lienzo-col">
+    <header class="enunciado">
+      <div class="kicker">Simulación de cumplimiento · Bogotá</div>
+      <h1 class="frase">
+        Si el salario mínimo sube <span class="pct" id="pctInline" tabindex="0">23,0&thinsp;%</span>,
+        ¿cuánta gente cumple de verdad?
+      </h1>
+    </header>
+
+    <div class="lienzo-caja">
+      <canvas id="mapa"></canvas>
+
+      <div class="contador-flotante">
+        <div class="big num" id="cCeldas">0</div>
+        <div class="lbl" id="cCeldasLbl">celdas donde el incumplimiento nuevo cruzó el umbral</div>
+      </div>
+
+      <p class="rotulo-mapa">
+        Cada punto es una <strong>celda de 1.000 personas</strong>, no una persona.
+        El color no mide la informalidad total: mide el <strong>incumplimiento nuevo</strong>,
+        el que aparece por culpa del aumento.
+        La posición es ilustrativa — la GEIH no georreferencia dentro de la ciudad;
+        lo que sí significa algo es la agrupación por <strong>sector económico</strong>.
+      </p>
+    </div>
+
+    <div class="controles">
+      <button id="btnPlay" class="on">Reproducir</button>
+      <div class="rondas" id="rondasBtns"></div>
+      <div class="slider-caja">
+        <input type="range" id="slider" min="0" max="30" step="0.1" value="23">
+        <div class="marcas"><span>0&thinsp;%</span><span>7</span><span>13,6</span><span>23</span><span>30&thinsp;%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ DERECHA: aparato de lectura ════════ -->
+  <aside class="panel">
+
+    <div class="bloque">
+      <div class="cifras">
+        <div class="cifra destacada">
+          <div class="v num" id="cBrecha">—</div>
+          <div class="k">La brecha: distancia entre la proyección oficial y la ronda 3</div>
+        </div>
+        <div class="cifra">
+          <div class="v num" id="cInfo">—</div>
+          <div class="k">Tasa de informalidad</div>
+        </div>
+        <div class="cifra">
+          <div class="v num" id="cFisc">—</div>
+          <div class="k">Probabilidad de fiscalización</div>
+        </div>
+        <div class="cifra">
+          <div class="v num" id="cEmpleo">—</div>
+          <div class="k">Empleo relativo</div>
+        </div>
+      </div>
+      <p class="sub" id="notaRonda">—</p>
+    </div>
+
+    <div class="bloque">
+      <div class="titulo">La curva de la brecha</div>
+      <canvas class="grafico" id="gCurva" height="200"></canvas>
+      <p class="sub">
+        La línea gris punteada es lo que proyecta el gobierno: asume cumplimiento total.
+        La línea roja es la cascada — como la capacidad de fiscalización es fija,
+        más evasores bajan la probabilidad de sanción de cada uno, e inducen más evasión.
+        La banda es el rango p10–p90.
+      </p>
+    </div>
+
+    <div class="bloque">
+      <div class="titulo">El codo — barrido de aumento</div>
+      <canvas class="grafico" id="gBarrido" height="150"></canvas>
+      <p class="sub">
+        Informalidad final para cada aumento posible. Si hay un umbral donde la cascada se dispara,
+        el debate deja de ser «23 contra 13,6» y pasa a ser «antes o después del codo».
+      </p>
+    </div>
+
+    <div class="bloque">
+      <div class="titulo">Qué hace cada quien</div>
+      <div id="estrategias"></div>
+    </div>
+
+    <div class="bloque">
+      <div class="titulo">Una cara</div>
+      <div class="historia" id="historia">
+        «Panadería de cuatro empleados en comercio, microempresa.
+        No le alcanza el flujo de caja para el aumento formal: informaliza a dos.»
+        <div class="fuente">Ejemplo ilustrativo. En el producto real esta historia la narra el modelo grande, a partir de un agente concreto de la GEIH.</div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- ════════ Panel de afinación (?tune) ════════ -->
+<div id="tune">
+  <h4>Afinación</h4>
+  <label><span class="lab"><span>Color del daño</span></span><input type="color" id="tDano" value="#bf3b2b"></label>
+  <label><span class="lab"><span>Color del halo</span></span><input type="color" id="tHalo" value="#6b7280"></label>
+  <label><span class="lab"><span>Opacidad del halo</span><b id="vHaloOp"></b></span><input type="range" id="tHaloOp" min="0" max="0.7" step="0.01"></label>
+  <label><span class="lab"><span>Opacidad del daño</span><b id="vDanoOp"></b></span><input type="range" id="tDanoOp" min="0" max="1" step="0.01"></label>
+  <label><span class="lab"><span>Radio del halo</span><b id="vHaloR"></b></span><input type="range" id="tHaloR" min="4" max="42" step="1"></label>
+  <label><span class="lab"><span>Radio de la celda</span><b id="vCeldaR"></b></span><input type="range" id="tCeldaR" min="0.6" max="4" step="0.1"></label>
+  <label><span class="lab"><span>Umbral de caída</span><b id="vUmbral"></b></span><input type="range" id="tUmbral" min="0.2" max="0.95" step="0.01"></label>
+  <label><span class="lab"><span>Duración por ronda</span><b id="vDur"></b></span><input type="range" id="tDur" min="300" max="4000" step="50"></label>
+  <label><span class="lab"><span>Escalonamiento</span><b id="vStagger"></b></span><input type="range" id="tStagger" min="0" max="0.92" step="0.01"></label>
+  <div class="salida" id="tSalida"></div>
+</div>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════════════
+   0 · Utilidades
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// RNG determinista: mismo seed, misma imagen. Es la misma promesa que hace engine/.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const SEED = 42;
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const fmtPct = (v, d = 1) => (v * 100).toFixed(d).replace('.', ',') + ' %';
+const fmtMiles = n => n.toLocaleString('es-CO');
+
+function leerToken(nombre) {
+  return getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
+}
+function tokenNum(nombre) { return parseFloat(leerToken(nombre)); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   1 · La silueta y la población de celdas
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// Contorno estilizado del área urbana de Bogotá, en coordenadas normalizadas.
+// SUPUESTO: es una aproximación dibujada a mano, no un polígono oficial. Sirve
+// como marco visual; ninguna conclusión del modelo depende de esta forma. En el
+// producto real se puede reemplazar por el Marco Geoestadístico del DANE.
+const SILUETA = [
+  [0.60,0.02],[0.68,0.06],[0.71,0.16],[0.70,0.28],[0.68,0.38],[0.70,0.46],
+  [0.72,0.55],[0.70,0.63],[0.66,0.72],[0.62,0.80],[0.56,0.90],[0.50,0.97],
+  [0.44,0.93],[0.42,0.84],[0.36,0.78],[0.30,0.72],[0.26,0.64],[0.24,0.56],
+  [0.28,0.48],[0.34,0.42],[0.40,0.36],[0.44,0.28],[0.48,0.18],[0.54,0.08]
+];
+
+function dentro(x, y, poly) {
+  let d = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) d = !d;
+  }
+  return d;
+}
+
+// SUPUESTO: los sectores, sus participaciones y su informalidad base son
+// PLACEHOLDER. Los reales salen de data/momentos.json (Alejo, H+8).
+const SECTORES = [
+  { id: 'servicios',    nom: 'Servicios',     share: 0.30, infBase: 0.42, cx: 0.56, cy: 0.30, sx: 0.10, sy: 0.16 },
+  { id: 'comercio',     nom: 'Comercio',      share: 0.24, infBase: 0.58, cx: 0.45, cy: 0.55, sx: 0.11, sy: 0.17 },
+  { id: 'admin',        nom: 'Administración',share: 0.15, infBase: 0.30, cx: 0.62, cy: 0.20, sx: 0.07, sy: 0.11 },
+  { id: 'industria',    nom: 'Industria',     share: 0.12, infBase: 0.34, cx: 0.38, cy: 0.62, sx: 0.08, sy: 0.11 },
+  { id: 'transporte',   nom: 'Transporte',    share: 0.10, infBase: 0.61, cx: 0.52, cy: 0.72, sx: 0.10, sy: 0.13 },
+  { id: 'construccion', nom: 'Construcción',  share: 0.09, infBase: 0.66, cx: 0.55, cy: 0.85, sx: 0.09, sy: 0.09 }
+];
+
+// SUPUESTO: ~4.500 celdas × 1.000 personas ≈ 4,5 millones de ocupados en Bogotá.
+// Orden de magnitud SIN VERIFICAR — pendiente confirmarlo con Alejo (R1) contra la GEIH.
+const N_CELDAS = 4500;
+const PERSONAS_POR_CELDA = 1000;
+
+const TRAMOS = [0.34, 0.30, 0.22, 0.14]; // participación por tramo de ingreso, del más bajo al más alto
+
+function gauss(rnd) {
+  let u = 0, v = 0;
+  while (u === 0) u = rnd();
+  while (v === 0) v = rnd();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function construirCeldas() {
+  const rnd = mulberry32(SEED);
+  const celdas = [];
+
+  for (const s of SECTORES) {
+    const n = Math.round(N_CELDAS * s.share);
+    for (let i = 0; i < n; i++) {
+      // Se muestrea alrededor del centroide del sector y se rechaza lo que cae fuera
+      // de la silueta. Así el territorio se organiza por sector, que es lo que el dato
+      // sí soporta, y no por localidad, que sería inventado.
+      let x, y, intentos = 0;
+      do {
+        x = s.cx + gauss(rnd) * s.sx;
+        y = s.cy + gauss(rnd) * s.sy;
+        intentos++;
+      } while (!dentro(x, y, SILUETA) && intentos < 60);
+      if (!dentro(x, y, SILUETA)) {
+        do { x = 0.24 + rnd() * 0.48; y = 0.02 + rnd() * 0.95; } while (!dentro(x, y, SILUETA));
+      }
+
+      // tramo de ingreso
+      let r = rnd(), acc = 0, tramo = 0;
+      for (let t = 0; t < TRAMOS.length; t++) { acc += TRAMOS[t]; if (r <= acc) { tramo = t; break; } }
+
+      // Presión económica: qué tan cerca está esta celda de no poder cumplir.
+      // Es lo que ordena la propagación de la cascada — no la distancia geográfica,
+      // porque el modelo no tiene contagio espacial y fingirlo sería deshonesto.
+      const presion = clamp(
+        0.55 * s.infBase + 0.35 * (1 - tramo / (TRAMOS.length - 1)) + 0.10 * rnd(),
+        0, 1
+      );
+
+      celdas.push({
+        x, y, sector: s.id, tramo, presion,
+        v: 0,        // incumplimiento mostrado ahora (0..1)
+        desde: 0, hasta: 0,
+        orden: rnd() // desempate estable para la aparición inicial
+      });
+    }
+  }
+  // Rango de presión normalizado a 0..1 → controla el escalonamiento
+  const ps = celdas.map(c => c.presion);
+  const pMin = Math.min(...ps), pMax = Math.max(...ps);
+  for (const c of celdas) c.pRank = (c.presion - pMin) / (pMax - pMin || 1);
+  return celdas;
+}
+
+const CELDAS = construirCeldas();
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2 · Datos falsos con la forma de contracts/ronda.json
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// SUPUESTO: todos los parámetros de abajo son inventados para dar una forma
+// plausible a la animación. El motor real (engine/, Manuel) los reemplaza entero.
+const P = {
+  base: 0.42,          // informalidad sin política
+  respLineal: 0.22,    // la parte que sí ve la proyección oficial
+  amplitudCascada: 0.16,
+  codo: 15.0,          // dónde se dispara la cascada, en % de aumento
+  suavidad: 2.6,
+  capacidadFisc: 0.0239, // capacidad fija ÷ evasores = probabilidad de sanción
+  fracRonda: [0, 0.45, 0.80, 1.0]
+};
+
+function cascada(pct) {
+  return P.amplitudCascada / (1 + Math.exp(-(pct - P.codo) / P.suavidad));
+}
+
+// Devuelve las 4 rondas con EXACTAMENTE los campos de contracts/ronda.json.
+function construirRondas(pct) {
+  const casc = cascada(pct);
+  const r0 = P.base + P.respLineal * (pct / 100);
+  return P.fracRonda.map((f, i) => {
+    const inf = r0 + f * casc;
+    const ancho = 0.012 + 0.09 * f * casc;
+    return {
+      simulacion_id: 'sim-prototipo',
+      seed: SEED,
+      ronda: i,
+      politica: { tipo: 'cambio_costo_laboral', aumento_pct: Math.round(pct * 10) / 10 },
+      tasa_informalidad: inf,
+      prob_fiscalizacion: P.capacidadFisc / inf,
+      empleo_relativo: 1 - 0.08 * (pct / 100) - 0.12 * f * casc,
+      banda: { p10: inf - ancho, p90: inf + ancho }
+    };
+  });
+}
+
+// Estado de reposo: el mundo antes de que exista la política.
+const REPOSO = {
+  ronda: -1, tasa_informalidad: P.base,
+  prob_fiscalizacion: P.capacidadFisc / P.base, empleo_relativo: 1,
+  banda: { p10: P.base - 0.012, p90: P.base + 0.012 }
+};
+
+// Reparte una tasa agregada entre las celdas: las de más presión caen primero.
+// Se busca por bisección el umbral t que hace que el promedio dé la tasa pedida.
+const ANCHO_SIGMOIDE = 0.03;
+function repartir(tasa) {
+  let lo = -1, hi = 2;
+  for (let it = 0; it < 20; it++) {
+    const t = (lo + hi) / 2;
+    let suma = 0;
+    for (const c of CELDAS) suma += 1 / (1 + Math.exp(-(c.presion - t) / ANCHO_SIGMOIDE));
+    (suma / CELDAS.length > tasa) ? (lo = t) : (hi = t);
+  }
+  const t = (lo + hi) / 2;
+  return CELDAS.map(c => 1 / (1 + Math.exp(-(c.presion - t) / ANCHO_SIGMOIDE)));
+}
+
+// Lo que el color pinta NO es la informalidad total: es el INCUMPLIMIENTO NUEVO,
+// o sea cuánto se movió esta celda por culpa de la política.
+// Importa la distinción: el 42% que ya era informal no es la historia — la
+// pregunta del proyecto (dato A1) es cuánta gente DEJA de cumplir por el aumento.
+// Con esto el mundo en reposo se ve limpio y el rojo significa una sola cosa.
+function incrementos(estado, reposo) {
+  return estado.map((v, i) => clamp((v - reposo[i]) / Math.max(0.15, 1 - reposo[i]), 0, 1));
+}
+
+// SUPUESTO: mezcla de estrategias inventada. En el producto real viene de
+// behavior/ agregada por arquetipo (dato A4).
+const ESTRATEGIAS = [
+  { id: 'cumplir',      nom: 'Cumplir',                 ini: 0.78, fin: 0.41, mala: false },
+  { id: 'absorber',     nom: 'Absorber el costo',       ini: 0.14, fin: 0.17, mala: false },
+  { id: 'informalizar', nom: 'Informalizar parcial',    ini: 0.05, fin: 0.27, mala: true  },
+  { id: 'renegociar',   nom: 'Renegociar horas',        ini: 0.02, fin: 0.08, mala: true  },
+  { id: 'despedir',     nom: 'Despedir',                ini: 0.01, fin: 0.07, mala: true  }
+];
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3 · Estado de la vista
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const S = {
+  pct: 23,
+  rondas: [],
+  claves: [],        // 5 fotogramas: reposo, ronda 0, 1, 2, 3
+  etapa: 0,          // índice del fotograma de destino
+  prog: 1,           // 0..1 dentro de la transición actual
+  reveal: 0,         // 0..1 de la aparición inicial
+  corriendo: true,
+  ultimo: 0
+};
+
+function recomputar(mantenerEtapa) {
+  S.rondas = construirRondas(S.pct);
+  const reposo = repartir(REPOSO.tasa_informalidad);
+  S.claves = [reposo.map(() => 0)]
+    .concat(S.rondas.map(r => incrementos(repartir(r.tasa_informalidad), reposo)));
+  if (!mantenerEtapa) { S.etapa = 0; S.prog = 1; S.reveal = 0; }
+  aplicarValores(true);
+  dibujarBarrido();
+  pintarBotonesRonda();
+}
+
+// Escribe en cada celda su valor de origen y destino para la transición actual
+function fijarTransicion(desdeIdx, hastaIdx) {
+  const a = S.claves[desdeIdx], b = S.claves[hastaIdx];
+  for (let i = 0; i < CELDAS.length; i++) { CELDAS[i].desde = a[i]; CELDAS[i].hasta = b[i]; }
+}
+
+function aplicarValores(instantaneo) {
+  const k = S.claves[S.etapa];
+  for (let i = 0; i < CELDAS.length; i++) {
+    CELDAS[i].v = k[i];
+    if (instantaneo) { CELDAS[i].desde = k[i]; CELDAS[i].hasta = k[i]; }
+  }
+}
+
+function agregadoActual() {
+  return S.etapa === 0 ? REPOSO : S.rondas[S.etapa - 1];
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4 · Render del mapa: campo de densidad + celdas
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const cv = document.getElementById('mapa');
+const ctx = cv.getContext('2d');
+
+// Lienzos de densidad, a escala reducida: los halos se acumulan aquí y se
+// suben escalados. La saturación es automática — sumar alfas bajas tiende a
+// opaco de forma asintótica, nunca de golpe. Eso es justo el "tope" que queremos.
+const ESCALA_DENS = 0.3;
+const densGris = document.createElement('canvas');
+const densDano = document.createElement('canvas');
+const dgx = densGris.getContext('2d');
+const ddx = densDano.getContext('2d');
+
+let spriteHaloGris, spriteHaloDano, spritesCelda = [];
+const PASOS_COLOR = 28;
+
+function hexRgb(h) {
+  h = h.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+function spriteHalo(color, radio) {
+  const d = Math.ceil(radio * 2);
+  const c = document.createElement('canvas');
+  c.width = c.height = d;
+  const g = c.getContext('2d');
+  const rad = g.createRadialGradient(radio, radio, 0, radio, radio, radio);
+  const [r, gg, b] = hexRgb(color);
+  rad.addColorStop(0,    `rgba(${r},${gg},${b},0.16)`);
+  rad.addColorStop(0.45, `rgba(${r},${gg},${b},0.07)`);
+  rad.addColorStop(1,    `rgba(${r},${gg},${b},0)`);
+  g.fillStyle = rad;
+  g.fillRect(0, 0, d, d);
+  return c;
+}
+
+// Paleta de la celda: del gris tenue de "cumple" al color del daño.
+// Pasado el umbral la celda se satura y gana un anillo — es el "cruzó la línea".
+function construirSpritesCelda(dpr) {
+  const rCel = tokenNum('--celda-r') * dpr;
+  const umbral = tokenNum('--umbral');
+  const [dr, dg, db] = hexRgb(leerToken('--dano'));
+  const [br, bg, bb] = hexRgb('#3d434d'); // gris de la celda que cumple
+  spritesCelda = [];
+  for (let i = 0; i < PASOS_COLOR; i++) {
+    const t = i / (PASOS_COLOR - 1);
+    const caida = t >= umbral;
+    const pad = caida ? rCel * 1.9 : rCel * 1.25;
+    const d = Math.ceil((rCel + pad) * 2);
+    const c = document.createElement('canvas');
+    c.width = c.height = d;
+    const g = c.getContext('2d');
+    const cx = d / 2;
+    // curva de color: se mantiene gris un buen rato y vira tarde. Así el rojo
+    // significa algo cuando aparece, en vez de teñirlo todo desde el principio.
+    const m = Math.pow(t, 1.6);
+    const r = Math.round(lerp(br, dr, m)), gv = Math.round(lerp(bg, dg, m)), b = Math.round(lerp(bb, db, m));
+    if (caida) {
+      g.beginPath(); g.arc(cx, cx, rCel * 2.3, 0, Math.PI * 2);
+      g.fillStyle = `rgba(${dr},${dg},${db},0.16)`; g.fill();
+    }
+    g.beginPath(); g.arc(cx, cx, rCel, 0, Math.PI * 2);
+    g.fillStyle = `rgba(${r},${gv},${b},${lerp(0.55, 0.95, m)})`;
+    g.fill();
+    spritesCelda.push({ c, cx });
+  }
+}
+
+let W = 0, H = 0, DPR = 1, mapX = 0, mapY = 0, mapW = 0, mapH = 0;
+
+// La silueta abarca este rectángulo en coordenadas normalizadas
+const BB = (() => {
+  const xs = SILUETA.map(p => p[0]), ys = SILUETA.map(p => p[1]);
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+})();
+
+function redimensionar() {
+  const r = cv.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(1, Math.round(r.width * DPR));
+  H = Math.max(1, Math.round(r.height * DPR));
+  cv.width = W; cv.height = H;
+
+  densGris.width = densDano.width = Math.max(1, Math.round(W * ESCALA_DENS));
+  densGris.height = densDano.height = Math.max(1, Math.round(H * ESCALA_DENS));
+
+  // encaje de la silueta con margen
+  const pad = 40 * DPR;
+  const dispW = W - pad * 2, dispH = H - pad * 2;
+  const anchoN = BB.x1 - BB.x0, altoN = BB.y1 - BB.y0;
+  const esc = Math.min(dispW / anchoN, dispH / altoN);
+  mapW = anchoN * esc; mapH = altoN * esc;
+  mapX = (W - mapW) / 2; mapY = (H - mapH) / 2;
+
+  regenerarSprites();
+}
+
+function regenerarSprites() {
+  const rHalo = tokenNum('--halo-r') * DPR * ESCALA_DENS * 2.2;
+  spriteHaloGris = spriteHalo(leerToken('--halo'), Math.max(3, rHalo));
+  spriteHaloDano = spriteHalo(leerToken('--dano'), Math.max(3, rHalo));
+  construirSpritesCelda(DPR);
+}
+
+const px = c => mapX + (c.x - BB.x0) / (BB.x1 - BB.x0) * mapW;
+const py = c => mapY + (c.y - BB.y0) / (BB.y1 - BB.y0) * mapH;
+
+function dibujarMapa() {
+  ctx.clearRect(0, 0, W, H);
+
+  const dw = densGris.width, dh = densGris.height;
+  dgx.clearRect(0, 0, dw, dh);
+  ddx.clearRect(0, 0, dw, dh);
+
+  const sg = spriteHaloGris, sd = spriteHaloDano;
+  const hg = sg.width / 2, hd = sd.width / 2;
+  const umbral = tokenNum('--umbral');
+  let sobreUmbral = 0;
+
+  // — capa 1: campo de densidad. El contorno de la ciudad no se dibuja: emerge.
+  for (let i = 0; i < CELDAS.length; i++) {
+    const c = CELDAS[i];
+    const vis = visibilidad(c);
+    if (vis <= 0.01) continue;
+    const x = px(c) * ESCALA_DENS, y = py(c) * ESCALA_DENS;
+    dgx.globalAlpha = vis;
+    dgx.drawImage(sg, x - hg, y - hg);
+    if (c.v > 0.06) {
+      ddx.globalAlpha = vis * Math.pow(c.v, 1.7);
+      ddx.drawImage(sd, x - hd, y - hd);
+    }
+    if (c.v >= umbral) sobreUmbral++;
+  }
+  dgx.globalAlpha = 1; ddx.globalAlpha = 1;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalAlpha = tokenNum('--halo-op');
+  ctx.drawImage(densGris, 0, 0, W, H);
+  ctx.globalAlpha = tokenNum('--dano-op');
+  ctx.drawImage(densDano, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // — capa 2: las celdas
+  for (let i = 0; i < CELDAS.length; i++) {
+    const c = CELDAS[i];
+    const vis = visibilidad(c);
+    if (vis <= 0.01) continue;
+    const idx = clamp(Math.round(c.v * (PASOS_COLOR - 1)), 0, PASOS_COLOR - 1);
+    const sp = spritesCelda[idx];
+    ctx.globalAlpha = vis;
+    ctx.drawImage(sp.c, px(c) - sp.cx, py(c) - sp.cx);
+  }
+  ctx.globalAlpha = 1;
+
+  return sobreUmbral;
+}
+
+// Aparición escalonada de las celdas al arrancar
+function visibilidad(c) {
+  if (S.reveal >= 1) return 1;
+  const inicio = c.orden * 0.75;
+  return clamp((S.reveal - inicio) / 0.25, 0, 1);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5 · Gráficos del panel
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function prepararGrafico(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  const h = parseInt(canvas.getAttribute('height'), 10);
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  return { g, w, h };
+}
+
+function dibujarCurva() {
+  const cn = document.getElementById('gCurva');
+  const { g, w, h } = prepararGrafico(cn);
+  const ml = 42, mr = 10, mt = 12, mb = 22;
+  const iw = w - ml - mr, ih = h - mt - mb;
+
+  const y0 = 0.35, y1 = 0.70;
+  const X = i => ml + (i / 3) * iw;
+  const Y = v => mt + (1 - (v - y0) / (y1 - y0)) * ih;
+
+  // rejilla
+  g.strokeStyle = leerToken('--regla'); g.lineWidth = 1;
+  g.fillStyle = leerToken('--tinta-tenue');
+  g.font = '10px ' + leerToken('--sans');
+  for (let v = 0.40; v <= 0.70001; v += 0.10) {
+    const y = Y(v);
+    g.beginPath(); g.moveTo(ml, y); g.lineTo(w - mr, y); g.stroke();
+    g.fillText(fmtPct(v, 0), 6, y + 3);
+  }
+  for (let i = 0; i <= 3; i++) g.fillText('R' + i, X(i) - 6, h - 6);
+
+  const R = S.rondas;
+  const hasta = Math.max(0, S.etapa - 1) + (S.etapa > 0 && S.prog < 1 ? S.prog : 0);
+  const vistos = i => i <= hasta;
+
+  // banda p10–p90
+  g.beginPath();
+  let primero = true;
+  for (let i = 0; i <= 3; i++) { if (!vistos(i)) break; const p = X(i), q = Y(R[i].banda.p90); primero ? (g.moveTo(p,q), primero=false) : g.lineTo(p,q); }
+  for (let i = 3; i >= 0; i--) { if (!vistos(i)) continue; g.lineTo(X(i), Y(R[i].banda.p10)); }
+  g.closePath();
+  const [dr, dg, db] = hexRgb(leerToken('--dano'));
+  g.fillStyle = `rgba(${dr},${dg},${db},0.10)`;
+  g.fill();
+
+  // la proyección oficial: se queda en la ronda 0, es una línea recta
+  g.setLineDash([4, 4]);
+  g.strokeStyle = leerToken('--oficial'); g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(X(0), Y(R[0].tasa_informalidad)); g.lineTo(X(3), Y(R[0].tasa_informalidad)); g.stroke();
+  g.setLineDash([]);
+
+  // la cascada
+  g.strokeStyle = leerToken('--dano'); g.lineWidth = 2;
+  g.beginPath();
+  primero = true;
+  for (let i = 0; i <= 3; i++) {
+    if (!vistos(i)) break;
+    const p = X(i), q = Y(R[i].tasa_informalidad);
+    primero ? (g.moveTo(p, q), primero = false) : g.lineTo(p, q);
+  }
+  g.stroke();
+  for (let i = 0; i <= 3; i++) {
+    if (!vistos(i)) break;
+    g.beginPath(); g.arc(X(i), Y(R[i].tasa_informalidad), 3, 0, Math.PI * 2);
+    g.fillStyle = leerToken('--dano'); g.fill();
+  }
+
+  // etiqueta de la brecha, al final
+  if (hasta >= 2.9) {
+    const yA = Y(R[0].tasa_informalidad), yB = Y(R[3].tasa_informalidad);
+    const x = X(3) - 4;
+    g.strokeStyle = leerToken('--tinta'); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, yA); g.lineTo(x, yB); g.stroke();
+    g.fillStyle = leerToken('--tinta');
+    g.font = '10px ' + leerToken('--sans');
+    const pp = (R[3].tasa_informalidad - R[0].tasa_informalidad) * 100;
+    g.fillText('brecha ' + pp.toFixed(1).replace('.', ',') + ' pp', ml + 6, mt + 12);
+  }
+}
+
+function dibujarBarrido() {
+  const cn = document.getElementById('gBarrido');
+  const { g, w, h } = prepararGrafico(cn);
+  const ml = 42, mr = 10, mt = 10, mb = 20;
+  const iw = w - ml - mr, ih = h - mt - mb;
+  const y0 = 0.40, y1 = 0.66;
+  const X = p => ml + (p / 30) * iw;
+  const Y = v => mt + (1 - (v - y0) / (y1 - y0)) * ih;
+
+  g.strokeStyle = leerToken('--regla'); g.lineWidth = 1;
+  g.fillStyle = leerToken('--tinta-tenue');
+  g.font = '10px ' + leerToken('--sans');
+  for (let v = 0.40; v <= 0.66001; v += 0.10) {
+    const y = Y(v);
+    g.beginPath(); g.moveTo(ml, y); g.lineTo(w - mr, y); g.stroke();
+    g.fillText(fmtPct(v, 0), 6, y + 3);
+  }
+  [0, 7, 13.6, 23, 30].forEach(p => g.fillText(String(p).replace('.', ','), X(p) - 7, h - 5));
+
+  // curva final del barrido: informalidad de la ronda 3 para cada aumento
+  g.strokeStyle = leerToken('--dano'); g.lineWidth = 2;
+  g.beginPath();
+  for (let p = 0; p <= 30; p += 0.25) {
+    const v = P.base + P.respLineal * (p / 100) + cascada(p);
+    const x = X(p), y = Y(v);
+    p === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+  }
+  g.stroke();
+
+  // el codo
+  const vc = P.base + P.respLineal * (P.codo / 100) + cascada(P.codo);
+  g.setLineDash([3, 3]);
+  g.strokeStyle = leerToken('--tinta-tenue'); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(X(P.codo), mt); g.lineTo(X(P.codo), mt + ih); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle = leerToken('--tinta');
+  g.font = '10px ' + leerToken('--sans');
+  g.fillText('el codo', X(P.codo) + 5, mt + 11);
+
+  // dónde estás parado
+  const vAct = P.base + P.respLineal * (S.pct / 100) + cascada(S.pct);
+  g.beginPath(); g.arc(X(S.pct), Y(vAct), 4, 0, Math.PI * 2);
+  g.fillStyle = leerToken('--tinta'); g.fill();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   6 · Panel de texto
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const NOTAS = [
+  'Reposo: el mundo antes de la política. Esta es la informalidad que el modelo debe reproducir sin que nadie la ajuste a mano — es el primer candado de validación.',
+  'Ronda 0 — la reacción ingenua. Es lo que proyecta el gobierno: todo el mundo cumple, el costo se absorbe. Nada se mueve todavía.',
+  'Ronda 1 — los primeros arquetipos a los que no les da la plata proponen otra cosa. El motor veta lo que el flujo de caja no permite; sobrevive lo demás.',
+  'Ronda 2 — cada arquetipo ve lo que hicieron los demás. Con más evasores y la misma capacidad de inspección, la probabilidad de sanción baja.',
+  'Ronda 3 — la cascada. Menos riesgo induce más evasión, y eso vuelve a bajar el riesgo. Esta retroalimentación es lo que la proyección oficial no ve.'
+];
+
+function pintarEstrategias() {
+  const cont = document.getElementById('estrategias');
+  if (!cont.children.length) {
+    cont.innerHTML = ESTRATEGIAS.map(e => `
+      <div class="estrategia ${e.mala ? 'mala' : ''}" data-id="${e.id}">
+        <div class="fila"><span>${e.nom}</span><span class="num val">—</span></div>
+        <div class="pista"><div class="barra" style="width:0%"></div></div>
+      </div>`).join('');
+  }
+  // el avance hacia la mezcla final va con la fuerza de la cascada ya realizada
+  const cascMax = cascada(S.pct) || 1e-9;
+  const a = agregadoActual();
+  const realizada = clamp((a.tasa_informalidad - (P.base + P.respLineal * (S.pct / 100))) / cascMax, 0, 1);
+  const t = S.etapa === 0 ? 0 : realizada;
+  for (const e of ESTRATEGIAS) {
+    const v = lerp(e.ini, e.fin, t);
+    const nodo = cont.querySelector(`[data-id="${e.id}"]`);
+    nodo.querySelector('.barra').style.width = (v * 100).toFixed(1) + '%';
+    nodo.querySelector('.val').textContent = fmtPct(v, 0);
+  }
+}
+
+function pintarPanel(sobreUmbral) {
+  const a = agregadoActual();
+  document.getElementById('cCeldas').textContent = fmtMiles(sobreUmbral);
+  document.getElementById('cCeldasLbl').innerHTML =
+    'celdas donde el incumplimiento nuevo cruzó el umbral<br>≈ ' +
+    fmtMiles(sobreUmbral * PERSONAS_POR_CELDA) + ' personas';
+  document.getElementById('cInfo').textContent = fmtPct(a.tasa_informalidad);
+  document.getElementById('cFisc').textContent = fmtPct(a.prob_fiscalizacion, 1);
+  document.getElementById('cEmpleo').textContent = a.empleo_relativo.toFixed(3).replace('.', ',');
+
+  const brecha = (S.rondas[3].tasa_informalidad - S.rondas[0].tasa_informalidad) * 100;
+  document.getElementById('cBrecha').textContent =
+    (S.etapa >= 1 ? '+' + brecha.toFixed(1).replace('.', ',') + ' pp' : '—');
+
+  document.getElementById('notaRonda').textContent = NOTAS[S.etapa];
+  document.getElementById('historia').classList.toggle('visible', S.etapa === 4 && S.prog > 0.6);
+  pintarEstrategias();
+}
+
+function pintarBotonesRonda() {
+  const cont = document.getElementById('rondasBtns');
+  if (!cont.children.length) {
+    ['Reposo', '0', '1', '2', '3'].forEach((et, i) => {
+      const b = document.createElement('button');
+      b.textContent = et;
+      b.addEventListener('click', () => irA(i));
+      cont.appendChild(b);
+    });
+  }
+  [...cont.children].forEach((b, i) => b.classList.toggle('on', i === S.etapa));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7 · El reloj: un solo timeline manda sobre el mapa y la curva
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function irA(idx) {
+  idx = clamp(idx, 0, 4);
+  if (idx === S.etapa && S.prog >= 1) return;
+  fijarTransicion(S.etapa, idx);
+  S.etapa = idx;
+  S.prog = 0;
+  pintarBotonesRonda();
+}
+
+function bucle(ts) {
+  const dt = S.ultimo ? Math.min(ts - S.ultimo, 60) : 16;
+  S.ultimo = ts;
+
+  if (S.reveal < 1) {
+    S.reveal = clamp(S.reveal + dt / 1600, 0, 1);
+  } else if (S.prog < 1) {
+    S.prog = clamp(S.prog + dt / tokenNum('--dur-ronda'), 0, 1);
+    const stag = tokenNum('--stagger');
+    for (const c of CELDAS) {
+      // la celda con más presión arranca antes: la cascada se propaga por presión
+      // económica, no por cercanía geográfica
+      const off = stag * (1 - c.pRank);
+      const local = clamp((S.prog - off) / (1 - stag || 1), 0, 1);
+      c.v = lerp(c.desde, c.hasta, easeInOut(local));
+    }
+  } else if (S.corriendo && S.etapa < 4) {
+    irA(S.etapa + 1);
+  } else if (S.corriendo && S.etapa === 4) {
+    S.corriendo = false;
+    document.getElementById('btnPlay').classList.remove('on');
+    document.getElementById('btnPlay').textContent = 'Volver a empezar';
+  }
+
+  const sobre = dibujarMapa();
+  dibujarCurva();
+  pintarPanel(sobre);
+  requestAnimationFrame(bucle);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   8 · Controles
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const slider = document.getElementById('slider');
+const pctInline = document.getElementById('pctInline');
+
+function fijarPct(v, reiniciar) {
+  S.pct = clamp(v, 0, 30);
+  slider.value = S.pct;
+  pctInline.innerHTML = S.pct.toFixed(1).replace('.', ',') + ' %';
+  recomputar(!reiniciar);
+  if (reiniciar) reiniciarSecuencia();
+}
+
+function reiniciarSecuencia() {
+  S.etapa = 0; S.prog = 1; S.reveal = 1;
+  aplicarValores(true);
+  S.corriendo = true;
+  const b = document.getElementById('btnPlay');
+  b.classList.add('on'); b.textContent = 'Pausar';
+  pintarBotonesRonda();
+}
+
+slider.addEventListener('input', () => fijarPct(parseFloat(slider.value), true));
+
+// arrastrar el número dentro de la frase
+let arrastrando = false, xIni = 0, pctIni = 0;
+pctInline.addEventListener('pointerdown', e => {
+  arrastrando = true; xIni = e.clientX; pctIni = S.pct;
+  pctInline.setPointerCapture(e.pointerId);
+});
+pctInline.addEventListener('pointermove', e => {
+  if (!arrastrando) return;
+  fijarPct(pctIni + (e.clientX - xIni) * 0.12, true);
+});
+pctInline.addEventListener('pointerup', () => { arrastrando = false; });
+pctInline.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { fijarPct(S.pct + 0.5, true); e.preventDefault(); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') { fijarPct(S.pct - 0.5, true); e.preventDefault(); }
+});
+
+document.getElementById('btnPlay').addEventListener('click', e => {
+  if (S.etapa === 4 && S.prog >= 1) { reiniciarSecuencia(); irA(0); S.corriendo = true; return; }
+  S.corriendo = !S.corriendo;
+  e.target.classList.toggle('on', S.corriendo);
+  e.target.textContent = S.corriendo ? 'Pausar' : 'Reproducir';
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   9 · Panel de afinación — el mecanismo para decidir la paleta con los ojos
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const tune = document.getElementById('tune');
+if (new URLSearchParams(location.search).has('tune')) tune.classList.add('abierto');
+
+const AJUSTES = [
+  ['tDano',   '--dano',      null,      'color'],
+  ['tHalo',   '--halo',      null,      'color'],
+  ['tHaloOp', '--halo-op',   'vHaloOp', 'num'],
+  ['tDanoOp', '--dano-op',   'vDanoOp', 'num'],
+  ['tHaloR',  '--halo-r',    'vHaloR',  'num'],
+  ['tCeldaR', '--celda-r',   'vCeldaR', 'num'],
+  ['tUmbral', '--umbral',    'vUmbral', 'num'],
+  ['tDur',    '--dur-ronda', 'vDur',    'num'],
+  ['tStagger','--stagger',   'vStagger','num']
+];
+
+function sincronizarTune() {
+  for (const [id, token, salida, tipo] of AJUSTES) {
+    const el = document.getElementById(id);
+    const v = leerToken(token);
+    el.value = tipo === 'color' ? v : parseFloat(v);
+    if (salida) document.getElementById(salida).textContent = parseFloat(v);
+  }
+  volcarTokens();
+}
+function volcarTokens() {
+  document.getElementById('tSalida').textContent =
+    AJUSTES.map(([, t]) => `${t}: ${leerToken(t)};`).join(' ');
+}
+for (const [id, token, salida, tipo] of AJUSTES) {
+  document.getElementById(id).addEventListener('input', e => {
+    document.documentElement.style.setProperty(token, e.target.value);
+    if (salida) document.getElementById(salida).textContent = parseFloat(e.target.value);
+    if (tipo === 'color' || token === '--halo-r' || token === '--celda-r' || token === '--umbral') regenerarSprites();
+    volcarTokens();
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   10 · Arranque
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function arrancar() {
+  redimensionar();
+  recomputar(false);
+  sincronizarTune();
+  S.reveal = 0; S.etapa = 0; S.prog = 1;
+  aplicarValores(true);
+  requestAnimationFrame(bucle);
+}
+
+let temporizador;
+window.addEventListener('resize', () => {
+  clearTimeout(temporizador);
+  temporizador = setTimeout(() => { redimensionar(); dibujarBarrido(); }, 120);
+});
+
+arrancar();
+</script>
+</body>
+</html>
