@@ -9,6 +9,34 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 (noche) — la rama quedó lista para escribir el motor. No se
+  escribió código de `engine/`.**
+  - **Tu WIP estaba SIN COMMITEAR** desde la sesión de las 09:52 (`docs/IDEA.md`,
+    este handoff, `engine/MODELO.md`) y venía arrastrándose entre checkouts. Ya
+    está commiteado y pusheado (`f94ac4a`).
+  - **`rol/backend` al día con `main`** (merge `5089f36`): ahora la rama tiene
+    todo `behavior/` del PR #4, así que el motor se puede escribir importando
+    contra la capa real en vez de contra un doble.
+  - ⚠️ **`rol/backend` NO tiene PR abierto.** Va +2 sobre main y todo entra por
+    PR según `AGENTS.md`. Abrirlo o dejarlo acumulando hasta tener los tres
+    archivos del motor es decisión tuya, pero no se puede olvidar.
+  - **Lo que sigue, en orden:** `veto.py` primero (es lo que desbloquea a R3 y
+    hoy corre contra dos dobles de prueba), después `fiscalizacion.py`, después
+    `seed.py`.
+  - **Dato para `fiscalizacion.py`:** `p(E) → 1.0` cuando E→0 crea un **estado
+    absorbente** que clava la ablación en 0% para siempre. Está medido en el
+    barrido del candado 4 de `behavior/`. Conviene decidir el borde antes de
+    cablear.
+  - **Dato para `seed.py`:** confirmado que el seed de `behavior/` es decorativo.
+    Hoy el determinismo lo da el caché en disco (503 respuestas, verificado byte
+    a byte), no una semilla.
+  - **De R3, ya cerrado y esperando tu review:** el [PR #6](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/6)
+    trae la especificación exacta de lo que `behavior/` te pide para el crítico
+    #2 (`fraccion_informal_previa`, float [0,1], por `arquetipo_id`, al empezar
+    cada ronda). El punto de sutura está marcado en `behavior/rondas.py`
+    (`grep "PUNTO DE SUTURA"`). Las 4 decisiones de interfaz que cerraste **no
+    tienen fricción** con el código de R3: verificado leyéndolo.
+
 - **2026-08-22 09:52 — Sesión de auditoría y review. Cero código, y esta vez sí fue el costo correcto.**
 
   Dos entregables: una auditoría del estado real del repo y el review del
