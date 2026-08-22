@@ -14,3 +14,7 @@ raw/GEIH_*/
 # `python data/construir_empresas.py` a partir de poblacion.parquet y
 # parametros_legales.json.
 !empresas.parquet
+
+# La poblacion pre-politica del backtest V0: se versiona igual que la de 2026,
+# porque sin ella un tercero no puede reproducir EL numero.
+!poblacion_2025.parquet
