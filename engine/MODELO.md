@@ -60,7 +60,7 @@ Es un compromiso público en el review del PR #4, no una preferencia.
 | **Costo informal** | Allingham-Sandmo 1972 | `costos.py` | `costo_informal(salario, p, sancion)` | Crece con `p` | Pérdida de acceso a crédito y clientes formales **no se modela**. Se declara |
 | **Fiscalización endógena** | A-S con `p` endógeno + [PNAS 2021](https://www.pnas.org/doi/10.1073/pnas.2108507118) | **`fiscalizacion.py`** | `prob_sancion(C, E)` = `1 − exp(−C/max(E,1))` | Decreciente en `E`; en `[0,1)` para todo `E`; **corrida de control con `p` fijo no produce cascada** | ⚠️ **inspecciones por inspector por trimestre**, sin fuente. Es el supuesto más importante del motor |
 | **Capacidad de inspección** | [OIT 2023-24](https://www.ilo.org/es/projects-and-partnerships/projects/mayor-capacidad-de-la-inspeccion-del-trabajo-en-colombia): 1.300 inspectores | `mundo.py` | `capacidad_trimestre()` | Cambiar la capacidad mueve `p` en la dirección esperada | Conversión anual→trimestral no es uniforme; fracción dirigida a Bogotá y a los sectores del modelo |
-| **Veto de factibilidad** | [ADR 0003](../docs/adr/0003-veto-de-factibilidad.md) | **`veto.py`** | `vetar(decision, firma)` → `{factible, razon}` | Una propuesta sin caja se rechaza **con razón**; 3 reintentos y luego `cumplir` | Qué cuenta como "caja disponible" en un trimestre |
+| **Veto de factibilidad** | [ADR 0003](../docs/adr/0003-veto-de-factibilidad.md) | ✅ **`veto.py`** | `vetar(decision, firma, estado)` → `{factible, razon}` · `veto_del_motor(estado)` · `EstadoVivo` | ✅ `engine/test_veto.py`, 17 casos. Incluye el compromiso público: **todas** las razones pasan `higiene.revisar()` limpias | S8 (la caja del trimestre) y S9 (redondeo de la planta) |
 | **Decisión del trabajador** | 🔶 [ADR 0008](../docs/adr/0008-asimetria-firma-trabajador.md) | `trabajador.py` | `acepta_informal(neto_f, neto_i, prima)` | Con prima 0 acepta siempre que el neto informal sea mayor | ⚠️ **prima de protección**: cuánto vale pensión + salud + cesantías para el trabajador. Sensibilidad obligatoria |
 | **Arquetipos** | [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md) (idea de AgentTorch) | `arquetipos.py` | `construir_arquetipos()` · `muestrear(arq, n, rng)` | El muestreo con el mismo seed es idéntico; las proporciones respetan la distribución del arquetipo | Los agentes dentro de un arquetipo son **intercambiables en su conducta** |
 | **Agregado** | Patrón de OASIS | `agregado.py` | `Agregado.de_ronda(estado)` | El agregado que ven los arquetipos es el de la ronda **anterior**, no el de la actual | — |
@@ -103,7 +103,12 @@ Los `# SUPUESTO:` que el motor **va a** tomar. Escribirlos antes evita reconstru
 | S6 | **Agentes del mismo arquetipo son intercambiables en conducta** | Medio | Consecuencia de [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md), ya declarada en `VALIDATION.md` |
 | S7 | **Costo informal ignora pérdida de crédito y de clientes formales** | Medio: subestima el costo de informalizar, o sea **sobreestima la cascada** | Sesgo de dirección **conocida**. Se declara: nuestra cascada es una cota superior por este canal |
 
-S7 es del tipo que conviene decir primero: sabemos hacia dónde nos equivocamos.
+| S8 | **La caja de la ronda son 3 meses del `flujo_caja` de la firma**, y se puede destinar completa a un desembolso de una vez (sin reservas y sin crédito) | **Alto en el veto**: decide cuántos despidos son factibles. Con el doble de prueba (1 mes) la corrida de ablación producía **96 vetos**; con S8, **0**, y el empleo de la ronda 3 pasa de 100% a 85,7% | Dirección conocida: sin crédito el veto es **más estricto**, luego `n_vetos` y `n_fallback` son cota superior. Barrido sobre `MESES_POR_RONDA` |
+| S9 | **La planta viva se redondea al entero más cercano** | Bajo, salvo en plantas chicas — que con la GEIH son el caso común (mediana 3) | Declarado en `planta_viva()`. Se puede medir cuántos vetos cambian con piso vs techo |
+
+S7 es del tipo que conviene decir primero: sabemos hacia dónde nos equivocamos. **S8 es el que
+más mueve el número hoy**, y por eso se reporta con la medición al lado en vez de con una
+promesa de sensibilidad.
 
 ---
 
