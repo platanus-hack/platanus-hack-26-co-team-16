@@ -9,6 +9,67 @@
 
 _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber tu próxima sesión para no arrancar de cero._
 
+- 2026-08-22 (6ª sesión) — **Los 4 críticos quedaron integrados y pusheados en 2 PR.**
+  - **El problema no era el contenido de los agentes, era el cableado.** Cuatro agentes
+    escritos en cuatro sesiones distintas: `juez-hackathon`, `juez-tecnico`, `juez-cientifico`
+    y `peeky`. Solo `juez-tecnico` estaba versionado (76aa4cf); los otros tres estaban en
+    disco sin commitear y **el repo no sabía que existían**. Ninguno se reescribió: la
+    personalidad, el filtro, los modos y el contrato de salida de cada uno quedaron intactos.
+  - **`rol/datos` (pusheada, 3 commits nuevos hasta `adeb31a`):**
+    - `8a19c51` — los 3 agentes que faltaban + sus 3 comandos + sus 3 carpetas de informes
+      en `docs/agents/`. 935 líneas.
+    - `adeb31a` — **la frontera cerrada.** Las referencias cruzadas eran una cadena de una
+      sola dirección: cada agente nuevo nombraba a los viejos y ningún viejo sabía del nuevo;
+      `juez-hackathon` no nombraba a nadie. Un juez que no conoce la jurisdicción de su
+      hermano invade la ajena y produce el informe redundante. Ahora `juez-tecnico` le cede
+      explícitamente la derivación y las unidades a `juez-cientifico` y se queda el
+      determinismo como problema de ingeniería, y las 3 tablas de `docs/agents/*/README.md`
+      tienen las mismas 4 columnas y las mismas filas (pregunta · vara · sobre la demo · salida).
+  - **`docs/contrato-agentes` (rama nueva, pusheada, `c8ea869`):** `AGENTS.md` pasa de "tres
+    críticos" a los cuatro, con tabla de 5 columnas y la nota de que **`peeky` no es un cuarto
+    juez** — los jueces miden contra una vara externa (mercado, industria, matemática), él
+    reconcilia el repo contra sí mismo. `docs/README.md` indexa también `docs/agents/peeky/`.
+    **Va aparte a propósito:** docs raíz es de Juanda (`docs/ROLES.md:15`) y la regla 5 parte
+    los PR que cruzan dos dueños. **Revisor: jdtorres59.**
+  - **⚠️ La trampa que casi se cuela, para no repetirla:** colgué esa rama de `main` **local**,
+    que estaba 8 commits detrás de `origin/main`. El PR no habría mostrado "+15 líneas" sino
+    **"−2.138", borrando todo `behavior/` de Nico**. Se detectó con `git diff --stat
+    origin/main..<rama>` ANTES de pushear y se rebasó con cherry-pick limpio.
+    **Regla para la próxima: `git fetch` y colgar de `origin/main`, nunca de `main` local, y
+    mirar el `--stat` contra el remoto antes de abrir cualquier PR.**
+  - **Verificación, no reclamo:** un script recorrió los 4 comandos → 4 `subagent_type` → 4
+    agentes → 4 carpetas de informes, confirmó que **ninguno tiene `Edit`** y resolvió los 40
+    enlaces relativos. Todo verde.
+  - **Sigue abierto el bug de `AGENTS.md` que marcó la 5ª sesión:** dice que los agentes van
+    en `.claude/agents/<nombre>/` (carpeta) y Claude Code lee archivos planos
+    `.claude/agents/<nombre>.md`. **No se arregló** — está en la misma sección que edita
+    `docs/contrato-agentes`, así que es una línea que se le puede pedir a Juanda en ese PR.
+
+- 2026-08-22 (5ª sesión) — **Agente `juez-hackathon`: crítico adversarial del pitch y del repo.**
+  - Nuevo: `.claude/agents/juez-hackathon.md` (el agente), `.claude/commands/juez.md` (el
+    slash command `/juez`) y `docs/agents/juez-hackathon/` (donde caen los informes, con su
+    README). Único cambio fuera de `data/` y `contracts/`; `.claude/` no tiene dueño en
+    `ROLES.md` y `AGENTS.md` autoriza alojar agentes ahí. **Va en un PR aparte** del trabajo
+    de datos.
+  - **Cada corrida deja un informe en disco** (`docs/agents/juez-hackathon/AAAA-MM-DD-HHMM-<modo>.md`,
+    nunca se sobrescribe) y cada informe nuevo arranca comparándose con el anterior: qué se
+    cerró y qué sigue abierto. Es la única escritura que el agente tiene permitida.
+  - **Para qué sirve:** entra como entraría el jurado — asume que la demo funciona y juzga si
+    alguien usaría y pagaría esto. Tres modos: `/juez` (pitch, default, sobre `PLAN.md` §12),
+    `/juez repo` (auditoría promesa↔disco) y `/juez qa` (simulacro interactivo, una pregunta
+    por turno). Solo lee: no tiene Write ni Edit, y **tiene prohibido correr `make run` o
+    `make validate`** para no quemar el presupuesto de $50.
+  - **Cómo se construyó:** draft escrito con Claude, atacado por Codex (modelo distinto →
+    regla 3 de `AGENTS.md`) y fusionado. Lo que Codex encontró y quedó incorporado: la regla
+    de citar permitía "rigor de utilería" (ahora la cita debe *sostener* la afirmación y se
+    clasifica `[disco] / [dicho] / [pendiente]`); la lista de munición conocida lo volvía un
+    secretario (ahora máximo 1 de las 3 trampas puede salir de ella); y faltaba lo obvio de
+    negocio (ahora tres preguntas obligatorias: comprador con nombre y cargo, qué decisión
+    concreta cambia y cuándo, y si esto es producto o consultoría disfrazada).
+  - **Ojo para quien lea `AGENTS.md`:** ahí dice que los agentes van en `.claude/agents/<nombre>/`
+    (carpeta) pero Claude Code lee archivos planos `.claude/agents/<nombre>.md`. **Es de Juanda
+    — se le avisa en el grupo, no se edita desde `rol/datos`.**
+
 - 2026-08-22 (4ª sesión) — **El lado empleador construido: `parametros_legales.json` + `empresas.parquet`.**
   - **Diagnóstico del repo que hay que llevar al grupo YA:** `engine/` tiene **cero líneas de
     código** en `main` (solo README + MODELO.md). Lo mismo `api/`, `web/`, `tests/` y
@@ -119,6 +180,11 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
       `data/construir_poblacion.py` y regenerar.
 - [x] Empresas explícitas para el veto de Manuel → `data/empresas.parquet` (4ª sesión).
 - [x] Costo legal de la formalidad con fuente → `data/parametros_legales.json` (4ª sesión).
+- [x] Los 4 críticos internos versionados, con frontera cerrada y declarados en `AGENTS.md`
+      (6ª sesión, 2 PR: `rol/datos` y `docs/contrato-agentes`).
+- [ ] **Pedirle a Juanda en el PR `docs/contrato-agentes`** que corrija la línea de
+      `.claude/agents/<nombre>/` → `.claude/agents/<nombre>.md`. Es suya; no se toca desde
+      `rol/datos`.
 - [ ] **Proponer al grupo un 4º contrato `contracts/empresa.json`** para `empresas.parquet`.
       NO lo agregué unilateralmente: los contratos están congelados desde H+4 y aunque esto
       es un archivo nuevo (no un cambio a los tres existentes), la regla dice avisar antes.
