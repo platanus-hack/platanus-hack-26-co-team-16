@@ -45,7 +45,7 @@ if str(RAIZ) not in sys.path:
 from behavior.ablacion import ClienteReglas  # noqa: E402
 from behavior.arquetipos import (  # noqa: E402
     Arquetipo,
-    desde_poblacion,
+    desde_empresas,
     informalidad_observada,
     particionar_por_peso,
 )
@@ -54,6 +54,9 @@ from engine.veto import EstadoVivo, veto_del_motor  # noqa: E402
 
 PARAMETROS = RAIZ / "data" / "parametros_legales.json"
 POBLACION = RAIZ / "data" / "poblacion.parquet"
+# C1 — la grilla de la corrida es la de EMPLEADORES, con costo formal,
+# factor prestacional e indemnización calculados contra el CST.
+EMPRESAS = RAIZ / "data" / "empresas.parquet"
 
 
 # --- El factor prestacional por firma ----------------------------------------
@@ -132,43 +135,14 @@ def _correr_una(
         cliente = ClienteReglasPorSector(parametros)
         paralelismo = 1
 
-    # El estado vivo del MOTOR, y el veto real encima. Esto es lo que `demo.py`
-    # no hace: acá el veto que corre es `engine/veto.py`, no el doble de prueba.
-    estado = EstadoVivo.inicial(arquetipos)
-    por_id = {a.id: a for a in arquetipos}
-
-    def al_terminar(r: Ronda) -> None:
-        """Sutura: lo que decidió la ronda entra al estado que verá el veto.
-
-        Se recalcula igual que `behavior/rondas.py:324-336` —promediando entre
-        paráfrasis y acumulando sobre la fracción previa— porque `Ronda` expone
-        las decisiones crudas, no la fracción ya agregada. Es duplicación, y es
-        exactamente el PUNTO DE SUTURA que `rondas.py:197` dice que debe
-        desaparecer cuando el motor lleve el estado. Acá el motor SÍ lo lleva:
-        `EstadoVivo` es la fuente, y esta función la alimenta.
-        """
-        from behavior import contrato as _c
-
-        for aid, res in r.por_arquetipo.items():
-            a = por_id.get(aid)
-            if a is None or not res.decisiones:
-                continue
-            prev_inf = estado.fraccion_informal_previa(aid)
-            prev_emp = estado.fraccion_empleada_previa(aid)
-            ds = res.decisiones
-            frac = sum(
-                _c.fraccion_fuera_de_regla(d, a.n_trabajadores, prev_inf) for d in ds
-            ) / len(ds)
-            despidos = sum(
-                min(1.0, d["detalle"].get("empleados_a_despedir", 0)
-                    / max(1, a.n_trabajadores))
-                for d in ds
-            ) / len(ds)
-            estado.registrar(
-                aid,
-                fraccion_informal=frac,
-                fraccion_empleada=max(0.0, prev_emp - despidos),
-            )
+    # El estado vivo y el veto real los lleva ahora `behavior/rondas.correr()`
+    # (C2 del plan de correcciones). Acá vivía una función de sutura que
+    # recalculaba la fracción informal y el empleo para alimentar el
+    # `EstadoVivo` a mano — duplicando `behavior/rondas.py` línea por línea—, y
+    # su propio docstring decía que debía desaparecer cuando el motor llevara el
+    # estado. El motor lo lleva: `correr(veto=None)` construye el `EstadoVivo`,
+    # lo cierra al final de cada ronda y le pasa al veto ese mismo objeto, así
+    # que no hay dos estados que puedan divergir.
 
     rondas = correr(
         arquetipos,
@@ -176,14 +150,12 @@ def _correr_una(
         aumento_pct=aumento,
         seed=seed,
         simulacion_id=f"barrido-{aumento:g}-s{seed}",
-        veto=veto_del_motor(estado),
+        veto=None,
         n_parafrasis=n_parafrasis,
         paralelismo=paralelismo,
         cobertura_llm=cobertura,
         tasa_informalidad_inicial=tasa_inicial,
         multa_factor=multa_factor,
-        capacidad_fiscalizacion=capacidad,
-        al_terminar_ronda=al_terminar,
     )
     return rondas, cliente
 
@@ -404,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
 
     modo = "llm" if args.llm else "ablacion"
     parametros = _cargar_parametros()
-    arquetipos = desde_poblacion(str(POBLACION))
+    arquetipos = desde_empresas(str(EMPRESAS))
     tasa_inicial = informalidad_observada()
 
     if args.cobertura and modo == "llm":
