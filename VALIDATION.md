@@ -21,6 +21,19 @@ Reproducible con: `make validate`
 
 _PENDIENTE — el mundo corre SIN política y debe reproducir lo observado en la GEIH: informalidad por sector y tamaño de firma, distribución salarial, y el spike de masa salarial en el mínimo. Qué reprodujo y qué no._
 
+### Objetivos de calibración con fuente (V8 — encontrado en H+1)
+
+Los momentos contra los que se calibra no los escogemos nosotros: salen de literatura publicada y se citan acá antes de correr nada.
+
+| Objetivo | Valor | Fuente | Uso |
+|---|---|---|---|
+| Elasticidad mínimo → informalidad | **+1 pp** en el ratio del mínimo ≈ **+0,21 pp** de probabilidad de empleo informal | Banco de la República, [WP 1104](https://ideas.repec.org/p/bdr/borrec/1104.html) — *Minimum wage effects on labour informality: heterogeneity across demographic groups in Colombia* | Nivel 2 de calibración. Si nuestra curva no pasa cerca de esta pendiente en el tramo bajo, algo está mal en el motor. |
+| Heterogeneidad demográfica | Efecto concentrado en 18–25 años con menor educación | Misma fuente | Chequeo del mapa distributivo (dato A3): el efecto debe caer donde la literatura dice. |
+| Informalidad de referencia | ~55–60% | Serie oficial DANE (✅ insumo jdtorres) · OIT | Candado 1, nivel base. |
+| Razón mínimo / salario mediano | ≈90% (Kaitz alto) | OIT | Contexto: explica por qué el mínimo colombiano muerde tanto. ⚠️ verificar cifra exacta y año antes de usarla en el pitch. |
+
+**El matiz que importa para el pitch:** la elasticidad publicada es *una recta*. Nuestro aporte declarado (dato A2 del plan) es si existe un **codo** — un umbral donde la cascada se dispara y la recta deja de valer. Reproducir la recta en el tramo bajo es lo que nos da derecho a hablar del codo en el tramo alto.
+
 ## Candado 2 · Backtest fuera de muestra
 
 _PENDIENTE — año de corte, alzas predichas, error publicado. **Se excluyen 2020-2021** (COVID rompe cualquier backtest laboral) y se dice explícitamente: eso suma credibilidad._
