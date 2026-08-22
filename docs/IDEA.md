@@ -349,7 +349,7 @@ Los diez huecos que este trabajo encontró, y dónde quedó cada uno:
 | H1 | El reloj de la simulación | ✅ [ADR 0005](adr/0005-el-reloj-de-la-simulacion.md) — una ronda es un trimestre |
 | H2 | Capacidad de fiscalización dentro de `Politica` | ✅ [ADR 0006](adr/0006-fiscalizacion-es-estado-del-mundo.md) — sale a estado del mundo |
 | H3 | `prob_sancion` mal formada | ✅ [ADR 0007](adr/0007-forma-funcional-prob-sancion.md) — forma Poisson acotada |
-| H4 | Trabajador y firma mal abstraídos | 🔶 [ADR 0008](adr/0008-asimetria-firma-trabajador.md) — **espera aval de Alejo y Nico** |
+| H4 | Trabajador y firma mal abstraídos | 🔶 [ADR 0008](adr/0008-asimetria-firma-trabajador.md) — **Nico avaló** en el PR #4 (2026-08-22). **Falta Alejo** |
 | H5 | `Arquetipo` y `Agregado` sin nombre | ✅ Entidades de primera clase, §5.2 |
 | H6 | Sin salida cuando el veto rechaza todo | ✅ 3 reintentos, luego cumplir. Se reporta `n_fallback`, §7 |
 | H7 | Frontera del determinismo | ✅ [ADR 0009](adr/0009-frontera-del-determinismo.md) — **hay una frase que corregir en `README.md` y `AGENTS.md`** |
@@ -357,9 +357,29 @@ Los diez huecos que este trabajo encontró, y dónde quedó cada uno:
 | H9 | Regla de dominio: verbal vs escrita | ✅ Gana la escrita, §9 |
 | H10 | Input en lenguaje natural | ✅ Fuera, con razón de motor, §9 |
 
-**Lo que R2 necesita del equipo, en el próximo standup:**
+**Lo que R2 necesita del equipo** *(actualizado 2026-08-22 09:52, tras el review del PR #4)*:
 
-1. **Alejo y Nico** — aval de [ADR 0008](adr/0008-asimetria-firma-trabajador.md) (toca `contracts/` y la interfaz del veto).
-2. **Juanda** — precisar la frase de determinismo en `README.md` y `AGENTS.md` ([ADR 0009](adr/0009-frontera-del-determinismo.md)). No es un error suyo: era un hueco que nadie había cerrado.
-3. **Dani y Alejo** — `contracts/ronda.json` gana un campo de tiempo ([ADR 0005](adr/0005-el-reloj-de-la-simulacion.md)). Cambio aditivo.
-4. **Quien pueda** — la cifra **vigente** de inspectores de trabajo en Colombia. Es el número del que depende que la cascada sea un hallazgo y no una perilla.
+1. ~~**Alejo y Nico** — aval de ADR 0008~~ → **Nico avaló** en el PR #4. **Falta Alejo**, y de
+   paso congelar el campo `realizacion: {ocurre, razon}` que Nico propuso y R2 avaló: es
+   hermano de `veto`, lo llena el motor **después** del veto y **no dispara reintento**. Sin
+   él, el dato A4 mezcla *"no pude pagarlo"* con *"no me lo aceptaron"*.
+2. **Juanda** — precisar la frase de determinismo en `README.md` y `AGENTS.md`
+   ([ADR 0009](adr/0009-frontera-del-determinismo.md)). Sigue abierto.
+3. **Dani y Alejo** — `contracts/ronda.json` gana un campo de tiempo
+   ([ADR 0005](adr/0005-el-reloj-de-la-simulacion.md)) y `banda` gana `degenerada`, que
+   `behavior/` ya emite. Los dos son aditivos.
+4. ~~**Quien pueda** — la cifra vigente de inspectores~~ → **RESUELTO:** la OIT publica 1.300
+   inspectores en 36 direcciones territoriales. `C` ya tiene fuente.
+
+🔴 **Lo nuevo, y es lo más urgente de todo lo de arriba:**
+
+5. **Juanda** — `platanus-hack-project.jsonc` tiene los 4 campos en `<FILL THIS>`, incluido
+   `deploy-url`, y **no hay `requirements.txt` en el repo** ni caché commiteado. Hoy un
+   extraño no puede correr ni reproducir nada, lo cual contradice de frente la restricción
+   no-negociable de *"repo público, desplegado y accesible sin registro"* y vacía
+   `make reproduce`.
+6. **Todo el equipo** — **el candado 4 puede colapsar.** Cuando Nico arregle la ablación (hoy
+   compara mal el costo de formalizarse), una regla fija bien especificada probablemente
+   **también produce cascada**: formalizarse cuesta ≈1,72× ingreso contra ≈1,58× de seguir
+   informal. Si eso pasa, la ablación deja de ser el argumento de por qué el LLM se gana el
+   puesto. Se corre, se reporta lo que dé, y se decide con el número en la mano.

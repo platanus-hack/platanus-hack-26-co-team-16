@@ -12,6 +12,43 @@
 
 ---
 
+---
+
+## Alcance real a H+12: se escriben tres de los diez
+
+Este mapa define 10 archivos. **La sesión de auditoría del 2026-08-22 09:52 decidió escribir
+tres**, y documentar los otros siete como trabajo futuro en vez de dejarlos a medias.
+
+La razón no es de tiempo, es de dónde está el valor: **la tesis del proyecto ya corrió** en
+`behavior/` (informalidad 63,2% → 75,6% con la probabilidad de sanción cayendo 4,8% → 2,1%,
+medido contra la API real). Lo que falta no es reimplementar ese bucle: es volver real el
+número que ya salió.
+
+| Archivo | Por qué entra | Qué reemplaza |
+|---|---|---|
+| `seed.py` | Hoy el `seed` de `behavior/` es **decorativo**: seed 42 y seed 99 dan salida idéntica salvo la etiqueta. Nada en el bucle es estocástico | Nada. Es nuevo |
+| `fiscalizacion.py` | `p(E) = 1 − exp(−C/max(E,1))` con `C` anclado en la cifra de la OIT. Es la cascada, y es lo único que no se resuelve prompteando | La forma abreviada `p ≈ C/E` de `behavior/rondas.py` |
+| `veto.py` | El veto es la interfaz entera con R3, y hoy corre contra **dos dobles de prueba** (`veto_permisivo` y `veto_doble_prueba`) | Los dos dobles de prueba |
+
+**Los siete que no se escriben** (`mundo.py`, `costos.py`, `trabajador.py`, `arquetipos.py`,
+`agregado.py`, `rondas.py`, `barrido.py`) se declaran como límite en `VALIDATION.md`, no se
+dejan como `TODO`. La regla *"cero `TODO: implementar` dentro de `engine/`"* sigue en pie.
+
+> **Excepción:** `arquetipos.py` puede entrar cuarto si sobra tiempo, porque sin `muestrear()`
+> **el mapa distributivo (dato A3) no se puede dibujar** y Dani se queda sin una de las cuatro
+> piezas de la pantalla.
+
+### Una restricción del veto que no era obvia
+
+Las razones del veto **viajan dentro del prompt de reintento** que `behavior/capa.py` le manda
+al modelo, y ese prompt pasa por `higiene.verificar()`. O sea que una razón con un `$`, un año
+de cuatro dígitos o la palabra "gobierno" **mata la corrida con `ContaminacionError`**.
+
+`vetar()` produce razones que pasan `higiene.revisar()` limpias, y hay un test que lo prueba.
+Es un compromiso público en el review del PR #4, no una preferencia.
+
+---
+
 ## El mapa
 
 | Concepto | Ancestro teórico | Archivo | Función | Test que lo prueba | Supuesto que carga |

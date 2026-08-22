@@ -9,6 +9,69 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 09:52 — Sesión de auditoría y review. Cero código, y esta vez sí fue el costo correcto.**
+
+  Dos entregables: una auditoría del estado real del repo y el review del
+  [PR #4](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/4) de Nico
+  ([comentario posteado](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/4#issuecomment-5381006515)).
+
+  **La auditoría, medida y no opinada (a H+12):**
+
+  | | |
+  |---|---|
+  | Documentación | 6.268 líneas en 57 archivos `.md` |
+  | Código en `main` | **321 líneas**, todas en `data/` |
+  | Código en `engine/`, `api/`, `web/`, `tests/`, `scripts/` | **0** |
+  | Ratio docs:código | **2,55 a 1** |
+
+  **C2 (deploy, H+4) y C3 (punta a punta, H+10) están vencidos.** `platanus-hack-project.jsonc`
+  tiene los 4 campos en `<FILL THIS>`, incluido `deploy-url`, que es el archivo de entrega.
+  No existe `requirements.txt` ni `pyproject.toml` en todo el repo. Las ramas de Dani
+  (`rol/interfaz`, `interfaz-front`) están **detrás** de `main`, sin trabajo nuevo.
+
+  **El hallazgo que cambia mi plan: la tesis del proyecto ya corrió, y no en `engine/`.**
+  El PR #4 produce informalidad 63,2% → 75,6% con la probabilidad de sanción cayendo
+  4,8% → 2,1%, medido contra la API real por $0,51. O sea que el camino corto **no** es
+  escribir los 10 archivos de `MODELO.md`: es escribir los 3 que vuelven real ese número.
+
+  **El review del PR #4.** Verifiqué corriendo, no leyendo: higiene 7/7 limpio, demo
+  reproducido exacto, determinismo con paralelismo 8 confirmado byte a byte, y la
+  comparación `p ≈ C/E` vs exponencial reproducida (3,16% vs 3,12%, y el borde en E=2%:
+  100% vs 63,2%).
+
+  Alejo había dejado `CHANGES_REQUESTED` con 11 puntos. **Verifiqué los 11 contra el código
+  y los 11 son válidos.** El crítico #1 lo **reproduje**: una respuesta con
+  `estrategia_propuesta: ""` escapa del `try` (porque `construir()` está fuera), mata la
+  corrida sin reintentar, y **queda escrita en el caché**, así que la re-corrida determinista
+  revienta en el mismo punto para siempre. Es una bomba que se dispara en la demo barata
+  delante de un juez.
+
+  **Tres cosas que agregué yo y él no vio:**
+  1. **El `seed` no siembra nada.** Seed 42 contra seed 99: salida idéntica salvo la etiqueta.
+     Nada en el bucle de rondas es estocástico y `muestrear()` no lo llama nadie.
+  2. **El caché está en `.gitignore`** y no hay manifiesto de dependencias: hoy un extraño no
+     puede reproducir nada, ni con API key ni sin ella. Contradice ADR 0009 y `make reproduce`.
+  3. **El mapa distributivo (dato A3) no se puede dibujar** con lo que corre: el pipeline para
+     en los arquetipos y los 6.692 agentes nunca reciben estrategia individual.
+
+  🔴 **La consecuencia más cara, y es decisión de equipo, no de Nico.** Arreglar el crítico #3
+  (la ablación compara mal el costo de formalizarse) son 2 horas, pero con el costo bien
+  especificado una unidad informal compara formalizarse (≈1,72× ingreso) contra seguir
+  informal (≈1,58×): **seguir informal es más barato**, o sea que una ablación correcta
+  probablemente **también produce cascada**. Si eso pasa, el candado 4 deja de decir que la
+  diferencia es el argumento del LLM. Hay que correrlo y reportar lo que dé.
+
+## Decisión de alcance: tres archivos, no diez
+
+`engine/MODELO.md` define 10 archivos. **A H+12 se escriben tres**, y los otros siete se
+documentan como trabajo futuro con honestidad:
+
+| Archivo | Por qué este |
+|---|---|
+| `seed.py` | Determinismo desde el primer commit, y hoy el `seed` de `behavior/` es decorativo |
+| `fiscalizacion.py` | `p(E) = 1 − exp(−C/max(E,1))` con `C` anclado en la cifra de la OIT. Es la cascada |
+| `veto.py` | Reemplaza los **dos** dobles de prueba que hay hoy (`veto_permisivo` y `veto_doble_prueba`) |
+
 - **2026-08-22 — Sesión de fundamentación. Cero código, a propósito.** → [PR #3](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/3), abierto y esperando revisión de alguien distinto de mí.
 
   El repo estaba **escrito, no decidido**: documentación densa y buena, pero con huecos
@@ -43,37 +106,52 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [x] Abrir PR de `rol/backend` → `main`. → [PR #3](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/3).
-- [ ] **Que alguien distinto de mí lo revise** (regla 3 de `AGENTS.md`). Es lo único que bloquea el merge.
-- [ ] **Siguiente sesión: escribir `engine/`.** El orden ya no hay que pensarlo, está en
-      [`engine/MODELO.md`](../../engine/MODELO.md): 10 archivos, cada uno con su ancestro
-      teórico, su test y su supuesto. Empezar por `seed.py` (determinismo desde el primer
-      commit) y `fiscalizacion.py` (el corazón de la cascada, con `C` ya anclado en la cifra
-      de la OIT).
-- [ ] Tras el merge: pedirle a Juanda que registre este bloque en
-      [`docs/agents/handoff.md`](handoff.md), que es de un solo escritor y no lo puedo tocar.
+- [x] [PR #3](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/3) mergeado.
+- [x] Review del [PR #4](https://github.com/platanus-hack/platanus-hack-26-co-team-16/pull/4)
+      de Nico, consolidado con el de Alejo y posteado.
+- [ ] **Siguiente sesión: escribir `engine/`.** Tres archivos, en este orden: `seed.py`,
+      `fiscalizacion.py`, `veto.py`. **No los diez de `MODELO.md`.** Arranca en `rol/backend`.
+- [ ] Tras el merge del PR de Nico: quitar los dos dobles de prueba del veto.
+
+## Cuatro compromisos que ya tomé por escrito, en público
+
+Están en el comentario del PR #4, así que **Nico está construyendo contra ellos**. Si el motor
+los contradice, el que está mal es el motor.
+
+| # | Compromiso | Dónde aterriza |
+|---|---|---|
+| 1 | **`engine/veto.py` produce razones que pasan `higiene.revisar()` limpias**, con test. Las razones del veto viajan dentro del prompt de reintento, así que un `$`, un año de 4 dígitos o la palabra "gobierno" en una razón mata la corrida con `ContaminacionError` | `veto.py` + un test |
+| 2 | **El fallback terminal es `cumplir`**, no `absorber`. Es el canon de `IDEA.md` §5.3 y §5.7. `behavior/contrato.py` tenía `absorber` y lo cambia Nico | `veto.py`, y `contracts/` no cambia |
+| 3 | **El muestreo vive en `engine/`** con la firma de `MODELO.md`: `muestrear(arq, n, rng)`. El de `behavior/arquetipos.py` se borra o se renombra, para que no haya dos con el mismo nombre y semillas distintas | `arquetipos.py` (mío) |
+| 4 | **`C`, `0.18` y `1.5` son míos.** `C` sale de la OIT (1.300 inspectores) vía el supuesto S2; los otros dos de V3. En `behavior/` quedan con `# SUPUESTO:` hasta que el motor los provea | `mundo.py`, `costos.py` |
 
 ## Bloqueado / esperando a alguien
 
-Cuatro cosas, todas para el próximo standup:
+**Nada me bloquea para escribir el motor.** El contrato ya está congelado en `main`
+(`contracts/decision.json` + la forma del `Protocol Veto`), y los cuatro puntos de arriba los
+respondí yo. La relación se invirtió: **Nico depende de mis decisiones, no yo de su código.**
 
-1. **Alejo (R1) y Nico (R3)** — aval de [ADR 0008](../adr/0008-asimetria-firma-trabajador.md)
-   🔶: la firma propone vía LLM, el trabajador acepta por regla determinista. Toca
-   `contracts/` (Alejo) y la interfaz del veto (Nico). **Sin aval no se implementa**; el plan
-   B es el statu quo y se declara como límite en `VALIDATION.md`.
-2. **Juanda (R5)** — hay una frase que precisar en `README.md` y `AGENTS.md`: *"mismo seed,
-   mismo resultado"* es falso con un LLM en el bucle. Lo correcto es **"mismo seed + misma
-   caché + mismas versiones"** ([ADR 0009](../adr/0009-frontera-del-determinismo.md)). No es
-   error suyo: era un hueco que nadie había cerrado.
-3. **Dani (R4) y Alejo (R1)** — `contracts/ronda.json` gana campo de tiempo (`trimestre`) y
-   dos de diagnóstico (`n_vetos`, `n_fallback`). Cambio aditivo, no rompe nada.
-4. ~~La cifra vigente de inspectores de trabajo~~ **RESUELTO por Mani:** la OIT publica
-   **1.300 inspectores del trabajo en 36 direcciones territoriales** (proyecto ago-2023 a
-   ago-2024). Reemplaza los 904 de ~2015. Con ~23M de ocupados son ≈**1 por cada 18.000
-   trabajadores**, casi el doble del estándar OIT/OCDE de 1 por 10.000 que el propio
-   ministerio invoca. **`C` ya tiene fuente**; lo que sigue sin fuente es cuántas inspecciones
-   hace cada inspector por trimestre (supuesto S2). Detalle en
-   [`docs/investigacion/1-teorica.md`](../investigacion/1-teorica.md) §3.
+Lo que sigue abierto y es de otros:
+
+1. **Nico (R3)** — los 3 críticos del PR #4, sobre `rol/conductual-top-k` (que ya trae
+   arregladas las dos divergencias de ADR 0005 y 0007). Acordado: **un solo PR que reemplaza
+   al #4**, para que `main` nunca cargue el bug del caché.
+2. **Alejo (R1)** — aval de [ADR 0008](../adr/0008-asimetria-firma-trabajador.md).
+   **Nico ya la avaló** en el PR #4; falta él. Y congelar el campo `realizacion:
+   {ocurre, razon}` que Nico propuso y yo avalé: es lo que evita que el dato A4 mezcle
+   *"no pude pagarlo"* con *"no me lo aceptaron"*.
+3. **Juanda (R5)** — tres cosas, y las tres son más urgentes que las mías:
+   - 🔴 **`platanus-hack-project.jsonc` con los 4 campos en `<FILL THIS>`** y nada desplegado.
+     C2 lleva vencido desde H+4.
+   - 🔴 **No existe `requirements.txt`** y el caché está en `.gitignore`: `make reproduce` no
+     puede funcionar para un juez. ADR 0009 define el determinismo como *"mismo seed + misma
+     caché + mismas versiones"* y hoy no publicamos ni la caché ni las versiones.
+   - La frase de determinismo en `README.md` y `AGENTS.md` ([ADR 0009](../adr/0009-frontera-del-determinismo.md)).
+   - Avisarle que **el candado 4 puede colapsar** cuando Nico arregle la ablación. Va en
+     `VALIDATION.md`, que es suyo.
+4. **Dani (R4)** — `web/` sigue en 0 líneas. Y necesita saber que **el mapa distributivo no se
+   puede llenar** hasta que yo cablee el muestreo, y que `banda` gana un campo `degenerada`
+   que no está en el `contracts/ronda.json` congelado (aditivo).
 
 ## Supuestos que tomé
 
