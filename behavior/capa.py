@@ -29,6 +29,10 @@ from behavior.cliente import (
     cargar_prompt,
     parafrasis,
 )
+# A3: la caja se habla en UNA sola unidad, la del reloj del proyecto (una ronda
+# es un trimestre, ADR 0005). `MESES_POR_RONDA` se importa del motor en vez de
+# redefinirse acá: era la tercera definición de la misma cantidad.
+from engine.veto import MESES_POR_RONDA
 
 MAX_REINTENTOS = 3
 
@@ -93,6 +97,10 @@ class ResultadoArquetipo:
     vetadas: list[dict[str, Any]] = field(default_factory=list)
     fallbacks: int = 0
     fallos_tecnicos: int = 0
+    # A2: decisiones en las que NINGUNA opción del orden de fallback resultó
+    # factible. No es un error: dice que la política es impagable para esta
+    # celda con cualquier jugada disponible, y por eso se cuenta y se publica.
+    sin_salida: int = 0
 
     @property
     def varianza(self) -> float:
@@ -101,6 +109,52 @@ class ResultadoArquetipo:
     @property
     def estrategia_dominante(self) -> str:
         return max(self.distribucion, key=self.distribucion.get)
+
+
+# --- C6: el candado 3(b), el test de re-skinning -----------------------------
+
+
+@dataclass(frozen=True)
+class Reskin:
+    """Renombra los sectores y reescala TODOS los montos por un factor arbitrario.
+
+    Por qué existe: `VALIDATION.md` promete el candado 3(b) y no había una línea
+    de código. La guardia de `higiene.py` filtra TÉRMINOS —"salario mínimo",
+    "decreto", años de cuatro dígitos— pero no MAGNITUDES, y los montos viajan
+    en pesos reales: la moda del parquet es 1.750.000, que es exactamente el
+    piso salarial de 2026. Un modelo con memoria del país puede reconocer el
+    escenario por los números aunque nunca lea su nombre.
+
+    Como todo lo que ve el agente está en unidades abstractas ("u"), multiplicar
+    cada monto por un factor arbitrario no debería cambiar NINGUNA decisión: las
+    razones de precios entre opciones son idénticas. Si el agregado se mueve,
+    hubo memorización, y lo reportamos nosotros antes de que lo pregunten.
+
+    El factor y las etiquetas se derivan del `seed` para que la corrida siga
+    siendo reproducible: mismo seed, mismo re-skin, mismo resultado.
+    """
+
+    factor: float = 1.0
+    etiquetas: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def desde_seed(cls, sectores: list[str], seed: int = 42) -> Reskin:
+        """Un re-skin determinista: mismo seed, mismas etiquetas y mismo factor."""
+        import hashlib
+
+        crudo = hashlib.blake2b(str(seed).encode(), digest_size=8).digest()
+        # Un factor entre 0,1 y 10 en escala logarítmica: cambia el orden de
+        # magnitud de los montos sin volverlos absurdos ni cero.
+        bruto = int.from_bytes(crudo, "big") / 2**64
+        factor = float(10 ** (bruto * 2 - 1))
+        nombres = [f"actividad-{chr(ord('A') + i)}" for i in range(len(sectores))]
+        return cls(factor=factor, etiquetas=dict(zip(sorted(set(sectores)), nombres)))
+
+    def monto(self, x: float) -> float:
+        return x * self.factor
+
+    def sector(self, nombre: str) -> str:
+        return self.etiquetas.get(nombre, nombre)
 
 
 def renderizar(
@@ -113,8 +167,13 @@ def renderizar(
     multa: float,
     historial: str = "",
     fraccion_informal_previa: float | None = None,
+    reskin: Reskin | None = None,
 ) -> str:
     """Rellena `prompts/arquetipo.md`. Solo mecánica; jamás el nombre.
+
+    `reskin` (C6) renombra el sector y reescala todos los montos. Como el agente
+    solo ve unidades abstractas, el agregado no debería moverse: es el candado
+    3(b) de `VALIDATION.md`.
 
     `fraccion_informal_previa` es el estado VIVO de la planta al empezar esta
     ronda. Si no se da, se cae al estado inicial del arquetipo — que es correcto
@@ -123,17 +182,23 @@ def renderizar(
     if fraccion_informal_previa is None:
         fraccion_informal_previa = 0.0 if arquetipo.formal else 1.0
     plantilla = cargar_prompt("arquetipo.md")
+    r = reskin or Reskin()
     return plantilla.format(
-        sector=arquetipo.sector,
+        sector=r.sector(arquetipo.sector),
         n_trabajadores=arquetipo.n_trabajadores,
         situacion_planta=situacion_planta(fraccion_informal_previa),
-        ingreso_por_trabajador=_plata(arquetipo.ingreso_por_trabajador),
-        flujo_caja=_plata(arquetipo.flujo_caja),
-        costo_despido=_plata(arquetipo.costo_despido),
+        ingreso_por_trabajador=_plata(r.monto(arquetipo.ingreso_por_trabajador)),
+        # A3: la MISMA cifra que usa `engine.veto.caja_de_la_ronda()`. Antes al
+        # agente se le mostraba el flujo mensual y el veto lo juzgaba con tres
+        # meses de ese flujo, así que sus justificaciones ("no me alcanza para
+        # indemnizar") contradecían al árbitro con toda la razón: estaban
+        # mirando billeteras distintas.
+        flujo_caja=_plata(r.monto(arquetipo.flujo_caja * MESES_POR_RONDA)),
+        costo_despido=_plata(r.monto(arquetipo.costo_despido)),
         aumento_pct=f"{aumento_pct:g}",
         tasa_informalidad_pct=f"{tasa_informalidad * 100:.1f}",
         prob_fiscalizacion_pct=f"{prob_fiscalizacion * 100:.1f}",
-        multa=_plata(multa),
+        multa=_plata(r.monto(multa)),
         ronda=ronda,
         rondas_totales=rondas_totales,
         historial=historial,
@@ -154,6 +219,7 @@ def decidir_arquetipo(
     historial: str = "",
     n_parafrasis: int = 1,
     fraccion_informal_previa: float | None = None,
+    reskin: Reskin | None = None,
 ) -> ResultadoArquetipo:
     """Una ronda para un arquetipo: N paráfrasis, cada una con su reintento.
 
@@ -177,6 +243,7 @@ def decidir_arquetipo(
         multa,
         historial,
         fraccion_informal_previa,
+        reskin,
     )
     res = ResultadoArquetipo(arquetipo_id=arquetipo.id)
 
@@ -226,6 +293,17 @@ def decidir_arquetipo(
                 propuesta = contrato.validar(
                     contrato.construir(arquetipo.id, ronda, cruda)
                 )
+                # La familia canónica se calcula ANTES del veto, no después.
+                # El veto de A1 la necesita para costear `cumplir` y `absorber`
+                # —las dos jugadas que no traen detalle numérico— y no puede
+                # derivarla él mismo: `familia()` es de esta capa y duplicarla
+                # en `engine/` daría dos canonicalizaciones que pueden divergir.
+                # Calcularla aquí es también lo que hace que el veto siga sin
+                # leer nombres: recibe una etiqueta ya canónica, no una cadena
+                # que el modelo inventó.
+                propuesta["familia"] = contrato.familia(
+                    propuesta["estrategia_propuesta"]
+                )
             except (RespuestaInvalida, ValueError, TypeError) as e:
                 # Una respuesta mala es un intento perdido, no una corrida
                 # perdida. Se anota y se reintenta como si la hubiera vetado.
@@ -246,14 +324,27 @@ def decidir_arquetipo(
         # subcontada por ese camino.
         res.fallos_tecnicos += len(fallos_tecnicos)
         if aceptada is None:
+            # A2: el fallback consulta al veto en vez de mandar a `cumplir` a
+            # ciegas. Se le pasan el veto y el arquetipo justamente para que la
+            # opción terminal sea una que la firma pueda pagar.
             aceptada = contrato.decision_fallback(
-                arquetipo.id, ronda, razones_veto or fallos_tecnicos
+                arquetipo.id,
+                ronda,
+                razones_veto or fallos_tecnicos,
+                veto=veto,
+                arquetipo=arquetipo,
             )
             aceptada["fallos_tecnicos"] = fallos_tecnicos
             res.fallbacks += 1
+            if aceptada.get("sin_salida"):
+                res.sin_salida += 1
         # Se guardan las dos: la cruda (lo que inventó el modelo) y la familia
-        # canónica (para agregar sin fragmentar en sinónimos).
-        aceptada["familia"] = contrato.familia(aceptada["estrategia_propuesta"])
+        # canónica (para agregar sin fragmentar en sinónimos). Las propuestas
+        # que pasaron por el veto ya la traen; esto cubre al fallback, que no
+        # pasa por ahí.
+        aceptada.setdefault(
+            "familia", contrato.familia(aceptada["estrategia_propuesta"])
+        )
         res.decisiones.append(aceptada)
 
     res.distribucion = dict(Counter(d["familia"] for d in res.decisiones))

@@ -42,14 +42,28 @@ ESTRATEGIAS_CONOCIDAS = (
     "subir_precios",
 )
 
-# Tras 3 vetos seguidos, la estrategia terminal. Es `cumplir` por canon:
-# `docs/IDEA.md` §5.3 y §5.7 ("hasta 3 reintentos; al agotarlos, la estrategia
-# terminal es cumplir") y `engine/MODELO.md`, fila del veto de factibilidad.
-# Antes acá decía `absorber`, y esa divergencia NO era inocua: para una unidad
-# informal, `absorber` puntúa 1.0 fuera de regla y `cumplir` puntúa 0.0, así que
-# el motor y esta capa habrían reportado tasas distintas con las mismas
-# decisiones. Si alguna vez se cambia, se cambia en la ADR primero.
+# Tras 3 vetos seguidos, la estrategia terminal. Era la constante `cumplir` por
+# canon de `docs/IDEA.md` §5.3 y §5.7. La [ADR 0010](../docs/adr/0010-fallback-factible.md)
+# la reemplaza por una BÚSQUEDA sobre el orden de abajo, por una razón que solo
+# se ve después de A1: mandar a `cumplir` a quien acaba de demostrar que no
+# puede pagar nada es formalizarlo gratis, que es justo la fuga que A1 cierra.
+# Sin este cambio, cada veto nuevo de A1 se convertiría en una formalización
+# gratis y el signo seguiría invertido por otra puerta.
+#
+# Se conserva el nombre `FALLBACK` como el primer candidato del orden, que es lo
+# que el canon fijaba, para que nada que lo importe se rompa en silencio.
 FALLBACK = "cumplir"
+
+# El orden canónico del fallback: de la más conservadora a la más barata. Se
+# recorre hasta encontrar una que el veto acepte.
+ORDEN_FALLBACK = ("cumplir", "bajar_horas", "absorber")
+
+# SUPUESTO: `bajar_horas` en el fallback reduce la jornada un 20%. Es el escalón
+# intermedio entre cumplir y quedarse igual, y necesita un número porque A4 le
+# dio efecto real. Es un supuesto de dirección conocida: más reducción abarata
+# más, así que un valor más alto haría el fallback MÁS factible y bajaría los
+# `sin_salida`. Va al barrido de sensibilidad de R5.
+REDUCCION_HORAS_FALLBACK = 20.0
 
 # Esquema para `output_config.format` (salida estructurada de la API). Garantiza
 # JSON válido sin cerrar el espacio de estrategias: `estrategia_propuesta` es
@@ -119,19 +133,83 @@ def construir(agente_id: str, ronda: int, cruda: dict[str, Any]) -> dict[str, An
     }
 
 
-def decision_fallback(agente_id: str, ronda: int, razones: list[str]) -> dict[str, Any]:
-    """Tras agotar los reintentos: el agente cumple. Se marca como tal."""
-    return {
+def _detalle_fallback(estrategia: str) -> dict[str, Any]:
+    """El detalle numérico mínimo que cada candidata del fallback necesita."""
+    if estrategia == "bajar_horas":
+        return {"reduccion_horas_pct": REDUCCION_HORAS_FALLBACK}
+    return {}
+
+
+def decision_fallback(
+    agente_id: str,
+    ronda: int,
+    razones: list[str],
+    *,
+    veto: Any = None,
+    arquetipo: Any = None,
+) -> dict[str, Any]:
+    """Tras agotar los reintentos: la primera opción del orden que SÍ sea factible.
+
+    Antes era la constante `cumplir`, y eso mandaba a formalizarse —la jugada
+    más cara de todas— a quien acababa de demostrar tres veces que no podía
+    pagar. Mientras el veto no revisaba `cumplir` (antes de A1) eso pasaba
+    inadvertido porque el fallback nunca se disparaba: en la corrida medida los
+    fallbacks eran 0. Con A1 los vetos se multiplican, y sin esta corrección el
+    fallback se volvería la fuga nueva por donde el signo se vuelve a invertir.
+
+    Si NINGUNA opción es factible, el agente se queda exactamente como estaba
+    (`absorber` no cambia el estatus de regla de la planta) y la decisión sale
+    marcada con `sin_salida=True`. Eso se cuenta y se imprime: *"N% de las
+    decisiones no tuvo ninguna opción factible"* es un resultado del modelo
+    —dice que la política es impagable para esa parte de la población—, no un
+    error del programa.
+
+    Sin `veto` ni `arquetipo` se comporta como antes (devuelve `FALLBACK`), para
+    que los dobles de prueba y los tests que no los pasan sigan funcionando.
+    """
+    sin_salida = False
+    if veto is None or arquetipo is None:
+        estrategia = FALLBACK
+    else:
+        for candidata in ORDEN_FALLBACK:
+            tentativa = {
+                "agente_id": agente_id,
+                "ronda": int(ronda),
+                "estrategia_propuesta": candidata,
+                "detalle": _detalle_fallback(candidata),
+                "justificacion": "tentativa de fallback",
+                "familia": familia(candidata),
+                "veto": None,
+            }
+            try:
+                veredicto = veto(tentativa, arquetipo)
+            except Exception:  # noqa: BLE001 - un veto que revienta no puede
+                continue       # matar la corrida; se prueba la siguiente
+            if veredicto.get("factible"):
+                estrategia = candidata
+                break
+        else:
+            # Ninguna opción es pagable: se queda como está.
+            estrategia = "absorber"
+            sin_salida = True
+
+    razon_texto = "; ".join(razones[-3:]) if razones else "sin razones registradas"
+    decision = {
         "agente_id": agente_id,
         "ronda": int(ronda),
-        "estrategia_propuesta": FALLBACK,
-        "detalle": {},
+        "estrategia_propuesta": estrategia,
+        "detalle": _detalle_fallback(estrategia),
         "justificacion": (
-            "fallback tras 3 propuestas vetadas: " + "; ".join(razones[-3:])
+            ("sin ninguna opción factible tras 3 propuestas vetadas: " if sin_salida
+             else "fallback tras 3 propuestas vetadas: ") + razon_texto
         ),
+        "familia": familia(estrategia),
         "veto": {"factible": True, "razon": None},
         "fue_fallback": True,
     }
+    if sin_salida:
+        decision["sin_salida"] = True
+    return decision
 
 
 def validar(decision: dict[str, Any], exigir_veto: bool = False) -> dict[str, Any]:
@@ -186,6 +264,40 @@ def familia(estrategia: str) -> str:
         if any(m in n for m in marcas):
             return fam
     return "otra"
+
+
+def jornada_resultante(decision: dict[str, Any], jornada_previa: float = 1.0) -> float:
+    """Qué fracción de la jornada original queda DESPUÉS de esta decisión (A4).
+
+    `bajar_horas` era una de las cinco estrategias que el modelo elegía y el
+    agregado botaba: se registraba el nombre y `reduccion_horas_pct` no movía
+    ningún número. Eso importa más de lo que parece ahora que A1 le cerró la
+    puerta a "me aguanto": sin una válvula intermedia, todos los agentes que ya
+    no pueden absorber se van a informalizar y el modelo miente por el otro lado
+    —satura la informalidad en ~100%— en vez de mentir por el lado de antes.
+
+    Es **acumulativa**, igual que el empleo: quien recortó 20% en la ronda 1 y
+    otro 20% en la ronda 2 queda en 0,8 × 0,8 = 0,64 de la jornada original, no
+    en 0,6. Una ronda no puede deshacer el recorte de la anterior.
+
+    NO cambia el estatus de regla de la planta: recortar jornada es legal. Eso lo
+    decide `fraccion_fuera_de_regla()`, que ignora esta familia a propósito.
+    """
+    previa = max(0.0, min(1.0, float(jornada_previa)))
+    if familia(decision["estrategia_propuesta"]) != "bajar_horas":
+        return previa
+    pct = decision.get("detalle", {}).get("reduccion_horas_pct")
+    if pct is None:
+        # SUPUESTO: `bajar_horas` sin número es una etiqueta sin contenido y no
+        # mueve nada. Se prefiere no mover a inventarle un recorte: el veto ya
+        # acota el campo a [0,100] cuando sí viene.
+        return previa
+    try:
+        recorte = float(pct)
+    except (TypeError, ValueError):
+        return previa
+    recorte = max(0.0, min(100.0, recorte))
+    return previa * (1.0 - recorte / 100.0)
 
 
 def fraccion_fuera_de_regla(
