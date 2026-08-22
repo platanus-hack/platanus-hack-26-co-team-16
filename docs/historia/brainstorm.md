@@ -1,7 +1,7 @@
 # PlatanusHack 26 Bogotá — Track: Simulations
 ## Brainstorm + plan crudo (equipo de 5)
 
-> Fuente: `docs/transcript.md` (autotranscripción del kickoff, calidad baja — verificar todo dato duro con los organizadores).
+> Fuente: `docs/historia/transcript-kickoff.md` (autotranscripción del kickoff, calidad baja — verificar todo dato duro con los organizadores).
 
 ---
 

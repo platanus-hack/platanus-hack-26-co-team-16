@@ -9,7 +9,7 @@ Estoy en un hackathon de 36 horas (PlatanusHack 26 Bogotá, track Simulations). 
 Soy **R4 · Diseño e interfaz**. La interfaz ES el 20% de impacto de la rúbrica, y además el premio de voto público exige que **un extraño con el link la use sin manual, sin registro y sin nadie al lado**.
 
 - **Dueño exclusivo de:** `web/`. NO toques `engine/`, `api/`, `behavior/`, `data/` ni los docs raíz.
-- **Rama:** `rol/interfaz`. Commits pequeños; merge a `main` mínimo cada 6 horas.
+- **Rama:** `rol/interfaz`. Commits pequeños; **PR a `main` mínimo cada 6 horas** (nadie pushea directo a `main` — ver `AGENTS.md`).
 - **Stack:** Next.js + Supabase (Realtime para el feed). Charts 2D ligeros (la decisión del plan: canvas/SVG 2D le gana a cualquier 3D en tiempo de hackathon).
 
 ## La regla que ordena todo mi trabajo

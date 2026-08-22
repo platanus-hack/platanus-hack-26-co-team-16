@@ -27,7 +27,7 @@ H0 ──► TODOS EN PARALELO desde el minuto 0, PERO con este orden de desbloq
 ## Flujo de git (las 5 sesiones en paralelo sin pisarse)
 
 1. Cada quien SOLO en su rama (`rol/...`) y SOLO en sus carpetas (ver `docs/ROLES.md`).
-2. Commits pequeños y frecuentes. **Merge a `main` mínimo cada 6 horas** (en el standup de pie) — ramas largas = infierno de integración en la hora 30.
+2. Commits pequeños y frecuentes. **Todo entra a `main` por Pull Request, mínimo cada 6 horas** (en el standup de pie) — nadie pushea directo a `main`, y ramas largas = infierno de integración en la hora 30. Plantilla en `.github/pull_request_template.md`; lo revisa alguien distinto de quien lo escribió.
 3. Orden de merge cuando hay conflicto de dependencia: `contracts` (Alejo) → `engine/api` (Manuel) → `behavior` (Nico) → `web` (Dani). Juanda mergea docs/tests cuando sea.
 4. `main` SIEMPRE corre. Si tu merge rompe `main`, lo arreglas tú antes de volver a tu rama.
 5. Push va a los dos remotos automáticamente (ya configurado). El deploy sale del repo espejo.

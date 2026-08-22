@@ -1,6 +1,6 @@
 # Plan de construcción — PlatanusHack 26 Bogotá · Track Simulations · team-16
 
-> Documento de fusión de los 5 insumos de `insumos-integrantes/`. Las marcas de confianza se respetan:
+> Documento de fusión de los 5 insumos de `docs/fuentes/`. Las marcas de confianza se respetan:
 > **✅ verificado contra fuente** (por el insumo que lo trae) · **⚠️ plausible sin verificar** (va a la tabla de la sección 6, nunca se enuncia como hecho) · **💭 juicio**.
 > Horas en formato **H+N** (N horas desde la apertura oficial), porque la hora exacta de arranque no está confirmada.
 

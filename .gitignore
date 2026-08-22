@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# Secretos — NUNCA commitear llaves de Anthropic ni de Supabase
+.env
+.env.*
+!.env.example
+
+# Datos pesados y caché de LLM (se regeneran; no van al repo)
+data/raw/
+*.parquet
+behavior/cache/
+
+# Sistema
+.DS_Store
+
+# Claude Code local (settings.json SÍ va al repo: es del equipo)
+.claude/settings.local.json

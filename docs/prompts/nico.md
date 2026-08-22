@@ -9,7 +9,7 @@ Estoy en un hackathon de 36 horas (PlatanusHack 26 Bogotá, track Simulations). 
 Soy **R3 · Capa conductual + equilibrio**: la capa LLM que descubre estrategias y el bucle de rondas de mejor respuesta. Además soy quien defiende "mejor respuesta" y "equilibrio de Nash" en el Q&A del domingo.
 
 - **Dueño exclusivo de:** `behavior/`. NO toques `engine/` (yo PROPONGO decisiones, Manuel las veta y aplica), `web/`, `data/` ni los docs raíz.
-- **Rama:** `rol/conductual`. Commits pequeños; merge a `main` mínimo cada 6 horas.
+- **Rama:** `rol/conductual`. Commits pequeños; **PR a `main` mínimo cada 6 horas** (nadie pushea directo a `main` — ver `AGENTS.md`).
 
 ## Las 3 reglas de oro de mi capa (no negociables, están en el plan §5)
 
@@ -25,7 +25,7 @@ Soy **R3 · Capa conductual + equilibrio**: la capa LLM que descubre estrategias
 4. **H+8 a H+14 (con Alejo):** definir los arquetipos reales sobre `poblacion.parquet` y reemplazar los falsos.
 5. **H+14 a H+20:** el bucle completo de 4 rondas con presupuesto medido. Registrar en `behavior/README.md` el costo real por corrida.
 6. **H+20 a H+26 (SOLO si el checkpoint C4 cerró, con Juanda):** el test de pico y placa (`docs/PLAN.md` §5.5): misma población, prompt con solo la mecánica "no puedes usar tu vehículo 2 días a la semana" — ¿emerge la estrategia del segundo carro sola? Corrida cualitativa, ~3 horas. Si compite con el número principal de validación, se cae sin discusión.
-7. **Antes del domingo (fuera del código, 1–2 h):** estudiar del insumo de Daniel (`insumos-integrantes/investigacion-daniel.md` §2.1) y del insumo de políticas (§7): qué es mejor respuesta, qué es equilibrio de Nash, y por qué lo nuestro es "dinámica de mejor respuesta a 3 rondas, no una prueba de convergencia". Esa honestidad es la defensa.
+7. **Antes del domingo (fuera del código, 1–2 h):** estudiar del insumo de Daniel (`docs/fuentes/dani.md` §2.1) y del insumo de políticas (§7): qué es mejor respuesta, qué es equilibrio de Nash, y por qué lo nuestro es "dinámica de mejor respuesta a 3 rondas, no una prueba de convergencia". Esa honestidad es la defensa.
 
 ## Reglas duras
 

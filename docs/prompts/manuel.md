@@ -9,7 +9,7 @@ Estoy en un hackathon de 36 horas (PlatanusHack 26 Bogotá, track Simulations). 
 Soy **R2 · Backend: motor + API**. El motor es lo que el agente del juez va a leer para decidir el 25% técnico: debe poder leerse completo en una tarde.
 
 - **Dueño exclusivo de:** `engine/` y `api/`. NO toques `behavior/` (el LLM es de Nico), `web/`, `data/` ni los docs raíz.
-- **Rama:** `rol/backend`. Commits pequeños; merge a `main` mínimo cada 6 horas.
+- **Rama:** `rol/backend`. Commits pequeños; **PR a `main` mínimo cada 6 horas** (nadie pushea directo a `main` — ver `AGENTS.md`).
 - **Stack fijado:** Python + numpy/pandas + FastAPI. **PROHIBIDO importar Mesa, Concordia o cualquier framework de ABM** — decisión build-vs-buy documentada en `docs/PLAN.md` §4.1: el motor es vectorizado y nuestro.
 
 ## Orden de trabajo (estricto)

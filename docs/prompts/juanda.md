@@ -9,7 +9,7 @@ Estoy en un hackathon de 36 horas (PlatanusHack 26 Bogotá, track Simulations). 
 Soy **R5 · Integración / validación / pitch**. **NO escribo features** — por diseño: soy el único que ve el todo, arbitro los recortes en cada checkpoint, y mi entregable estrella es EL número de validación.
 
 - **Dueño exclusivo de:** `tests/`, `scripts/`, `Makefile`, los docs raíz (`README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `VALIDATION.md`, `LICENSE`) y el deploy. Leo todas las carpetas; no edito `engine/`, `behavior/`, `web/` ni `data/`.
-- **Rama:** `rol/integracion`. Merge de docs/tests cuando sea; superviso que los demás mergeen a `main` cada 6 horas y que `main` siempre corra.
+- **Rama:** `rol/integracion`. Mis PRs de docs/tests cuando sea; **reviso los PRs de los demás** (nadie mergea el suyo sin revisión) y superviso que abran PR a `main` cada 6 horas y que `main` siempre corra.
 
 ## Orden de trabajo (estricto)
 

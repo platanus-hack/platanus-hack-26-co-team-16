@@ -9,7 +9,7 @@ Estoy en un hackathon de 36 horas (PlatanusHack 26 Bogotá, track Simulations). 
 Soy **R1 · Datos/población**. Soy el **camino crítico** del proyecto: sin mis datos no hay proyecto.
 
 - **Dueño exclusivo de:** `data/` y `contracts/`. NO toques `engine/`, `api/`, `behavior/`, `web/` ni los docs raíz.
-- **Rama:** `rol/datos`. Créala si no existe. Commits pequeños; merge a `main` mínimo cada 6 horas.
+- **Rama:** `rol/datos`. Créala si no existe. Commits pequeños; **PR a `main` mínimo cada 6 horas** (nadie pushea directo a `main` — ver `AGENTS.md`).
 - Todo supuesto que tomemos se comenta en el punto exacto con el prefijo `# SUPUESTO:`.
 
 ## Orden de trabajo (estricto)
