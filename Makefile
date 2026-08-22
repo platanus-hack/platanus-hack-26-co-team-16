@@ -9,7 +9,7 @@ PY    ?= python3
 SEED  ?= 42
 
 .DEFAULT_GOAL := help
-.PHONY: help run test validate reproduce estado
+.PHONY: help run test validate reproduce estado supuestos
 
 help:
 	@echo ""
@@ -34,11 +34,17 @@ run:
 		echo "  Mientras tanto la referencia del flujo es docs/FLUJO.md."; \
 	fi
 
+# Los tests del nucleo viven en `engine/` y `behavior/`, no solo en `tests/`:
+# cada duenio los escribe en su carpeta. Este target los corria solo desde
+# `tests/` e imprimia "No hay tests todavia" mientras 58 pasaban en `engine/`.
 test:
 	@if ! command -v pytest >/dev/null 2>&1; then \
-		echo "PENDIENTE · make test — pytest no esta instalado (pip install pytest)."; \
+		echo "PENDIENTE · make test — pytest no esta instalado (pip install -r requirements.txt)."; \
 	else \
 		pytest engine/ tests/ -q; \
+		echo ""; \
+		echo "  regresiones de behavior/ (no son pytest, corren solas):"; \
+		$(PY) -m behavior.pruebas | tail -3; \
 	fi
 
 validate:
@@ -57,9 +63,12 @@ validate:
 		echo ""; \
 	fi
 
+# C4 — corre en una maquina limpia SIN API key. Importa la cache versionada del
+# escenario demo si existe; si no, cae a la ablacion, que es determinista sin
+# depender de nada externo. Es el nivel 2 (y el 3) de la ADR 0009.
 reproduce:
 	@if [ -f scripts/reproduce.py ]; then \
-		$(PY) scripts/reproduce.py; \
+		$(PY) scripts/reproduce.py --seed $(SEED); \
 	else \
 		echo "PENDIENTE · make reproduce — llega junto con el numero de validacion (C5)."; \
 	fi
@@ -74,6 +83,17 @@ estado:
 	done
 	@echo ""
 	@echo "  Supuestos tomados en el codigo (informe de honestidad):"
-	@n=$$(grep -rn "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' '); \
-	 echo "    $$n en codigo · listarlos con: grep -rn \"SUPUESTO:\" engine behavior data api web"
+	@n=$$(grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' '); \
+	 echo "    $$n en codigo · listarlos con: make supuestos"
 	@echo ""
+
+# El informe de honestidad del proyecto, con UN solo comando.
+#
+# `-I` ignora binarios y `--exclude-dir=__pycache__` salta el bytecode: sin eso el
+# conteo contaba los `.pyc` y daba un numero distinto segun si alguien habia
+# corrido Python antes (54 o 94, segun quien lo corriera). Un informe de
+# honestidad que no es reproducible no sirve para nada.
+supuestos:
+	@grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null || true
+	@echo ""
+	@echo "  total: $$(grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' ') supuestos declarados"

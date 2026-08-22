@@ -24,43 +24,15 @@ from behavior.ablacion import ClienteReglas
 from behavior.arquetipos import (
     Arquetipo,
     arquetipos_falsos,
-    desde_poblacion,
+    desde_empresas,
     informalidad_observada,
     particionar_por_peso,
+    poblacion_cuenta_propia,
 )
 from behavior.cache import Cache
+from behavior.capa import Reskin
 from behavior.cliente import ClienteConductual, SinCredenciales
-from behavior.rondas import correr
-
-
-def veto_doble_prueba(decision: dict[str, Any], arquetipo: Arquetipo) -> dict[str, Any]:
-    """Doble de prueba del veto de Manuel. NO es el veto.
-
-    El veto real vive en `engine/` y lo escribe R2. Este solo implementa la
-    restricción más obvia — no puedes despedir si no tienes con qué indemnizar —
-    para que el camino de reintento se ejercite antes de que exista el motor.
-
-    LIMITACIÓN CONOCIDA, heredada de la firma del `Protocol Veto`: `arquetipo`
-    trae el estado INICIAL, así que la regla "ya opera fuera de regla" solo
-    acierta en la primera ronda. No produce un número falso —informalizar dos
-    veces satura en 1.0 igual— pero el veto real no puede depender de este campo
-    para eso. Ver el docstring de `capa.Veto`.
-    """
-    estrategia = decision["estrategia_propuesta"]
-    n = decision["detalle"].get("empleados_a_despedir", 0)
-    if estrategia == "despedir" and n:
-        costo = n * arquetipo.costo_despido
-        if costo > arquetipo.flujo_caja:
-            return {
-                "factible": False,
-                "razon": (
-                    f"flujo de caja insuficiente para pagar indemnizaciones: "
-                    f"necesitas {costo:,.0f} u y tienes {arquetipo.flujo_caja:,.0f} u"
-                ),
-            }
-    if estrategia in {"informalizar_total", "informalizar_parcial"} and not arquetipo.formal:
-        return {"factible": False, "razon": "esta unidad ya opera fuera de regla"}
-    return {"factible": True, "razon": None}
+from behavior.rondas import UMBRAL_ESTABILIDAD_PP, correr
 
 
 def _imprimir(rondas, cliente) -> None:
@@ -93,7 +65,37 @@ def _imprimir(rondas, cliente) -> None:
 
     vetadas = sum(len(x.vetadas) for r in rondas for x in r.por_arquetipo.values())
     fallbacks = sum(x.fallbacks for r in rondas for x in r.por_arquetipo.values())
-    print(f"propuestas vetadas: {vetadas} · fallbacks a '{contrato.FALLBACK}': {fallbacks}")
+    sin_salida = sum(x.sin_salida for r in rondas for x in r.por_arquetipo.values())
+    ultima = rondas[-1]
+
+    # A5 — la regla de corte, declarada antes de correr y estampada acá.
+    sello = "ESTABILIZADA" if ultima.estabilizada else "NO ESTABILIZADA"
+    print(f"\nmovimiento de la última ronda: {ultima.movimiento_pp:+.1f} pp · {sello}"
+          f"  (umbral {UMBRAL_ESTABILIDAD_PP:g} pp)")
+    # B2 — qué dispersión se está publicando. La etiqueta viaja con el número.
+    banda = ultima.banda
+    tipo = banda.get("tipo", "intra_ronda")
+    if banda.get("degenerada"):
+        print(f"banda ({tipo}): degenerada — una sola trayectoria, no hay dispersión que medir")
+    else:
+        print(f"banda ({tipo}): p10 {banda['p10']:.1%} / p90 {banda['p90']:.1%}"
+              f"  = {(banda['p90'] - banda['p10']) * 100:.1f} pp de ancho")
+    # A4 — la cuarta cifra: quien conserva el empleo pero pierde ingreso.
+    if ultima.fraccion_jornada_recortada > 0:
+        perdida = (1.0 - ultima.ingreso_laboral_relativo / max(ultima.empleo_relativo, 1e-9))
+        print(f"jornada: {ultima.fraccion_jornada_recortada:.1%} de la población conserva el "
+              f"empleo con jornada recortada · masa salarial relativa "
+              f"{ultima.ingreso_laboral_relativo:.1%} (pierde {perdida:.1%} por horas)")
+    # C3 — el traslado declarado, con su nombre honesto.
+    if ultima.traslado_precios_pct > 0:
+        print(f"traslado a precios DECLARADO por las firmas: {ultima.traslado_precios_pct:.2f}% "
+              f"(no es un pronóstico de inflación: no hay respuesta de demanda)")
+    print(f"propuestas vetadas: {vetadas} · fallbacks: {fallbacks} "
+          f"({ultima.fraccion_fallback:.1%} de las decisiones) · sin ninguna opción "
+          f"factible: {sin_salida} ({ultima.fraccion_sin_salida:.1%})")
+    if ultima.fraccion_fallback > 0.05:
+        print("  ATENCIÓN: los fallbacks superan el 5% declarado ANTES de correr. "
+              "Se reporta, no se ajusta: revisar el 0,18 de margen sobre nómina.")
     print(f"\ncontrato ronda.json de la última ronda:\n  {rondas[-1].a_contrato()}")
 
     presupuesto = getattr(cliente, "presupuesto", None)
@@ -127,10 +129,20 @@ def main(argv: list[str] | None = None) -> int:
                     help="modo top-K: fracción de población que va al LLM (p.ej. 0.8)")
     ap.add_argument("--tope", type=float, default=None,
                     help="tope de presupuesto USD (default 3.00; sube a 5 con --parafrasis 5)")
+    ap.add_argument("--reparto", action="store_true",
+                    help="B1: repartir las paráfrasis por peso poblacional (3 a 9 por arquetipo)")
+    ap.add_argument("--sin-cascada", action="store_true",
+                    help="B4: congelar p(sanción) en su valor de la ronda 0")
+    ap.add_argument("--reskin", action="store_true",
+                    help="C6: renombrar sectores y reescalar montos (candado 3b)")
     args = ap.parse_args(argv)
 
+    # C1 — la grilla real es la de EMPLEADORES, no la de personas. Antes salía de
+    # `poblacion.parquet` y esta capa re-derivaba caja, indemnización y factor
+    # prestacional con coeficientes de andamio; `empresas.parquet` los trae con
+    # fuente legal, celda por celda.
     arquetipos = (
-        desde_poblacion("data/poblacion.parquet") if args.real else arquetipos_falsos()
+        desde_empresas("data/empresas.parquet") if args.real else arquetipos_falsos()
     )
     if args.llm:
         from behavior.presupuesto import Presupuesto
@@ -139,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         cliente = ClienteReglas()
     modo = "LLM (Haiku)" if args.llm else "ABLACIÓN (reglas fijas)"
-    fuente = "poblacion.parquet" if args.real else "andamio"
+    fuente = "empresas.parquet" if args.real else "andamio"
     print(f"modo: {modo} · {len(arquetipos)} arquetipos ({fuente}) · "
           f"seed {args.seed} · {args.parafrasis} paráfrasis")
     # La ronda 0 es la proyección oficial: parte de la informalidad OBSERVADA,
@@ -176,8 +188,20 @@ def main(argv: list[str] | None = None) -> int:
                 cliente,
                 aumento_pct=aumento,
                 seed=args.seed,
-                veto=veto_doble_prueba,
+                # C2 — `veto=None` significa el veto REAL del motor, con el
+                # estado vivo adentro. Antes acá iba `veto_doble_prueba`, así
+                # que toda corrida hecha hasta hoy usó el doble de prueba y
+                # ninguna probó el motor. La función se borró, no se dejó de
+                # adorno: mientras existiera, alguien la iba a volver a pasar.
+                veto=None,
                 n_parafrasis=args.parafrasis,
+                parafrasis_por_peso=args.reparto,
+                congelar_prob_fiscalizacion=args.sin_cascada,
+                reskin=(
+                    Reskin.desde_seed([a.sector for a in arquetipos], args.seed)
+                    if args.reskin
+                    else None
+                ),
                 paralelismo=args.paralelismo,
                 cobertura_llm=args.cobertura,
                 tasa_informalidad_inicial=tasa_inicial,

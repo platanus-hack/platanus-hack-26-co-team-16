@@ -14,9 +14,17 @@ def test_g1_no_pasa_sin_entorno_y_corrida_completa_reproducibles():
 
 
 def test_g2_higiene_no_sustituye_el_reskinning():
+    """La higiene sola no cierra G2: hace falta la corrida comparativa.
+
+    `behavior.capa.Reskin` ya existe (lo trajo `rol/correcciones-simulacion`),
+    así que el bloqueo dejó de ser "no está implementado" y pasó a ser "está
+    implementado y no se ha corrido". La compuerta sigue cerrada hasta que
+    exista el par canónica/re-skinneada para comparar.
+    """
     estado, detalle = candado_g2()
     assert estado is Estado.BLOQUEADO
-    assert "re-skinning" in detalle
+    assert "higiene PASA" in detalle
+    assert "comparar" in detalle or "registrar" in detalle
 
 
 def test_g3_no_confunde_los_momentos_observados_con_calibracion():

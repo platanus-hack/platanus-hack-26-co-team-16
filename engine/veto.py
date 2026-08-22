@@ -56,12 +56,25 @@ una decisión al mundo es de `engine/rondas.py`, que no está escrito. Hasta
 entonces `registrar()` recibe la fracción ya calculada. El dueño del dato no
 cambia; cambia quién le pasa el número.
 
+Las cuatro jugadas, no dos (A1)
+------------------------------
+Este veto revisaba las dos salidas —despedir, informalizar— y dejaba pasar
+gratis las dos entradas —cumplir, absorber—, que son las que cuestan plata.
+Como el reintento empuja al agente hacia lo que no le vetan, una política más
+dura producía MENOS incumplimiento medido: el signo invertido del defecto §2.2.
+
+Desde A1 las cuatro se costean contra la misma caja del periodo. `aumento_pct`
+entra por `veto_del_motor()` y el `factor_prestacional` por la firma (C1); la
+`familia` la calcula `behavior/contrato.familia()` y viaja dentro de la
+decisión, así que acá no se duplica la canonicalización de nombres.
+
+Con `flujo_caja = 0,18 × nómina` y `factor ≈ 1,40`, absorber deja de ser
+factible por encima de un alza de ~12,9%, y formalizar una planta informal no
+lo es casi nunca. Ese codo depende del 0,18, que es un supuesto sin fuente de
+`data/`: por eso se reporta con barrido y no como una cifra.
+
 Lo que este veto NO rechaza — límites declarados, no olvidos
 ------------------------------------------------------------
-- **"Me como el costo".** Comparar el sobrecosto contra la caja exige el
-  `aumento_pct` y el costo formal, y ninguno de los dos está en
-  `contracts/decision.json`, congelado en H+4. Una propuesta de absorber pasa
-  siempre. Es el chequeo que gana `engine/costos.py` cuando exista.
 - **Legalidad.** El veto es material, no jurídico: no juzga si una jornada o un
   pago están permitidos, solo si la plata alcanza.
 - **Estrategias sin números.** Lo que no trae detalle numérico no se puede
@@ -86,7 +99,18 @@ MESES_POR_RONDA = 3
 
 # Canon de `docs/IDEA.md` §5.3 y §5.7 y compromiso público del review del PR #4:
 # tras agotar los reintentos la estrategia terminal es `cumplir`, NO `absorber`.
-# Viven acá para que haya un solo lugar donde cambiarlos; `behavior/` los importa.
+#
+# Desde la [ADR 0010](../docs/adr/0010-fallback-factible.md), `ESTRATEGIA_TERMINAL`
+# es el PRIMER CANDIDATO de un orden que arbitra el propio veto, no el destino
+# final: mandar a formalizarse a quien acaba de demostrar que no puede pagar nada
+# reintroduciría, por la puerta del fallback, la fuga que A1 cierra. Donde la
+# firma sí puede pagar, el canon se cumple igual que antes.
+#
+# `behavior/contrato.py` es quien implementa el orden completo (`ORDEN_FALLBACK`).
+# La review del PR #5 anotó que el comentario de acá afirmaba que `behavior/` las
+# importaba y que no lo hacía: hoy sigue sin importarlas, y por eso
+# `engine/test_veto.py` compara las dos definiciones contra la otra orilla en vez
+# de contra un literal.
 MAX_REINTENTOS = 3
 ESTRATEGIA_TERMINAL = "cumplir"
 
@@ -103,6 +127,13 @@ class Firma(Protocol):
     flujo_caja: float
     costo_despido: float
     formal: bool
+    # A1: sin el ingreso no se puede costear ni formalizar ni absorber, que son
+    # justo las dos jugadas caras. `behavior.arquetipos.Arquetipo` ya lo trae.
+    ingreso_por_trabajador: float
+    # A1/C1: el factor prestacional de ESTA firma (1,3835-1,5829 según sector y
+    # exoneración del Art. 114-1). Tiene default en el `Arquetipo` para que los
+    # dobles de prueba no tengan que conocerlo.
+    factor_prestacional: float
 
 
 # --- Formato de números: la mitad de la higiene está acá ---------------------
@@ -141,9 +172,17 @@ class EstadoVivo:
 
     @classmethod
     def inicial(cls, firmas: list[Firma]) -> EstadoVivo:
-        """El mundo antes de la primera decisión: nadie ha despedido a nadie."""
+        """El mundo antes de la primera decisión: nadie ha despedido a nadie.
+
+        La fracción de partida es CONTINUA cuando la firma la trae (C1: la
+        columna `share_formal` de `data/empresas.parquet`), y binaria cuando no.
+        El corte binario metía a una celda con 55% de formalidad entera del lado
+        formal, y ese redondeo se propagaba a la tasa inicial y de ahí a la
+        p(sanción) de la ronda 0, que es el punto contra el que se mide la
+        brecha entera del proyecto.
+        """
         return cls(
-            fraccion_informal={f.id: (0.0 if f.formal else 1.0) for f in firmas},
+            fraccion_informal={f.id: _fraccion_inicial(f) for f in firmas},
             fraccion_empleada={f.id: 1.0 for f in firmas},
         )
 
@@ -164,6 +203,14 @@ class EstadoVivo:
 
 def _acotar(x: float) -> float:
     return max(0.0, min(1.0, float(x)))
+
+
+def _fraccion_inicial(firma: Firma) -> float:
+    """La fracción fuera de regla con la que la firma llega a la ronda 0."""
+    continua = getattr(firma, "fraccion_informal_inicial", None)
+    if continua is not None:
+        return _acotar(continua)
+    return 0.0 if firma.formal else 1.0
 
 
 # --- Las razones, en un solo lugar para poder revisarlas todas ---------------
@@ -188,6 +235,17 @@ _RAZONES: dict[str, str] = {
     ),
     "porcentaje_fuera_de_rango": (
         "{campo} tiene que quedar entre 0 y 100 y llegó en {valor}"
+    ),
+    # A1 — las dos jugadas caras. Mismo formato que `despido_sin_caja`: montos
+    # por `_plata()`, porque la razón viaja hacia el modelo en el reintento y
+    # `higiene` rechaza cuatro dígitos seguidos.
+    "formalizacion_sin_caja": (
+        "no alcanza para poner en regla a {pedidos}: cuesta {costo} en el "
+        "periodo y la caja del periodo es {caja}"
+    ),
+    "absorcion_sin_caja": (
+        "el sobrecosto del periodo es {costo} y la caja del periodo es {caja}: "
+        "no se puede pagar con el margen"
     ),
 }
 
@@ -252,7 +310,7 @@ def planta_viva(firma: Firma, estado: EstadoVivo | None = None) -> tuple[int, in
     # esconderse.
     """
     if estado is None:
-        frac_informal = 0.0 if firma.formal else 1.0
+        frac_informal = _fraccion_inicial(firma)
         frac_empleada = 1.0
     else:
         frac_informal = estado.fraccion_informal_previa(firma.id)
@@ -266,6 +324,7 @@ def vetar(
     decision: dict[str, Any],
     firma: Firma,
     estado: EstadoVivo | None = None,
+    aumento_pct: float = 0.0,
 ) -> dict[str, Any]:
     """El veredicto de factibilidad de una propuesta. Función pura.
 
@@ -273,7 +332,12 @@ def vetar(
     más el estado vivo. Con dos argumentos la firma coincide con el `Protocol
     Veto` que consume `behavior/capa.py`, así que se puede pasar tal cual —
     aunque lo que se pasa en una corrida real es el cierre de `veto_del_motor()`,
-    que lleva el estado adentro.
+    que lleva el estado y el aumento adentro.
+
+    `aumento_pct` es el alza de costo laboral de la política. Sin él no se puede
+    costear `absorber`, y con `0.0` el bloque 4 solo puede vetar `cumplir`: un
+    sobrecosto de cero cabe en cualquier caja. Ese default existe para los usos
+    sueltos del veto, no para una corrida.
     """
     detalle = decision.get("detalle")
     if not isinstance(detalle, dict):
@@ -326,17 +390,81 @@ def vetar(
                 pedidos=_num(informalizados),
             )
 
+    # 4. A1 — LAS DOS JUGADAS CARAS. Hasta acá el veto revisaba solo las dos
+    # salidas (despedir, informalizar) y dejaba pasar gratis las dos entradas
+    # (cumplir, absorber), que son las que cuestan plata. El efecto no era
+    # neutral: cada veto empujaba al agente por el reintento hacia la única
+    # opción que nadie le revisaba, y por eso una política MÁS dura producía
+    # MENOS incumplimiento medido — el signo invertido del defecto §2.2.
+    #
+    # No es un ajuste hasta que el número quede bonito: es aplicar a las cuatro
+    # estrategias el criterio que el prompt del sistema ya le declara al agente
+    # ("no puedes gastar plata que no tienes") y que el veto ya aplicaba a dos.
+    #
+    # El veto sigue sin leer el nombre: `familia` la calcula quien llama
+    # (`behavior/contrato.familia()`, que es su dueño) y viaja en la decisión.
+    # Duplicar esa tabla acá crearía dos canonicalizaciones que pueden divergir.
+    fam = decision.get("familia")
+    if fam in ("cumplir", "absorber", "bajar_horas"):
+        caja = caja_de_la_ronda(firma)
+        factor = float(getattr(firma, "factor_prestacional", 1.40))
+        ingreso = float(getattr(firma, "ingreso_por_trabajador", 0.0))
+        if fam == "cumplir":
+            fuera_de_regla = empleados - en_regla
+            if fuera_de_regla > 0:
+                # El costo de entrar en regla es el SOBRECOSTO prestacional
+                # sobre lo que ya se paga, no la nómina completa: la unidad
+                # informal ya le paga el salario a su gente. Es también la
+                # cifra con la que está escrita la aritmética de este plan
+                # (0,40-0,58 × nómina contra 0,18 de caja).
+                costo = fuera_de_regla * ingreso * (factor - 1.0) * MESES_POR_RONDA
+                if costo > caja:
+                    return _infactible(
+                        "formalizacion_sin_caja",
+                        pedidos=_num(fuera_de_regla),
+                        costo=_plata(costo),
+                        caja=_plata(caja),
+                    )
+        # Absorber el alza la paga solo la planta que está EN regla: el costo
+        # laboral formal es el único que sube. Aplica también a `cumplir`,
+        # que además de entrar en regla tiene que pagar el alza.
+        #
+        # `bajar_horas` entra al mismo cálculo con el sobrecosto ATENUADO por la
+        # jornada que recorta (A4): recortar un 20% de las horas paga un 20%
+        # menos de alza. Costear las tres y no solo dos es lo que hace que la
+        # válvula intermedia sea una decisión económica y no una etiqueta
+        # gratuita — si `bajar_horas` no se costeara, sería la fuga nueva por
+        # donde el fallback escaparía siempre, que es exactamente el problema
+        # que A2 cierra para `cumplir`.
+        recorte = _real(detalle.get("reduccion_horas_pct")) or 0.0
+        if recorte is NotImplemented:
+            recorte = 0.0
+        jornada = 1.0 - min(100.0, max(0.0, float(recorte))) / 100.0
+        sobrecosto = (
+            en_regla * ingreso * factor * (aumento_pct / 100.0) * MESES_POR_RONDA * jornada
+        )
+        if sobrecosto > caja:
+            return _infactible(
+                "absorcion_sin_caja",
+                costo=_plata(sobrecosto),
+                caja=_plata(caja),
+            )
+
     return dict(FACTIBLE)
 
 
-def veto_del_motor(estado: EstadoVivo) -> Callable[[dict[str, Any], Firma], dict[str, Any]]:
-    """El veto con el estado vivo adentro, listo para `behavior/rondas.correr()`.
+def veto_del_motor(
+    estado: EstadoVivo, aumento_pct: float = 0.0
+) -> Callable[[dict[str, Any], Firma], dict[str, Any]]:
+    """El veto con el estado vivo y la política adentro, listo para `correr()`.
 
     Es lo que se le pasa al parámetro `veto=` en lugar de los dobles de prueba.
+    El `aumento_pct` entra acá y no en cada llamada porque es constante durante
+    toda la corrida: es la política que se está evaluando.
     """
 
     def veto(decision: dict[str, Any], firma: Firma) -> dict[str, Any]:
-        return vetar(decision, firma, estado)
+        return vetar(decision, firma, estado, aumento_pct)
 
     return veto
 

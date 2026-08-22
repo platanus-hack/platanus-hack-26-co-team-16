@@ -21,7 +21,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from pathlib import Path
+
 from behavior.presupuesto import Presupuesto
+from engine.veto import MESES_POR_RONDA
 
 
 # SUPUESTO (S1 de `engine/MODELO.md`): el costo formal por trabajador es el
@@ -36,10 +39,22 @@ FACTOR_PRESTACIONAL = 1.40
 class ClienteReglas:
     """Cliente falso: decide por regla fija, no llama a ninguna API, cuesta $0."""
 
-    def __init__(self, factor_prestacional: float = FACTOR_PRESTACIONAL) -> None:
+    def __init__(self, factor_prestacional: float | None = None) -> None:
         self.presupuesto = Presupuesto(tope_usd=0.0)  # no gasta nada, y se nota
         self.llamadas = 0
+        # C1: `None` significa "el factor de CADA arquetipo" (1,3835-1,5829 según
+        # sector y exoneración del Art. 114-1), que es lo que trae
+        # `data/empresas.parquet`. Un float fuerza el mismo valor para todos, que
+        # es lo que necesita `--barrido-factor` y lo único para lo que sirve
+        # promediar. El default era 1,40 para toda la población, y ese promedio
+        # borraba justo la diferencia que decide el signo del candado 4.
         self.factor_prestacional = factor_prestacional
+
+    def _factor(self, arq) -> float:
+        """El factor de la celda, con el override del barrido por encima."""
+        if self.factor_prestacional is not None:
+            return self.factor_prestacional
+        return float(getattr(arq, "factor_prestacional", FACTOR_PRESTACIONAL))
 
     def proponer(
         self,
@@ -79,11 +94,17 @@ class ClienteReglas:
         # salarial informal/formal (el 0,85x del andamio no es un dato). Sesga a
         # favor de formalizar —o sea, A FAVOR de nuestro propio candado 4— y por
         # eso va acompañada del barrido de sensibilidad del factor prestacional.
-        costo_formal = arq.ingreso_por_trabajador * self.factor_prestacional * (1 + aumento)
+        factor = self._factor(arq)
+        costo_formal = arq.ingreso_por_trabajador * factor * (1 + aumento)
         costo_informal = arq.ingreso_por_trabajador + prob * multa
         # El sobrecosto que hay que financiar es el incremento sobre lo que ya se
         # pagaba (salario x factor), no sobre el salario pelado.
-        sobrecosto = arq.ingreso_por_trabajador * self.factor_prestacional * aumento
+        sobrecosto = arq.ingreso_por_trabajador * factor * aumento
+        # A3: la regla fija compara contra la caja del PERIODO, igual que el veto
+        # y que el prompt. Comparaba contra el flujo mensual, así que la
+        # ablación despedía en casos en los que el veto decía que sí se podía
+        # pagar: tres lugares y dos unidades para la misma billetera.
+        caja_periodo = arq.flujo_caja * MESES_POR_RONDA
 
         # SUPUESTO: la regla fija decide para la planta entera. Una unidad con la
         # mayoría de su planta fuera de regla se comporta como informal.
@@ -93,7 +114,7 @@ class ClienteReglas:
             eleccion = "cumplir" if costo_formal < costo_informal else "absorber"
         elif costo_informal < costo_formal:
             eleccion = "informalizar_total"
-        elif sobrecosto * arq.n_trabajadores > arq.flujo_caja:
+        elif sobrecosto * arq.n_trabajadores > caja_periodo:
             eleccion = "despedir"
         else:
             eleccion = "cumplir"
@@ -109,7 +130,7 @@ class ClienteReglas:
         detalle: dict[str, Any] = {}
         if eleccion == "despedir":
             # SUPUESTO: despide lo mínimo para que el sobrecosto quepa en la caja.
-            faltante = sobrecosto * arq.n_trabajadores - arq.flujo_caja
+            faltante = sobrecosto * arq.n_trabajadores - caja_periodo
             detalle = {
                 "empleados_a_despedir": max(1, min(arq.n_trabajadores - 1,
                                                    int(faltante // max(sobrecosto, 1)) + 1))
@@ -151,16 +172,24 @@ def barrer_factor(
     # Importación local: `rondas` importa `ClienteReglas` de este módulo.
     from behavior.arquetipos import (
         arquetipos_falsos,
-        desde_poblacion,
+        desde_empresas,
         informalidad_observada,
     )
     from behavior.rondas import correr
 
     if factores is None:
         factores = [1.40, 1.4125, 1.425, 1.43, 1.4375, 1.45, 1.475, 1.50]
-    arquetipos = (
-        desde_poblacion("data/poblacion.parquet") if real else arquetipos_falsos()
-    )
+    # C1/C2 — el barrido corre sobre la grilla REAL de empleadores si existe.
+    # Con la grilla de andamio los pesos son 1,0 por celda, así que el universo
+    # de firmas que sale de ahí son ~5 unidades contra una capacidad de 3.900
+    # inspecciones: la p(sanción) satura en 100% y el barrido deja de decir
+    # nada. No es un defecto de la fiscalización, es que el andamio nunca fue
+    # un universo poblacional.
+    ruta = Path("data/empresas.parquet")
+    if real or ruta.exists():
+        arquetipos = desde_empresas(ruta)
+    else:
+        arquetipos = arquetipos_falsos()
     tasa_inicial = informalidad_observada()
 
     fuera = []

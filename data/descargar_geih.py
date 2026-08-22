@@ -140,9 +140,35 @@ def main() -> None:
             {"mes": mes, "url_descarga": url, "archivo": zip_path.name, "sha256": sha256_de(zip_path)}
         )
 
-    with open(RAW / "DESCARGA.json", "w", encoding="utf-8") as f:
+    # Un registro POR AÑO. Con un solo `DESCARGA.json` compartido, descargar
+    # 2025 borraba las URLs y los sha256 de 2026 — y la trazabilidad del backtest
+    # V0 depende de tener los dos extremos, no el último que se haya corrido.
+    destino_registro = RAW / f"DESCARGA_{anio}.json"
+    with open(destino_registro, "w", encoding="utf-8") as f:
         json.dump(registro, f, ensure_ascii=False, indent=2)
-    print("Registro de trazabilidad: data/raw/DESCARGA.json")
+
+    # `DESCARGA.json` se conserva como índice de lo que hay en disco, para no
+    # romper a quien ya lo lea por ese nombre.
+    indice = {}
+    indice_path = RAW / "DESCARGA.json"
+    if indice_path.exists():
+        try:
+            previo = json.loads(indice_path.read_text(encoding="utf-8"))
+            indice = previo if "por_anio" in previo else {}
+        except json.JSONDecodeError:
+            indice = {}
+    indice.setdefault("nota", "indice por anio; el detalle vive en DESCARGA_<anio>.json")
+    indice.setdefault("por_anio", {})
+    indice["por_anio"][str(anio)] = {
+        "catalogo": registro["catalogo"],
+        "fecha_descarga": registro["fecha_descarga"],
+        "registro": destino_registro.name,
+        "sha256": {a["mes"]: a["sha256"] for a in registro["archivos"]},
+    }
+    with open(indice_path, "w", encoding="utf-8") as f:
+        json.dump(indice, f, ensure_ascii=False, indent=2)
+
+    print(f"Registro de trazabilidad: data/raw/{destino_registro.name} (indice en DESCARGA.json)")
 
 
 if __name__ == "__main__":

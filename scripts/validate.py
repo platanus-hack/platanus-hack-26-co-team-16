@@ -57,9 +57,18 @@ def candado_g2() -> Resultado:
     if higiene.returncode != 0:
         detalle = (higiene.stdout + higiene.stderr).strip().splitlines()[-1]
         return Estado.FALLA, f"behavior.higiene salió {higiene.returncode}: {detalle}"
-    if not (RAIZ / "behavior" / "reskin.py").exists():
-        return Estado.BLOQUEADO, "higiene PASA (7/7); el re-skinning no está implementado"
-    return Estado.BLOQUEADO, "existe reskin.py, pero falta una salida canónica comparable registrada"
+    # El re-skinning NO vive en un archivo propio: es `behavior.capa.Reskin`, y
+    # se activa con `demo.py --reskin`. Buscarlo como `behavior/reskin.py`
+    # reportaba "no implementado" sobre una pieza que sí existe.
+    try:
+        from behavior.capa import Reskin  # noqa: F401
+    except ImportError:
+        return Estado.BLOQUEADO, "higiene PASA; behavior.capa.Reskin no existe"
+    return (
+        Estado.BLOQUEADO,
+        "higiene PASA; Reskin implementado (behavior/capa.py) pero falta "
+        "registrar la corrida canónica y la re-skinneada para compararlas",
+    )
 
 
 def candado_g3() -> Resultado:
