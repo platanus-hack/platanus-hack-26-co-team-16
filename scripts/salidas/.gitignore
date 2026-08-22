@@ -1,0 +1,6 @@
+# Las salidas de barrido son artefactos de corrida, no fuente.
+# Se versiona SOLO la que DEFECTOS.md cita como evidencia; el resto son
+# pruebas de humo que no tiene sentido arrastrar.
+*
+!.gitignore
+!barrido-llm-20260822-1550.json
