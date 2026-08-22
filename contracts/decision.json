@@ -1,0 +1,8 @@
+{
+  "agente_id": "empresa-com-04-0083",
+  "ronda": 2,
+  "estrategia_propuesta": "informalizar_parcial",
+  "detalle": { "empleados_a_informalizar": 2 },
+  "justificacion": "el costo formal supera la productividad de los 2 empleados de menor productividad",
+  "veto": { "factible": true, "razon": null }
+}
