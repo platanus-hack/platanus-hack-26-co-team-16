@@ -1,0 +1,26 @@
+{
+  "que_es": "La prediccion del modelo para el caso demo, congelada como artefacto para que el backtest sea auditable. Estaba como constante suelta dentro de scripts/validate.py, donde nadie podia rastrear de donde salia ni notar si quedaba desactualizada.",
+  "politica": {
+    "tipo": "cambio_costo_laboral",
+    "aumento_pct": 23
+  },
+  "corrida": {
+    "fuente": "behavior/README.md, seccion 'La corrida post-fix'",
+    "comando": "python3 -m behavior.demo --llm --real --aumento 23 --parafrasis 5 --cobertura 0.80 --tope 2.00",
+    "arquetipos": 101,
+    "cobertura_llm": 0.8,
+    "n_parafrasis": 5,
+    "llamadas": 503,
+    "costo_usd": 1.38,
+    "nota": "Es la corrida POST-FIX del estado vivo. Las otras seis politicas del barrido son PRE-FIX y no deben citarse como vigentes."
+  },
+  "resultado": {
+    "ronda_0_pct": 30.6,
+    "ronda_3_pct": 63.8,
+    "brecha_pp": 33.3,
+    "rango_entre_parafrasis_pct": [47.9, 81.8],
+    "ancho_rango_pp": 33.9,
+    "nota_rango": "NO es un p10/p90 calibrado: con N=5 son el minimo y el maximo de las cinco parafrasis (en esperanza, los percentiles 16,7 y 83,3). Ver VALIDATION.md, seccion Metodo."
+  },
+  "como_regenerarlo": "Correr el comando de arriba y copiar ronda_3, brecha y rango. Requiere API key y ~1,4 USD. Si el modelo cambia, este archivo cambia y el backtest se recalcula solo."
+}

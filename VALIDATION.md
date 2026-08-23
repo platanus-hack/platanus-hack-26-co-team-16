@@ -30,6 +30,13 @@ Delta predicho por el modelo:     +33,3  pp
 
 Reproducible con: `make validate` · sale con código **1** mientras haya compuertas bloqueadas.
 
+**Y se reproduce en un clon limpio, sin descargar nada.** Los dos momentos que V0 necesita están
+versionados (`data/momentos_2025.json` y `data/momentos.json`), así que el número sale sin los
+~370 MB de crudos, que están gitignorados. Los crudos solo hacen falta para el corte abr–jun, que es
+un extra opcional. Lo cuida `tests/test_reproducible_en_clon_limpio.py`, que existe porque una
+auditoría encontró que la promesa era falsa: el validador exigía los crudos y en la máquina del
+autor funcionaba solo porque los tenía.
+
 ### Veredicto: **rama B — la cascada agregada está falsada**
 
 El modelo predice que la informalidad de Bogotá **sube 33 puntos** con el alza del 23%; **bajó 4**.
@@ -63,8 +70,10 @@ Q&A y no durante.
 
 ## Cómo se decide si pasó: compuertas y mediciones
 
-**Compuerta:** si falla, lo que viene después no significa nada. Es binaria.
-**Medición:** se publica el número que salga, sin pasa/falla.
+**Compuerta:** si falla, lo que viene después no significa nada. Es binaria, y **es lo único
+que decide el código de salida** de `make validate`.
+**Medición:** se publica el número que salga, sin pasa/falla. El ejecutor la marca `MEDIDO`, nunca
+`PASA` — una medición no puede reprobar, y publicar un número feo **es** el resultado.
 
 Convertir en medición algo que era compuerta es exactamente cómo se fabrica un "todo salió bien".
 
@@ -73,10 +82,10 @@ Convertir en medición algo que era compuerta es exactamente cómo se fabrica un
 | **G1** | Reproducibilidad | Compuerta | Dos corridas con el mismo `(seed, manifiesto de caché, versiones)` dan salida idéntica | 🔴 **tres bloqueos**, no uno: `anthropic` sin fijar · falta `scripts/run_simulacion.py` · falta el artefacto canónico y el manifiesto de caché |
 | **G2** | No contaminación | Compuerta | `python -m behavior.higiene` sale 0 **y** el re-skinning mueve el agregado ≤ el ancho del rango entre paráfrasis | 🟡 higiene ✅; `Reskin` implementado (`behavior/capa.py`, `demo.py --reskin`) pero **falta correr y registrar el par canónica/re-skinneada** |
 | **G3** | Calibración base | Compuerta | Informalidad total dentro de **±2 pp** del objetivo de `momentos.json`, **y** se respeta el orden micro > pyme > grande | 🔴 **no existe productor**: ningún script genera la corrida sin política que el candado necesita |
-| **M1** | Backtest | Medición | Se publica. Sin umbral | ✅ **37,37 pp** |
-| **M2** | Habilidad | Medición | Se publica, incluso negativo | ✅ **skill −8,182** |
-| **M3** | Ablación | Medición | Se publica con su sensibilidad al factor prestacional | ✅ y ya **no** depende de ese factor (ver Candado 4) |
-| **M4** | Rango entre paráfrasis | Medición | Cobertura **y** agudeza, siempre juntas | ✅ cobertura **0**, ancho 33,9 pp. **No es un p10/p90 calibrado** (ver *Método*) |
+| **M1** | Backtest | Medición | Se publica. Sin umbral | **MEDIDO: 37,37 pp** |
+| **M2** | Habilidad | Medición | Se publica, incluso negativo | **MEDIDO: skill −8,182** |
+| **M3** | Ablación | Medición | Se publica con su sensibilidad al factor prestacional | **MEDIDO**, y ya **no** depende de ese factor (ver Candado 4) |
+| **M4** | Rango entre paráfrasis | Medición | Cobertura **y** agudeza, siempre juntas | **MEDIDO**: cobertura **0**, ancho 33,9 pp. No es un p10/p90 calibrado (ver *Método*) |
 
 **Por qué G3 con ±2 pp.** El candado 1 es la condición de que todo lo demás signifique algo
 (`docs/IDEA.md` §5.5). Laxo lo vuelve decorativo; apretado invita a ajustar parámetros hasta pegarle,
@@ -291,8 +300,25 @@ el número y el pitch se mantiene. El codo (A2) sigue sin afirmarse hasta que el
    el resultado. Por eso van aquí.
 
 > Lo de arriba es **la transcripción literal del commit `2d4aa7e`**, sin una coma cambiada.
-> Verificable:
-> `diff <(git show 2d4aa7e:VALIDATION.md | sed -n '/^## Las dos ramas/,/^### Lo que ya se sabe/p') ...`
+> Lo de abajo se escribió **después** de conocer el número, y por eso va separado.
+>
+> **Compruébalo sin creerme** — el comando aísla el bloque en los dos lados y compara:
+>
+> ```bash
+> python - <<'EOF'
+> import re, subprocess, pathlib
+> pre = subprocess.run(['git','show','2d4aa7e:VALIDATION.md'],
+>                      capture_output=True, text=True, encoding='utf-8').stdout
+> hoy = pathlib.Path('VALIDATION.md').read_text(encoding='utf-8')
+> a = re.search(r'## Las dos ramas.*?\n(.*?)\n### Lo que ya se sabe', pre, re.S).group(1).strip()
+> b = re.search(r'## Las dos ramas.*?\n(.*?)\n> Lo de arriba es',    hoy, re.S).group(1).strip()
+> print('idéntico:', a == b, '|', len(a), 'vs', len(b), 'caracteres')
+> EOF
+> ```
+>
+> Debe imprimir `idéntico: True | 1056 vs 1056`. Un `sed` de rango no sirve acá: el
+> delimitador del pre-registro aparece más abajo en esta versión y arrastraría también
+> este recuadro, dando un falso positivo de "el bloque cambió". Ya pasó una vez.
 > Lo de abajo se escribió **después** de conocer el número, y por eso va separado.
 
 **Se activó la B.** `error = 37,37 pp`, `skill = −8,182`, cobertura `NO`: ninguna de las dos

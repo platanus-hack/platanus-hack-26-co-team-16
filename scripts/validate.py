@@ -17,15 +17,36 @@ DATA = RAIZ / "data"
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-DELTA_MODELO_PP = 33.3
-RONDA_3_MODELO_PCT = 63.8
-BANDA_MODELO_PCT = (47.9, 81.8)
+def _prediccion() -> dict:
+    """La prediccion del modelo, desde el artefacto versionado.
+
+    Estaba como tres constantes sueltas aqui adentro. Un numero magico en el
+    validador es exactamente lo que el repo prohibe: nadie podia rastrear de
+    que corrida salio ni notar si quedaba viejo.
+    """
+    ruta = DATA / "prediccion_modelo.json"
+    if not ruta.exists():
+        raise FileNotFoundError("falta data/prediccion_modelo.json")
+    return json.loads(ruta.read_text(encoding="utf-8"))["resultado"]
 
 
 class Estado(str, Enum):
+    """PASA/FALLA/BLOQUEADO son de COMPUERTAS. MEDIDO es de MEDICIONES.
+
+    `VALIDATION.md` define la medicion como "se publica el numero que salga, sin
+    pasa/falla". Imprimir [PASA] sobre una medicion contradecia el contrato del
+    propio documento y, peor, metia el resultado en el exit code: una medicion
+    no puede reprobar.
+    """
     PASA = "PASA"
     FALLA = "FALLA"
     BLOQUEADO = "BLOQUEADO"
+    MEDIDO = "MEDIDO"
+
+
+# Solo las COMPUERTAS deciden el codigo de salida. Una medicion que sale mal no
+# reprueba nada: publicar un numero feo es el resultado, no un fallo.
+COMPUERTAS = (Estado.PASA, Estado.FALLA, Estado.BLOQUEADO)
 
 
 Resultado = tuple[Estado, str]
@@ -102,24 +123,31 @@ def _tasa_periodo(anio: int, meses: list[str]) -> float:
 
 
 def medicion_v0() -> tuple[Estado, str, dict[str, float] | None]:
-    requeridos = [DATA / "raw" / f"GEIH_2025_{mes}" / "CSV" for mes in (
-        "enero", "febrero", "marzo", "abril", "mayo", "junio"
-    )]
-    faltantes = [p.parent.name for p in requeridos if not p.is_dir()]
-    if faltantes:
-        return Estado.BLOQUEADO, f"faltan crudos: {', '.join(faltantes)}", None
-
+    # V0 se computa desde los momentos VERSIONADOS. Antes exigia los seis
+    # directorios crudos de GEIH 2025, que estan gitignorados: en un clon limpio
+    # EL NUMERO quedaba bloqueado y la promesa de "lo reproduce un extrano con un
+    # comando" era falsa. Los crudos solo hacen falta para el corte abr-jun, que
+    # es un extra.
     momentos_2025 = DATA / "momentos_2025.json"
     if not momentos_2025.exists():
         return Estado.BLOQUEADO, "faltan data/momentos_2025.json y data/poblacion_2025.parquet", None
 
     pre_ene_jun = float(json.loads(momentos_2025.read_text(encoding="utf-8"))["tasa_informalidad_total"])
     post_ene_jun = float(json.loads((DATA / "momentos.json").read_text(encoding="utf-8"))["tasa_informalidad_total"])
-    pre_abr_jun = _tasa_periodo(2025, ["abril", "mayo", "junio"])
-    post_abr_jun = _tasa_periodo(2026, ["abril", "mayo", "junio"])
+    # El corte abr-jun es OPCIONAL: solo sirve para contrastar contra el
+    # trimestre que publica el DANE, y necesita los crudos. Si no estan, V0
+    # igual sale completo con la ventana ene-jun.
+    crudos = all(
+        (DATA / "raw" / f"GEIH_{anio}_{mes}" / "CSV").is_dir()
+        for anio in (2025, 2026)
+        for mes in ("abril", "mayo", "junio")
+    )
+    pre_abr_jun = _tasa_periodo(2025, ["abril", "mayo", "junio"]) if crudos else None
+    post_abr_jun = _tasa_periodo(2026, ["abril", "mayo", "junio"]) if crudos else None
 
+    pred = _prediccion()
     delta = (post_ene_jun - pre_ene_jun) * 100
-    error_firmado = DELTA_MODELO_PP - delta
+    error_firmado = pred["brecha_pp"] - delta
     error_modelo = abs(error_firmado)
     error_baseline = abs(delta)
     skill = 1.0 - error_modelo / error_baseline if error_baseline else float("-inf")
@@ -127,17 +155,22 @@ def medicion_v0() -> tuple[Estado, str, dict[str, float] | None]:
         "pre_ene_jun_pct": pre_ene_jun * 100,
         "post_ene_jun_pct": post_ene_jun * 100,
         "delta_ene_jun_pp": delta,
-        "pre_abr_jun_pct": pre_abr_jun * 100,
-        "post_abr_jun_pct": post_abr_jun * 100,
-        "delta_abr_jun_pp": (post_abr_jun - pre_abr_jun) * 100,
+        "pre_abr_jun_pct": pre_abr_jun * 100 if crudos else None,
+        "post_abr_jun_pct": post_abr_jun * 100 if crudos else None,
+        "delta_abr_jun_pp": (post_abr_jun - pre_abr_jun) * 100 if crudos else None,
         "error_firmado_pp": error_firmado,
         "error_absoluto_pp": error_modelo,
         "error_baseline_pp": error_baseline,
         "skill_b1": skill,
-        "cobertura": float(BANDA_MODELO_PCT[0] <= post_ene_jun * 100 <= BANDA_MODELO_PCT[1]),
-        "ancho_banda_pp": BANDA_MODELO_PCT[1] - BANDA_MODELO_PCT[0],
+        "cobertura": float(
+            pred["rango_entre_parafrasis_pct"][0]
+            <= post_ene_jun * 100
+            <= pred["rango_entre_parafrasis_pct"][1]
+        ),
+        "ancho_banda_pp": pred["ancho_rango_pp"],
     }
-    return Estado.PASA, "V0 computado proxy contra proxy", numeros
+    sufijo = "" if crudos else " (sin crudos: sin el corte abr-jun, que es opcional)"
+    return Estado.MEDIDO, f"proxy contra proxy desde momentos versionados{sufijo}", numeros
 
 
 def medicion_m3() -> Resultado:
@@ -149,7 +182,7 @@ def medicion_m3() -> Resultado:
         return Estado.BLOQUEADO, f"la ablación no pudo correr: {type(exc).__name__}: {exc}"
     hay_cascada = [factor for factor, tasa, _ in filas if tasa > 0.01]
     sin_cascada = [factor for factor, tasa, _ in filas if tasa <= 0.01]
-    return Estado.PASA, f"8 factores; cascada={hay_cascada}; sin cascada={sin_cascada}"
+    return Estado.MEDIDO, f"8 factores; cascada={hay_cascada}; sin cascada={sin_cascada}"
 
 
 def _imprimir_v0(n: dict[str, float]) -> None:
@@ -172,8 +205,8 @@ def _imprimir_v0(n: dict[str, float]) -> None:
 def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
     """El rango entre paráfrasis: cobertura Y agudeza, siempre juntas.
 
-    Es una MEDICIÓN, así que devuelve PASA en cuanto se puede computar: el
-    resultado se publica, no se aprueba. La cobertura 0 no es un fallo del
+    Es una MEDICIÓN, así que devuelve MEDIDO: el resultado se publica, no se
+    aprueba, y no entra al código de salida. La cobertura 0 no es un fallo del
     candado, es el dato. Existe como fila propia porque `VALIDATION.md` la
     declara en la tabla, y un documento que anuncia una fila que el ejecutor no
     imprime es exactamente la deriva que este trabajo existe para evitar.
@@ -182,7 +215,7 @@ def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
         return Estado.BLOQUEADO, "sin V0 no hay contra qué medir la cobertura"
     cobertura = "sí" if numeros["cobertura"] else "no"
     return (
-        Estado.PASA,
+        Estado.MEDIDO,
         f"cobertura={cobertura}; ancho={numeros['ancho_banda_pp']:.1f} pp "
         "(rango entre paráfrasis, NO un p10/p90 calibrado)",
     )
@@ -191,8 +224,24 @@ def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
 def main() -> int:
     resultados = [("G1 reproducibilidad", candado_g1()), ("G2 no contaminación", candado_g2()), ("G3 calibración base", candado_g3())]
     estado_v0, detalle_v0, numeros = medicion_v0()
+    # M1 y M2 van SEPARADAS: `VALIDATION.md` declara siete filas y el ejecutor
+    # imprimía seis porque las agrupaba. Un documento que anuncia una fila que el
+    # ejecutor no tiene es la deriva que este trabajo existe para evitar.
+    if numeros is None:
+        resultados.extend([
+            ("M1 backtest", (estado_v0, detalle_v0)),
+            ("M2 habilidad vs baseline", (estado_v0, detalle_v0)),
+        ])
+    else:
+        skill = numeros["skill_b1"]
+        skill_txt = "-inf" if skill == float("-inf") else f"{skill:.3f}"
+        resultados.extend([
+            ("M1 backtest", (estado_v0, f"error {numeros['error_absoluto_pp']:.2f} pp "
+                                        f"(firmado {numeros['error_firmado_pp']:+.2f}); {detalle_v0}")),
+            ("M2 habilidad vs baseline", (estado_v0, f"skill B1 = {skill_txt}; "
+                                                     f"persistencia erra {numeros['error_baseline_pp']:.2f} pp")),
+        ])
     resultados.extend([
-        ("M1/M2 backtest y habilidad", (estado_v0, detalle_v0)),
         ("M3 ablación", medicion_m3()),
         ("M4 rango entre paráfrasis", medicion_m4(numeros)),
     ])
@@ -206,7 +255,10 @@ def main() -> int:
     else:
         _imprimir_v0(numeros)
 
-    return 0 if all(estado is Estado.PASA for _, (estado, _) in resultados) else 1
+    # Solo las compuertas deciden. Una medición no reprueba: publicar un número
+    # feo ES el resultado.
+    compuertas = [e for _, (e, _) in resultados if e in COMPUERTAS]
+    return 0 if all(e is Estado.PASA for e in compuertas) else 1
 
 
 if __name__ == "__main__":
