@@ -83,7 +83,7 @@ Cabe, y cabe con holgura. El riesgo de esta fusión no es el tiempo: es qué se 
 | **A3** | Cap de gasto acumulado + caché caliente | Manuel (R2) + Nico (R3) | 30 | `fin` trae gasto acumulado; `python3 -m behavior.cache` muestra entradas Sonnet | El juez espera minutos sin saber si se colgó, y el clic nº9 quema los USD 50 |
 | **B1** | Rebautizar el mapa y decir de qué está hecho: «carga legal por celda (sobrecosto prestacional + costo de despido del CST)» | Dani (R4) + Juanda (R5) | 20 | `grep -rn "no puede pagar\|quién aprieta" web/` = 0; la nota al pie existe en la lámina | Un juez abre `construir_empresas.py:70`, ve que todas las empresas tienen el mismo colchón, y pregunta *«¿su mapa solo dice que el informal es informal?»* |
 | **B2** | Meter el **segundo episodio** (2024→2025: +9,5% de alza → **+2,63 pp**, signo opuesto) y la **no-ceguera del pre-registro** en `VALIDATION.md` | Juanda (R5) | 25 | `grep -n "2,63" VALIDATION.md` y `grep -n "no fue ciego" VALIDATION.md` ≥ 1 | El jurado los encuentra solo (están en el repo público) y lo que era rigor se lee como cifra escondida |
-| **B3** | Quitar la palabra «cobertura» del número: `Cobertura del rango: NO` → «el observado NO cae dentro del rango entre paráfrasis (33,9 pp, N=5, min–max)» | Juanda (R5) + Dani (R4) | 15 | `python scripts/validate.py --dry` imprime la frase nueva; `grep -rn "Cobertura" scripts/ web/` = 0 en contexto de banda | Basta preguntar *«¿cobertura de qué nivel?»* para que la barra de error, lo más honesto que tenemos, sea lo menos defendible |
+| **B3** | Quitar la palabra «cobertura» del número: `Cobertura del rango: NO` → «el observado NO cae dentro del rango entre paráfrasis (33,9 pp, N=5, min–max)» | Juanda (R5) + Dani (R4) | 15 | `sed -n '160,175p' scripts/validate.py` muestra la frase nueva; `grep -rn "Cobertura" scripts/ web/` = 0 en contexto de banda | Basta preguntar *«¿cobertura de qué nivel?»* para que la barra de error, lo más honesto que tenemos, sea lo menos defendible |
 | **C1** | Rebautizar la brecha: «proyección oficial» → «escenario sin adaptación · ronda 0 del modelo» | Dani (R4) | 20 | `grep -rn "proyección oficial\|cumplimiento total" web/enjambre` = 0 | El juez pide ver esa proyección oficial, no existe, y la cifra grande de la pantalla pasa a ser inventada |
 | **C2** | Que la espera diga la verdad (leer `d.trayectoria`) y que la banda diga qué es | Dani (R4) | 25 | `?modo=reglas&trayectorias=2` y ver el rótulo cambiar | La pantalla parece colgada varios minutos y el rango se lee como un intervalo de confianza que no calculamos |
 | **C3** | Subir el error del backtest (37,37 pp) a la primera pantalla | Dani (R4) | 15 | Se lee sin un clic, en `/` | Lo único que ningún otro simulador entrega queda en el pie de una página secundaria |
@@ -93,6 +93,12 @@ Cabe, y cabe con holgura. El riesgo de esta fusión no es el tiempo: es qué se 
 | # | Arreglo | Carpeta dueña | Min | Cómo se verifica |
 |---|---|---|---|---|
 | **C0** | **Es A1.** Mismo arreglo, encontrado por el otro lado. Ver §2. | Juanda (R5) | — | — |
+
+> ⚠️ **Corrección al comando de verificación de B3.** El informe del Eje B propone
+> `python scripts/validate.py --dry` y **ese flag no existe**: `scripts/validate.py` no tiene
+> `argparse` (único `__main__` en `:279`, cero `add_argument`; verificado en `9218dc3`). Quien
+> intente verificar B3 con ese comando a las 6am va a ver un error y va a creer que el arreglo
+> falló. La verificación de la tabla ya quedó corregida a inspección estática.
 
 ---
 
@@ -288,3 +294,39 @@ distintas, que es peor que no tener ninguna.
 - **No tocó `docs/PLAN.md` ni `VALIDATION.md`.** B2 los toca y es de Juanda.
 - **No verificó los arreglos de los otros dos ejes.** A y C corrieron sin segunda opinión. Solo B
   tuvo una. Un informe de agente es un reclamo con fecha.
+
+---
+
+## Después del congelamiento — por dónde se sigue puliendo
+
+Esta fusión corta a las 08:30 y decide **qué se muestra el domingo**. Lo que sigue es lo que queda
+**después**, para no volver a arrancar de cero. Nada de esto entra antes del congelamiento.
+
+**El grueso ya está escrito**, en el anexo del informe del Eje B:
+[`…/juez-cientifico/2026-08-23-eje-B-fundamentacion.md` §C](../../agents/juez-cientifico/2026-08-23-eje-B-fundamentacion.md)
+— **7 pendientes, cada uno con el comando real, el dueño y el costo**.
+
+**Lo que hay que saber antes de correr cualquier cosa:**
+
+- **`make run` todavía no existe.** `scripts/run_simulacion.py` no está en el repo y el target
+  imprime `PENDIENTE`. Es justo lo que arregla **A2**. Mientras tanto, las corridas entran por
+  `behavior/demo.py`, `behavior/ablacion.py`, `scripts/barrido_politicas.py` y `scripts/validate.py`.
+- **Sin `--llm` todo corre por la ablación determinista y cuesta $0**, repetible sin límite.
+  **6 de los 7 pendientes cuestan $0**; solo el de la banda toca presupuesto.
+- **Trampa de nombre:** `demo.py --reparto` **no** es el mapa distributivo — es repartir las
+  paráfrasis por peso poblacional. Quien ataque el mapa con ese flag va a medir otra cosa.
+
+**El orden en que valen la pena, y por qué:**
+
+| # | Qué resuelve | Dueño | Costo |
+|---|---|---|---|
+| **1** | **Margen heterogéneo por celda.** Es el fondo de **B1** y lo que el §3 dejó explícitamente fuera. Decide si el mapa es un resultado o un re-plot del insumo: hoy correlaciona **0,94** con `share_formal`. Si tras el cambio no baja de ~0,85, el mapa hay que rebautizarlo igual y para siempre | Alejo (R1) | $0 |
+| **2** | **`tasa_informalidad` ponderada por empleo superviviente** (`behavior/rondas.py`). Si una celda que despide media planta sigue aportando la misma masa informal, **contamina EL NÚMERO**, no solo el mapa. Es `[SOSPECHA]` sin verificar: el más barato con más consecuencia | Nico (R3) | $0 |
+| **3** | **La cascada demostrada en vez de afirmada.** El flag ya existe: `--sin-cascada` congela `p(sanción)` en ronda 0. Contrastarlo contra la corrida normal convierte **E3** de mentira en lámina honesta | Nico (R3) + Dani (R4) | $0 |
+| **4** | **α = 1,875 derivado, no heredado** (`engine/fiscalizacion.py`, ADR 0007). Si está calibrado contra la informalidad que el modelo debe reproducir, es circular | Manuel (R2) | $0 |
+| **5** | **Unidades en `behavior/ablacion.py:71-102`** (COP/mes sumado con COP/trimestre). Toca el camino determinista con el que se reproduce todo sin API key | Nico (R3) | $0 |
+| **6** | **La banda con N mayor.** Con N=5 el rango es literalmente el mínimo y el máximo. Con más paráfrasis empieza a poder llamarse algo | Nico (R3) | **gasta LLM** |
+
+**Y la pregunta de B sigue sin respuesta escrita** (§5): *¿qué variable hace que una empresa aguante
+el alza y otra no, que no sea la informalidad que ya traía de la encuesta?* El pendiente **1** es el
+único que puede llegar a contestarla. Hasta entonces, la respuesta honesta es la del §5.
