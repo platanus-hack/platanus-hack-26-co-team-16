@@ -6,9 +6,21 @@ Simulador que no responde *"¿funciona la política?"* sino **"¿cuánta gente l
 >
 > **Fuente de verdad del producto:** [`docs/PLAN.md`](docs/PLAN.md). Este archivo no lo duplica, lo indexa. Si los dos se contradicen, gana `PLAN.md` y este se corrige.
 
+> ## ⚠️ ESTADO MÁS RECIENTE — 22-ago 23:00
+>
+> **Antes de trabajar, lee [`docs/vet/`](docs/vet/).** Ahí está el vet completo de `main`, las decisiones
+> que salieron de él y **el prompt de arranque de tu track** ([`docs/vet/03-arranque-por-track.md`](docs/vet/03-arranque-por-track.md)).
+>
+> **Dos cosas de este archivo están desactualizadas y se corrigen en el track de R5:**
+> el párrafo de arriba describe la **cascada** como un hallazgo, y
+> [`VALIDATION.md`](VALIDATION.md) la declara **falsada** por el propio backtest del equipo (error 37,37 pp,
+> signo contrario). La cascada sigue siendo el **mecanismo** del modelo; **no** es un resultado del proyecto.
+
 ## Si solo lees un archivo
 
-`engine/rondas.py` — el bucle de mejor respuesta y el veto de factibilidad. Es donde vive la tesis del proyecto. *(PENDIENTE hasta H+10; hasta entonces la referencia es `docs/FLUJO.md`.)*
+`behavior/rondas.py` — el bucle de mejor respuesta, y [`engine/veto.py`](engine/veto.py) — el veto de factibilidad determinista. Entre los dos vive la tesis: **el modelo propone y la aritmética manda**.
+
+> ⚠️ Esta línea decía `engine/rondas.py`, **que nunca existió**. `engine/MODELO.md` todavía cita otros cinco módulos inexistentes (`mundo.py`, `costos.py`, `trabajador.py`, `agregado.py`, `barrido.py`). Corregido el 22-ago 23:00 tras el vet.
 
 ## Cómo verificarlo tú mismo
 
