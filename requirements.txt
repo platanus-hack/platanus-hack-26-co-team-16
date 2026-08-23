@@ -33,3 +33,7 @@ anthropic==1.0.0      # behavior/cliente.py. Sin ANTHROPIC_API_KEY el cliente
 
 # --- Desarrollo ---------------------------------------------------------------
 pytest==8.4.1         # engine/test_*.py y tests/ (58 casos hoy)
+
+# --- API (el enjambre) --------------------------------------------------------
+fastapi==0.141.1      # api/servidor.py: la corrida real transmitida por SSE
+uvicorn==0.52.4       # servidor ASGI: `uvicorn api.servidor:app --port 8000`

@@ -9,7 +9,7 @@ PY    ?= python3
 SEED  ?= 42
 
 .DEFAULT_GOAL := help
-.PHONY: help run test validate reproduce estado supuestos
+.PHONY: help run test validate reproduce estado supuestos servidor enjambre
 
 help:
 	@echo ""
@@ -20,6 +20,8 @@ help:
 	@echo "  make validate   Los 4 candados de validacion e imprime EL numero"
 	@echo "  make reproduce  Reproduce el resultado principal con un comando"
 	@echo "  make estado     Que esta cableado y que no"
+	@echo "  make servidor   La API del enjambre (uvicorn :8000, SSE por ronda)"
+	@echo "  make enjambre   El frontend (Next.js :3000; requiere make servidor aparte)"
 	@echo ""
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
@@ -86,6 +88,20 @@ estado:
 	@n=$$(grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' '); \
 	 echo "    $$n en codigo · listarlos con: make supuestos"
 	@echo ""
+
+# La interfaz: dos procesos, la API del motor y el frontend del enjambre.
+# Se corren en dos terminales (make servidor / make enjambre).
+servidor:
+	@$(PY) -c "import fastapi, uvicorn" 2>/dev/null || { \
+		echo "PENDIENTE · make servidor — falta fastapi/uvicorn (pip install -r requirements.txt, venv activo)"; exit 1; }
+	$(PY) -m uvicorn api.servidor:app --port 8000
+
+enjambre:
+	@if [ ! -d web/enjambre/node_modules ]; then \
+		echo "  instalando dependencias de web/enjambre (primera vez)..."; \
+		cd web/enjambre && npm install --no-audit --no-fund; \
+	fi
+	cd web/enjambre && npm run dev
 
 # El informe de honestidad del proyecto, con UN solo comando.
 #

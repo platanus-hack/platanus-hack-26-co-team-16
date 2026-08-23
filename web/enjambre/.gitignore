@@ -1,0 +1,11 @@
+# dependencias y build
+/node_modules
+/.next/
+/out/
+
+# artefactos de TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# entorno local
+.env*.local

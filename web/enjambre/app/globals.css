@@ -1,0 +1,199 @@
+/* EL ENJAMBRE — tokens y base. Fondo profundo, un solo color saturado por
+   significado: azul = informalidad, verde = empleo formal, ámbar = jornada
+   recortada, rojo = daño (despidos, vetos, brecha). */
+
+:root {
+  --fondo: #06080c;
+  --panel: rgba(10, 13, 19, 0.66);
+  --tinta: #e9ecf2;
+  --tinta-suave: #a7afbe;
+  --tinta-tenue: #5d6675;
+  --linea: rgba(233, 236, 242, 0.12);
+  --verde: #3ecf8e;
+  --ambar: #e8a33d;
+  --azul: #5b9dff;
+  --azul-vivo: #79b1ff;
+  --rojo: #f0544f;
+  --serif: var(--fuente-serif), Georgia, serif;
+  --sans: var(--fuente-sans), Helvetica, Arial, sans-serif;
+  --mono: var(--fuente-mono), ui-monospace, monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(91, 157, 255, 0.35);
+}
+
+/* ---- utilidades tipográficas ---- */
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tinta-tenue);
+}
+
+.cifra {
+  font-family: var(--serif);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+/* ---- botones ---- */
+
+.boton {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta);
+  background: transparent;
+  border: 1px solid rgba(233, 236, 242, 0.28);
+  padding: 18px 34px;
+  cursor: pointer;
+  transition: border-color 0.25s, background 0.25s, transform 0.15s;
+}
+
+.boton:hover:not(:disabled) {
+  border-color: var(--tinta);
+  background: rgba(233, 236, 242, 0.06);
+  transform: translateY(-1px);
+}
+
+.boton:disabled {
+  color: var(--tinta-tenue);
+  border-color: rgba(233, 236, 242, 0.09);
+  cursor: not-allowed;
+}
+
+.boton--primario {
+  border-color: var(--azul);
+  color: var(--azul-vivo);
+}
+
+.boton--primario:hover:not(:disabled) {
+  border-color: var(--azul-vivo);
+  background: rgba(91, 157, 255, 0.1);
+}
+
+/* ---- slider ---- */
+
+input[type="range"].deslizador {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--azul) 0%,
+    var(--azul) var(--progreso, 50%),
+    rgba(233, 236, 242, 0.15) var(--progreso, 50%)
+  );
+  outline: none;
+}
+
+input[type="range"].deslizador::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fondo);
+  border: 2px solid var(--azul-vivo);
+  cursor: grab;
+  transition: transform 0.15s;
+}
+
+input[type="range"].deslizador::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type="range"].deslizador::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--fondo);
+  border: 2px solid var(--azul-vivo);
+  cursor: grab;
+}
+
+/* ---- paneles flotantes sobre el lienzo ---- */
+
+.panel {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.panel--activo {
+  pointer-events: auto;
+}
+
+.vidrio {
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--linea);
+}
+
+/* ---- animaciones ---- */
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.aparecer {
+  animation: aparecer 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes latido {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.latido {
+  animation: latido 1.6s ease-in-out infinite;
+}
+
+@keyframes cursor-tecleo {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
