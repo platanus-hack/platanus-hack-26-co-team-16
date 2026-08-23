@@ -73,11 +73,24 @@ Lo que el backtest falsó es la **predicción agregada** para Bogotá. Lo que el
 python scripts/barrido_politicas.py --desde 0 --hasta 30 --paso 2
 ```
 
-| Alza | 0% | 2–12% | 14% | 16% | 18% | 20% | 22–30% |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Brecha | **−0,92 pp** | +3,25 | +4,02 | +4,33 | +4,90 | +5,79 | **+6,07 pp** |
+| Alza | 0% | 2% | 4% | 6–12% | 14–16% | 23% |
+|---|---:|---:|---:|---:|---:|---:|
+| Brecha | +3,2 pp | +3,7 | +5,8 | +9,2 | +10,6 | **+10,58 pp** |
 
-**Monótona no decreciente en los 16 puntos** (Spearman 0,96), con el placebo en cero. Sus límites van en la misma frase: es el camino de **reglas fijas**, no el de descubrimiento con LLM; hay una **meseta** entre 2% y 12%; **satura desde 22%**, así que el codo aparece como techo y no como aceleración; y en el camino con LLM la pendiente **no se sostiene** (dos corridas dan signos opuestos, y el ruido de reformulación del prompt iguala a la señal). Todo, con su comando: [`docs/evidencia/2026-08-23-E1-E2-E3.md`](docs/evidencia/2026-08-23-E1-E2-E3.md).
+**Monótona no decreciente en los 16 puntos**, señal de 12,26 pp entre políticas y ruido/señal 0,00
+(el camino determinista repite exacto). Sus límites van en la misma frase, y uno es serio:
+
+- Es el camino de **reglas fijas**, no el de descubrimiento con LLM. Ahí la pendiente **no se
+  sostiene**: dos corridas dan signos opuestos y el ruido de reformulación del prompt iguala a la
+  señal.
+- Hay una **meseta** entre 6% y 12%, y el "codo" del tramo alto aparece como techo, no como
+  aceleración.
+- 🔴 **El placebo dejó de ser cero.** Con alza 0% la informalidad sube +3,2 pp, cuando debería no
+  moverse. Lo destapó el arreglo de unidades del PR #41, y significa que **α = 1,875 quedó
+  descalibrado**: parte de la brecha no viene de la política. Se recalibra con
+  `python scripts/calibrar_visibilidad.py` y está declarado.
+
+Todo, con su comando y su línea base: [`docs/evidencia/2026-08-23-E1-E2-E3.md`](docs/evidencia/2026-08-23-E1-E2-E3.md).
 
 ## Prior art
 
