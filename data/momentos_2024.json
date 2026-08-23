@@ -1,0 +1,42 @@
+{
+  "fuente": "GEIH 2024 enero-junio, Bogota (AREA=11), modulo Ocupados - calculado por data/construir_poblacion.py",
+  "n_muestra": 6434,
+  "n_descartados_sin_ingreso": 402,
+  "ocupados_expandidos": 3948962,
+  "tasa_informalidad_total": 0.3201,
+  "tasa_informalidad_por_sector": {
+    "adm_publica_edu_salud": 0.0861,
+    "agro_mineria": 0.0933,
+    "alojamiento_comida": 0.6235,
+    "comercio": 0.4689,
+    "construccion_utilities": 0.4146,
+    "industria": 0.3574,
+    "otros_servicios": 0.516,
+    "servicios_empresariales": 0.1629,
+    "transporte": 0.4467
+  },
+  "tasa_informalidad_por_tamano": {
+    "grande": 0.0242,
+    "micro": 0.6722,
+    "pyme": 0.138
+  },
+  "distribucion_salarial_cop": {
+    "p5": 350000,
+    "p10": 600000,
+    "p25": 1300000,
+    "p50": 1580000,
+    "p75": 3000000,
+    "p90": 5500000,
+    "p95": 8400000
+  },
+  "spike_salarial": {
+    "moda_ingreso_cop": 1300000,
+    "masa_en_moda": 0.1459,
+    "nota": "verificar contra SMLMV 2024 (V4, R5)"
+  },
+  "terciles_ingreso_cop": {
+    "t1_max": 1300000,
+    "t2_max": 2187049
+  },
+  "n_arquetipos": 64
+}

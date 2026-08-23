@@ -169,6 +169,15 @@ def medicion_v0() -> tuple[Estado, str, dict[str, float] | None]:
         ),
         "ancho_banda_pp": pred["ancho_rango_pp"],
     }
+    # SEGUNDO EPISODIO, si esta el momento de 2024: el alza de 2025 fue +9,5%,
+    # otra magnitud de shock. Sirve para saber si el error del modelo es
+    # sistematico o casualidad de un solo anio.
+    momentos_2024 = DATA / "momentos_2024.json"
+    if momentos_2024.exists():
+        pre_2024 = float(json.loads(momentos_2024.read_text(encoding="utf-8"))["tasa_informalidad_total"])
+        numeros["pre_2024_pct"] = pre_2024 * 100
+        numeros["delta_2024_2025_pp"] = (pre_ene_jun - pre_2024) * 100
+
     sufijo = "" if crudos else " (sin crudos: sin el corte abr-jun, que es opcional)"
     return Estado.MEDIDO, f"proxy contra proxy desde momentos versionados{sufijo}", numeros
 
@@ -200,6 +209,12 @@ def _imprimir_v0(n: dict[str, float]) -> None:
     print(f"  Proxy 2025 ene-jun:          {n['pre_ene_jun_pct']:.2f}%")
     print(f"  Proxy 2026 ene-jun:          {n['post_ene_jun_pct']:.2f}%")
     print(f"  Delta observado:             {n['delta_ene_jun_pp']:+.2f} pp")
+    if "delta_2024_2025_pp" in n:
+        print()
+        print("  Serie de dos episodios (el modelo predice que SUBE en los dos, y mas en el grande):")
+        print(f"    2024 -> 2025, alza  +9,5%:   {n['delta_2024_2025_pp']:+.2f} pp observado")
+        print(f"    2025 -> 2026, alza +23,0%:   {n['delta_ene_jun_pp']:+.2f} pp observado")
+        print("    Las direcciones se OPONEN, y el movimiento real es de unos pocos puntos.")
 
 
 def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
