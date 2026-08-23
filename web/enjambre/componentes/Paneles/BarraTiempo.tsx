@@ -66,14 +66,18 @@ export default function BarraTiempo() {
 
   return (
     <div
-      className="panel"
+      // `vidrio` la hace una carta de verdad y no texto flotando: es un bloque
+      // con borde propio, que es lo que la separa de la cifra de arriba.
+      className="panel vidrio"
       style={{
         right: 36,
         top: 210,
         width: 340,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 12,
+        padding: "14px 16px",
+        borderRadius: 4,
       }}
     >
       <div style={{ display: "flex", gap: 6 }}>
