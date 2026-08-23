@@ -1,0 +1,47 @@
+{
+  "fuente": "GEIH 2026 abril-junio, Bogota (AREA=11), modulo Ocupados - calculado por data/construir_poblacion.py",
+  "n_muestra": 3314,
+  "n_descartados_sin_ingreso": 63,
+  "ocupados_expandidos": 4201628,
+  "tasa_informalidad_total": 0.3081,
+  "tasa_informalidad_por_sector": {
+    "adm_publica_edu_salud": 0.0732,
+    "agro_mineria": 0.1544,
+    "alojamiento_comida": 0.581,
+    "comercio": 0.4385,
+    "construccion_utilities": 0.4175,
+    "industria": 0.3118,
+    "otros_servicios": 0.5275,
+    "servicios_empresariales": 0.1547,
+    "transporte": 0.4433
+  },
+  "tasa_informalidad_por_tamano": {
+    "grande": 0.0095,
+    "micro": 0.6862,
+    "pyme": 0.1173
+  },
+  "distribucion_salarial_cop": {
+    "p5": 572874,
+    "p10": 957974,
+    "p25": 1750000,
+    "p50": 2000000,
+    "p75": 3800000,
+    "p90": 7000000,
+    "p95": 10000000
+  },
+  "spike_salarial": {
+    "moda_ingreso_cop": 1750000,
+    "masa_en_moda": 0.1388,
+    "nota": "verificar contra SMLMV 2026 (V4, R5)"
+  },
+  "terciles_ingreso_cop": {
+    "t1_max": 1750000,
+    "t2_max": 3000000
+  },
+  "n_arquetipos": 42,
+  "meses": [
+    "abril",
+    "mayo",
+    "junio"
+  ]
+}

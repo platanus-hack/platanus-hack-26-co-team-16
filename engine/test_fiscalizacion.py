@@ -21,6 +21,7 @@ from engine.fiscalizacion import (
     PROB_ANUAL_REFERENCIA_EEUU,
     EstadoFiscalizacion,
     es_degenerado,
+    prob_por_celda,
     prob_sancion,
     satura,
     tasa_anual_implicita,
@@ -77,6 +78,22 @@ def test_p_siempre_es_una_probabilidad():
     assert prob_sancion(C, 1_000) < 1.0
     assert prob_sancion(C, 0) == 1.0
     assert es_degenerado(0)
+
+
+def test_alfa_cero_recupera_exactamente_la_probabilidad_uniforme():
+    """La calibración se puede apagar sin cambiar el motor anterior."""
+    capacidad = 3_900.0
+    celdas = [
+        ("micro", 3, 100_000.0),
+        ("pyme", 25, 20_000.0),
+        ("grande", 300, 2_000.0),
+        ("sin_evasores", 8, 0.0),
+    ]
+
+    esperado = prob_sancion(capacidad, 122_000.0)
+    resultado = prob_por_celda(capacidad, celdas, alfa=0.0)
+
+    assert all(p == esperado for p in resultado.values())
 
 
 def test_coincide_con_la_formula_abreviada_del_plan_en_el_regimen_real():

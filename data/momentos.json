@@ -4,6 +4,13 @@
   "n_descartados_sin_ingreso": 127,
   "ocupados_expandidos": 4199644,
   "tasa_informalidad_total": 0.3057,
+  "tasa_informalidad_empleados_de_firma": 0.1799,
+  "cuenta_propia": {
+    "trabajadores_expandidos": 964004,
+    "share_ocupados": 0.2295,
+    "tasa_informalidad": 0.7279,
+    "nota": "Fuera del alcance del motor: sin empleador no hay decision de empleador. Se reporta para que el agregado del simulador nunca se lea como si fuera toda la ciudad. El objetivo de calibracion del motor es `tasa_informalidad_empleados_de_firma`."
+  },
   "tasa_informalidad_por_sector": {
     "adm_publica_edu_salud": 0.0692,
     "agro_mineria": 0.1704,
@@ -19,6 +26,11 @@
     "grande": 0.0081,
     "micro": 0.6672,
     "pyme": 0.1057
+  },
+  "tasa_informalidad_por_tamano_empleados_de_firma": {
+    "micro": 0.5961,
+    "pyme": 0.1057,
+    "grande": 0.0081
   },
   "distribucion_salarial_cop": {
     "p5": 550000,

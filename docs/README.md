@@ -14,6 +14,7 @@ Todo lo que un agente o una persona necesita para trabajar en este repo está ac
 | [`prompts/`](prompts/) | El prompt de arranque de cada persona + el orden de desbloqueo entre roles | Primer mensaje de tu sesión de agente |
 | [`FLUJO.md`](FLUJO.md) | Diagramas: cómo corre una simulación y cómo corre la validación | Cuando necesites el panorama |
 | [`UML.md`](UML.md) | La estructura de la idea | Junto con FLUJO |
+| [`DEPLOY.md`](DEPLOY.md) | **El runbook del deploy.** Qué servicio es cuál, cómo se verifica con `make humo`, la trampa de `ENJAMBRE_API` (se lee en el build, no al arrancar), qué hacer si se cae en vivo y los límites declarados de la URL pública | Antes de tocar el deploy, y si algo se cayó |
 | [`investigacion/`](investigacion/) | **El fundamento del backend, en tres esferas:** teórica (papers y métodos probados), tools (stack y estándares), live (empresas y productos vivos). Cada entrada dice qué nos sirve, **qué no**, y dónde aterriza en `engine/`. | Antes de escribir una función del motor |
 | [`../engine/MODELO.md`](../engine/MODELO.md) | El mapa *teoría → archivo → función → test → supuesto*, más el registro de supuestos pre-declarado | Antes de tocar `engine/` |
 | [`adr/`](adr/) | Decisiones de arquitectura **con las alternativas descartadas y su porqué** | Antes de cambiar un área ya decidida. No se re-litigan |

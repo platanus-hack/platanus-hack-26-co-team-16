@@ -8,16 +8,16 @@
   "project-oneliner-spanish": "No responde si una política funciona, sino cuánta gente la cumple y a quién le cae encima.",
 
   // Brief description of your project (in Spanish).
-  "project-description-spanish": "Simulador de cumplimiento para el alza del salario mínimo en Bogotá. La población no se inventa: son 6.692 personas reales anonimizadas de los microdatos de la GEIH del DANE, expandidas a 4,2 millones de ocupados, y 81 celdas de empleadores con su costo formal, su factor prestacional y su indemnización calculados contra el Código Sustantivo del Trabajo. Una capa LLM propone estrategias de adaptación y un motor determinista con seed veta las que la caja de la firma no permite: el modelo propone, la aritmética manda. Como la capacidad de fiscalización es fija —derivada de la cifra de inspectores de la OIT—, más evasión diluye la probabilidad de sanción y produce una cascada que el modelo oficial no ve. Al modelo nunca se le nombra la política, solo la mecánica, y una guardia revisa cada prompt antes de enviarlo. No entrega el futuro: entrega el rango, con banda de incertidumbre, con los límites declarados y con la dirección del sesgo de cada omisión.",
+  "project-description-spanish": "Simulador de cumplimiento para el alza del salario mínimo en Bogotá. La población no se inventa: son 6.692 personas reales anonimizadas de los microdatos de la GEIH del DANE, expandidas a 4,2 millones de ocupados, y 81 celdas de empleadores con su costo formal, su factor prestacional y su indemnización calculados contra el Código Sustantivo del Trabajo. Una capa LLM propone estrategias de adaptación y un motor determinista con seed veta las que la caja de la firma no permite: el modelo propone, la aritmética manda. Como la capacidad de fiscalización es fija —derivada de la cifra de inspectores de la OIT—, más evasión diluye la probabilidad de sanción: ese es el mecanismo de cascada que el motor modela, y que una proyección de cumplimiento total no puede ver. Es el mecanismo, no un resultado: el backtest fuera de muestra lo falsó (error +37,37 pp, signo contrario al observado) y el número se publica igual, con la rama de contingencia que estaba escrita antes de correrlo. Al modelo nunca se le nombra la política, solo la mecánica, y una guardia revisa cada prompt antes de enviarlo. No entrega el futuro: entrega el rango, con banda de incertidumbre, con los límites declarados y con la dirección del sesgo de cada omisión.",
 
   // Public URL where your project is deployed and running.
   // Must be a valid URL, for example: https://my-project.vercel.app
   // If your project is an app, put the download link here instead
   // (for example, a URL to download an APK).
   //
-  // PENDIENTE — BLOQUEANTE DE ENTREGA. No se inventa: el proyecto todavía no
-  // está desplegado. Lo llena R5 (Juanda) cuando el deploy exista. Sin esto la
-  // entrega no cuenta, y es lo único de este archivo que no se puede derivar
-  // del repositorio.
-  "deploy-url": "<FILL THIS>"
+  // Desplegado el 2026-08-23 en Render (dos servicios: la interfaz y la API del
+  // motor). Abre sin registro y sin cuenta. El runbook —cómo se redespliega,
+  // cómo se verifica, qué hacer si se cae en vivo— está en docs/DEPLOY.md, y el
+  // humo de la cadena completa se corre con `make humo URL=...`.
+  "deploy-url": "https://enjambre-web.onrender.com"
 }

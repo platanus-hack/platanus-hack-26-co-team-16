@@ -30,7 +30,8 @@ _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber
     post-política, así que el punto de partida y el objetivo eran el mismo dato;
     (3) `make validate` **no reproducía el número en un clon limpio** (exigía los crudos gitignorados;
     funcionaba solo en mi máquina). Ahora sale de los momentos versionados, verificado clonando de GitHub;
-    (4) el proxy no es la definición del DANE (−2,1 pp) y **no se puede reproducir la oficial**: `P3045S1`
+    (4) el proxy no es la definición del DANE (−2,49 pp, corregido desde −2,1 pp porque la resta vieja
+    subestimaba a nuestro favor la limitación declarada) y **no se puede reproducir la oficial**: `P3045S1`
     solo se le pregunta a los asalariados y los 2.315 independientes la tienen vacía.
   - **Lo que dejé y no es código:** el repo se contradice. `VALIDATION.md` dice falsada mientras
     `behavior/README.md`, `docs/PLAN.md` §1.1, `docs/IDEA.md`, `README.md` y `AGENTS.md` siguen vendiendo la

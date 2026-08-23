@@ -195,6 +195,15 @@ class ClienteConductual:
         return salida
 
     def _llamar(self, sistema: str, usuario: str, modelo: str, max_tokens: int):
+        # NO se pasa `temperature` (ni `top_p` ni `top_k`), y no es un olvido.
+        # Sonnet 5 —el `MODELO_MASA` de arriba— eliminó los parámetros de
+        # sampling: mandarlos devuelve 400 y tumba las 465 llamadas de la
+        # corrida entera, no una. `temperature=0` era la forma de comprar
+        # determinismo en modelos viejos; acá el determinismo lo da el caché en
+        # disco (ver `behavior/cache.py`), que es de dónde sale el nivel 2 de la
+        # ADR 0009. Y la banda del proyecto se mide sobre N trayectorias
+        # completas, nunca sobre temperatura — es una restricción declarada en
+        # AGENTS.md, no una preferencia.
         return self.api.messages.create(
             model=modelo,
             max_tokens=max_tokens,

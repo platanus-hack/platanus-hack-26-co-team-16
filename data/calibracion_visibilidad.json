@@ -1,0 +1,20 @@
+{
+  "que_es": "Calibracion auditable de la elasticidad de visibilidad. Minimiza la media absoluta del error de informalidad por tamano, ponderada por trabajadores GEIH, en la ablacion sin politica.",
+  "alfa": 1.875,
+  "error_pp_por_tamano": {
+    "micro": 7.489045,
+    "pyme": -10.57,
+    "grande": -0.81
+  },
+  "error_total_pp": 0.916582,
+  "objetivos": {
+    "micro": 0.5961,
+    "pyme": 0.1057,
+    "grande": 0.0081
+  },
+  "fecha": "2026-08-22",
+  "comando_para_regenerar": "python scripts/calibrar_visibilidad.py",
+  "objetivo_minimizado": "placebo: |informalidad(alza=0) - tasa_informalidad_empleados_de_firma|",
+  "por_que_ese_objetivo": "El MAE por tamano estaba envenenado: pyme aporta -10,57 pp que ninguna alfa mueve, y el optimizador sacrificaba micro para compensar un termino que no controla (daba alfa=1,6875 y placebo -1,68 pp). Minimizar el placebo es ademas la condicion de identificacion correcta: la distribucion observada debe ser punto fijo del modelo cuando la politica no cambia nada.",
+  "piso_de_granularidad": "El 0,92 pp residual no es calibracion: con 81 celdas homogeneas y decision binaria el agregado solo toma valores discretos (16,31% / 17,07% / 21,24% en el barrido de alfa en [0,3]) y 17,99% no esta entre ellos. Bajarlo exige heterogeneidad DENTRO de la celda."
+}
