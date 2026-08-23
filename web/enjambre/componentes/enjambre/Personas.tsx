@@ -27,9 +27,18 @@ const COLORES = [
 interface Punto {
   celda: string;
   rango: number;
+  /** posición 0..1 dentro de su celda: fija el turno de aparición en la intro */
+  orden: number;
   ang: number;
   vel: number;
+  /** radio de órbita ACTUAL (se anima al cambiar de anillo) */
   rad: number;
+  /** anillo interior: en regla, pegada a su empresa */
+  radFormal: number;
+  /** anillo exterior: fuera de regla, en la periferia de su empresa */
+  radInformal: number;
+  /** empuje angular temporal mientras dura el viaje entre anillos */
+  impulso: number;
   fase: number;
   estado: number;
   color: THREE.Color;
@@ -52,26 +61,69 @@ const VERTICES = /* glsl */ `
   varying vec3 vTinte;
   varying float vHueco;
   varying float vAlfa;
+  varying float vPx;
   uniform float uZoom;
   void main() {
     vTinte = tinte;
     vHueco = hueco;
     vAlfa = alfa;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = max(tamano * uZoom, 1.5);
+    float px = max(tamano * uZoom, 1.5);
+    // el fragmento necesita saber a cuántos píxeles se está dibujando para
+    // decidir si dibuja la abeja o cae al punto liso (P5.4)
+    vPx = px;
+    gl_PointSize = px;
   }
 `;
 
+// P5.3 · HIVE: la persona es una abeja. La silueta se dibuja en el shader
+// (nada de texturas ni sprites: son decenas de miles de puntos) con tres
+// elipses — cuerpo vertical y dos alas — más una cintura que insinúa las
+// franjas sin dibujarlas.
+//
+// P5.4 · legibilidad primero. Por debajo de PX_ABEJA píxeles la abeja se
+// vuelve una mancha ilegible, así que ahí se dibuja el punto liso de siempre.
+// La transición es un mix suave para que no se vea el salto al hacer zoom.
 const FRAGMENTOS = /* glsl */ `
   varying vec3 vTinte;
   varying float vHueco;
   varying float vAlfa;
+  varying float vPx;
+
+  // <=0 dentro de la elipse
+  float elipse(vec2 p, vec2 centro, vec2 radios) {
+    vec2 q = (p - centro) / radios;
+    return dot(q, q) - 1.0;
+  }
+
+  float abeja(vec2 p) {
+    // cuerpo: óvalo vertical, ligeramente bajo el centro
+    float cuerpo = elipse(p, vec2(0.0, -0.04), vec2(0.30, 0.44));
+    // alas: dos óvalos inclinados hacia arriba y afuera
+    float alaI = elipse(p, vec2(-0.30, 0.22), vec2(0.24, 0.15));
+    float alaD = elipse(p, vec2( 0.30, 0.22), vec2(0.24, 0.15));
+    float alas = min(alaI, alaD);
+    float f = min(cuerpo, alas);
+    // borde suave dependiente del tamaño: nítida en grande, blanda en chico
+    float suave = clamp(2.2 / vPx, 0.06, 0.34);
+    return smoothstep(suave, -suave, f);
+  }
+
   void main() {
     vec2 c = gl_PointCoord - 0.5;
+    vec2 p = c * 2.0;          // -1..1
     float d = length(c) * 2.0;
+
     float disco = smoothstep(1.0, 0.7, d);
     float aro = smoothstep(1.0, 0.84, d) * smoothstep(0.5, 0.68, d);
-    float a = mix(disco, aro, vHueco) * vAlfa;
+    float liso = mix(disco, aro, vHueco);
+
+    // la abeja solo se dibuja si hay píxeles para que se lea
+    float silueta = abeja(p);
+    float esAbeja = smoothstep(6.0, 11.0, vPx) * (1.0 - vHueco);
+    float forma = mix(liso, silueta, esAbeja);
+
+    float a = forma * vAlfa;
     if (a < 0.012) discard;
     gl_FragColor = vec4(vTinte, a);
   }
@@ -109,16 +161,27 @@ function construirPuntos(
     const rExt = Math.max(c.orbita - 0.15, rInt + 0.5);
     const padres = previosPorCelda.get(a.id);
 
+    const medio = rInt + (rExt - rInt) * 0.45;
     for (let i = 0; i < n; i++) {
       const ang = rng() * Math.PI * 2;
-      const rad = rInt + (rExt - rInt) * Math.sqrt(rng());
+      // P0.7: cada persona tiene DOS órbitas en su propia empresa — una
+      // interior (en regla) y una exterior (fuera de regla). Informalizarse es
+      // viajar de una a la otra, no cambiar de color en el sitio. El modelo no
+      // mueve gente entre empresas, así que la visual tampoco.
+      const radFormal = rInt + (medio - rInt) * Math.sqrt(rng());
+      const radInformal = medio + (rExt - medio) * Math.sqrt(rng());
+      const rad = radFormal;
       const padre = padres?.length ? padres[Math.floor((i / n) * padres.length)] : null;
       puntos.push({
         celda: a.id,
         rango: rangos[i],
+        orden: n > 1 ? i / (n - 1) : 0,
         ang,
         vel: (0.05 + rng() * 0.09) * (rng() < 0.5 ? 1 : -1),
         rad,
+        radFormal,
+        radInformal,
+        impulso: 0,
         fase: rng() * Math.PI * 2,
         estado: -1 as unknown as number, // se asigna en el primer frame
         color: new THREE.Color("#3ecf8e"),
@@ -176,10 +239,11 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
   );
 
   // tamaño del punto en unidades de mundo, según cuánta gente representa
-  // SUPUESTO: los tres tamaños de punto (0,5 / 0,34 / 0,22) y sus cortes de
-  // LOD (8.000 / 3.000 personas por punto) son estética de legibilidad al
-  // hacer zoom, no un cálculo del motor.
-  const tamanoBase = ppp >= 8000 ? 0.5 : ppp >= 3000 ? 0.34 : 0.22;
+  // SUPUESTO: los tres tamaños de punto (0,86 / 0,58 / 0,42) y sus cortes de
+  // LOD (3.000 / 1.500 personas por punto) son estética de legibilidad al
+  // hacer zoom, no un cálculo del motor. Subidos desde 0,5/0,34/0,22: a los
+  // valores viejos las personas no se distinguían sin acercarse.
+  const tamanoBase = ppp >= 3000 ? 0.86 : ppp >= 1500 ? 0.58 : 0.42;
 
   useFrame((estado, dtCrudo) => {
     const dt = Math.min(dtCrudo, 0.1);
@@ -232,6 +296,11 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
           p.exDY /= dn;
           p.exEdad = 0;
         }
+        // P0.7 / P4.4: entrar o salir de la informalidad es un VIAJE entre
+        // los dos anillos de su empresa. Como el ángulo sigue avanzando
+        // mientras el radio cambia, la trayectoria es una espiral: se ve el
+        // recorrido, no un salto.
+        if (objetivo !== 3) p.impulso = 1;
         p.estado = objetivo;
         p.brillo = 1;
       }
@@ -244,10 +313,16 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
         p.x += p.exDX * v * dt + Math.sin(t * 0.7 + p.fase) * 0.12 * dt;
         p.y += p.exDY * v * dt + Math.cos(t * 0.6 + p.fase * 1.7) * 0.12 * dt;
       } else {
-        p.ang += p.vel * dt;
+        // el radio persigue al anillo que le toca por su estado
+        const destino = p.estado === 2 ? p.radInformal : p.radFormal;
+        p.rad += (destino - p.rad) * Math.min(1, dt / 0.45);
+        // mientras viaja, gira más rápido: la espiral se nota
+        p.impulso = Math.max(0, p.impulso - dt / 1.1);
+        p.ang += p.vel * (1 + p.impulso * 2.4) * dt;
         const respiro = 1 + Math.sin(t * 0.9 + p.fase) * 0.025;
-        p.x = c.x + Math.cos(p.ang) * p.rad * respiro;
-        p.y = c.y + Math.sin(p.ang) * p.rad * respiro;
+        // P4.2: la persona orbita su empresa Y acompaña la deriva de esta
+        p.x = c.x + motor.derivaX(c.indice) + Math.cos(p.ang) * p.rad * respiro;
+        p.y = c.y + motor.derivaY(c.indice) + Math.sin(p.ang) * p.rad * respiro;
       }
 
       // entrada (nacimiento o cambio de LOD): vuela desde el padre
@@ -266,7 +341,9 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
       const b = 1 + p.brillo * 1.6;
       tinte.setXYZ(i, p.color.r * b, p.color.g * b, p.color.b * b);
 
-      const nac = motor.nacimiento.get(p.celda) ?? 1;
+      // P2: durante la intro cada persona aparece en su turno alrededor de su
+      // empresa, no todas de golpe con ella.
+      const nac = motor.nacimientoPersona(p.celda, p.orden);
       const popN = nac < 1 ? nac * (1.6 - 0.6 * nac) : 1; // leve sobreimpulso
       tam.setX(i, tamanoBase * (p.estado === 3 ? 0.92 : 1) * popN * (1 + p.brillo * 0.7));
       hueco.setX(i, p.estado === 3 ? 1 : 0);
