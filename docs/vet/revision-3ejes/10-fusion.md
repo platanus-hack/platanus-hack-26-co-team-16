@@ -1,3 +1,52 @@
+# `10-fusion.md` — donde se fusionan los tres ejes
+
+> **Este archivo es el destino de la fusión de la revisión a tres ejes.** Las reglas del reparto
+> están en [`README.md`](README.md) de esta misma carpeta; acá van los informes y, al final, la
+> decisión. Es **archivo nuevo en subcarpeta nueva**: no edita ni una línea de nada existente.
+>
+> **Árbol medido: `9218dc3`** (el commit más reciente de `main` al momento de la revisión).
+> Ojo: los tres `PROMPT-*.txt` fijan `9cbd6f2`, que quedó viejo cuando se mergeó el PR #29 con el
+> propio reparto. La diferencia entre ambos es **solo documentación** (`docs/vet/revision-3ejes/`),
+> no toca código. **Antes de fusionar, verificá contra qué árbol corrió cada eje:** si A o C se
+> lanzaron con el SHA literal del prompt, la regla de "lo que aparece en dos listas va primero"
+> estaría comparando árboles distintos.
+
+## Estado de los tres ejes
+
+| Eje | Pregunta | Agente | Estado | Dónde está |
+|---|---|---|---|---|
+| **A · Ejecución** | ¿la simulación hace lo que dice que hace? | `/juez-tecnico` | ⬜ pendiente | — |
+| **B · Fundamentación** | ¿es cierto? | `/juez-cientifico` | ✅ **entregado** (23-ago, sobre `9218dc3`) | acá abajo |
+| **C · Pantalla** | ¿lo que se muestra sostiene la espina? | `/juez` sobre `web/` | ⬜ pendiente | — |
+
+**Cómo se agrega un eje a este archivo:** se **anexa** al final, con su propio separador `---` y su
+encabezado `# ... EJE X ...`. **No se sobrescribe este archivo ni se reordena lo que ya está.** Cada
+informe entra tal como lo devolvió su agente; lo que la sesión que lo lanzó verificó por su cuenta
+va en un anexo aparte y firmado, nunca mezclado con el texto del agente.
+
+## Recordatorio de las reglas de fusión (de `README.md`)
+
+1. **Lo que aparece en dos listas o más, va primero.** Un defecto que dos ejes ven por separado es
+   estructural.
+2. Sumar los minutos de los 9 arreglos posibles y cortar donde se acabe el tiempo, menos una hora
+   de colchón.
+3. **Regla dura del congelamiento: lo que no está en "LOS 3 ARREGLOS" de al menos un revisor, no se
+   toca.** Todo lo demás pasa a límites declarados, que se dicen en voz alta en el pitch.
+4. Las tres "PREGUNTAS QUE NOS HUNDEN" se contestan por escrito antes de la demo. Son el Q&A real.
+
+## Lo que ya se puede leer sin esperar a A y C
+
+El Eje B contesta que **NO** a su pregunta única: el mapa distributivo no sobrevive como aporte del
+modelo. El ranking de celdas correlaciona **0,94** con la formalidad de entrada porque el margen de
+caja es uniforme (`0,18`) y el salario y el tamaño se cancelan en el veto. Lo que sí se sostiene es
+un **ranking de carga legal estatutaria** sacado del CST. Los tres arreglos que propone suman
+**60 minutos** y el más caro de no hacer es el **B** (publicar el segundo episodio y la no-cegera del
+pre-registro en `VALIDATION.md`): están en el repo público, y si los encuentra el jurado primero, lo
+que era rigor se lee como cifra escondida.
+
+---
+---
+
 # Auditoría matemática — 2026-08-23 04:14 · EJE B · fundamentación
 
 > Informe del agente `juez-cientifico`. Autocrítica interna del equipo, no una evaluación externa.
