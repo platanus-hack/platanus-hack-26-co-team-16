@@ -1,0 +1,42 @@
+{
+  "fuente": "GEIH 2025 enero-junio, Bogota (AREA=11), modulo Ocupados - calculado por data/construir_poblacion.py",
+  "n_muestra": 6459,
+  "n_descartados_sin_ingreso": 211,
+  "ocupados_expandidos": 4117083,
+  "tasa_informalidad_total": 0.3464,
+  "tasa_informalidad_por_sector": {
+    "adm_publica_edu_salud": 0.0876,
+    "agro_mineria": 0.232,
+    "alojamiento_comida": 0.6788,
+    "comercio": 0.5067,
+    "construccion_utilities": 0.4864,
+    "industria": 0.3498,
+    "otros_servicios": 0.5642,
+    "servicios_empresariales": 0.1697,
+    "transporte": 0.4287
+  },
+  "tasa_informalidad_por_tamano": {
+    "grande": 0.0119,
+    "micro": 0.6808,
+    "pyme": 0.1512
+  },
+  "distribucion_salarial_cop": {
+    "p5": 400000,
+    "p10": 660000,
+    "p25": 1370000,
+    "p50": 1640000,
+    "p75": 3000000,
+    "p90": 6000000,
+    "p95": 8486491
+  },
+  "spike_salarial": {
+    "moda_ingreso_cop": 1420000,
+    "masa_en_moda": 0.099,
+    "nota": "verificar contra SMLMV 2025 (V4, R5)"
+  },
+  "terciles_ingreso_cop": {
+    "t1_max": 1423500,
+    "t2_max": 2240000
+  },
+  "n_arquetipos": 64
+}

@@ -1,10 +1,5 @@
 # Dependencias del proyecto. Dueño: Juanda (R5 · integración).
 #
-# Versiones verificadas en un venv limpio el 2026-08-22 corriendo
-# `scripts/barrido_politicas.py` punta a punta sobre la grilla real de
-# empleadores, `pytest engine/ tests/` (58 en verde) y `make reproduce`
-# dos veces con salida idéntica.
-#
 # Instalación:
 #     python3 -m venv .venv && source .venv/bin/activate
 #     pip install -r requirements.txt
@@ -19,21 +14,32 @@
 # hace real el nivel 3 del ADR 0009 —"`make validate` en una máquina limpia"—
 # sin depender de nada externo. numpy y pandas entran solo para leer la
 # población real del parquet.
+#
+# Los pines de abajo son los que verificó la corrida en CLON LIMPIO
+# (`validacion/reproducible`), no los que resolvió una máquina de desarrollo.
 
-numpy==2.5.2          # engine/seed.py (SeedSequence) y behavior/arquetipos.py
-pandas==3.0.5         # data/ y behavior/arquetipos.py: pd.read_parquet
+numpy==2.3.3          # engine/seed.py (SeedSequence) y behavior/arquetipos.py
+pandas==3.0.2         # data/ y behavior/arquetipos.py: pd.read_parquet
 pyarrow==25.0.1       # backend de parquet. Dependencia IMPLÍCITA: no aparece en
                       # ningún import, pero sin él `pd.read_parquet` no abre
                       # data/empresas.parquet ni data/poblacion.parquet.
 requests==2.32.5      # data/descargar_geih.py (descarga del ANDA del DANE)
 
 # --- Solo para la capa LLM real (`--llm`) ------------------------------------
+#
+# G1 DESBLOQUEADA. La nota anterior decía que no se fijaba versión porque el
+# paquete no estaba instalado y no se inventan versiones. Ya no hace falta
+# inventarla: este pin es el `pip freeze` de un entorno donde está instalado y
+# donde la capa LLM corrió de verdad —121 llamadas a la API, $0,33, 4 rondas
+# completas contra la grilla real— el 2026-08-22.
 anthropic==1.0.0      # behavior/cliente.py. Sin ANTHROPIC_API_KEY el cliente
                       # cae a caché; sin caché lanza SinCredenciales.
 
 # --- Desarrollo ---------------------------------------------------------------
-pytest==8.4.1         # engine/test_*.py y tests/ (58 casos hoy)
+pytest==9.0.2         # engine/test_*.py y tests/ (58 casos hoy)
 
 # --- API (el enjambre) --------------------------------------------------------
+#
+# Solo para `api/servidor.py`. La ruta de $0 y `make test` no los necesitan.
 fastapi==0.141.1      # api/servidor.py: la corrida real transmitida por SSE
 uvicorn==0.52.4       # servidor ASGI: `uvicorn api.servidor:app --port 8000`
