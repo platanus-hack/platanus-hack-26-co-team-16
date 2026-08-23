@@ -84,29 +84,27 @@ const VERTICES = /* glsl */ `
 // P5.4 · legibilidad primero. Por debajo de PX_ABEJA píxeles la abeja se
 // vuelve una mancha ilegible, así que ahí se dibuja el punto liso de siempre.
 // La transición es un mix suave para que no se vea el salto al hacer zoom.
+// P5.3 · HIVE: la persona es una abeja. La silueta se dibuja en el shader
+// (nada de texturas ni sprites: son decenas de miles de puntos) con tres
+// elipses — cuerpo vertical y dos alas — y tres franjas oscuras cruzando el
+// abdomen, que es lo que hace que se lea como abeja y no como una gota.
+//
+// P5.4 · legibilidad primero. Por debajo de PX_MIN píxeles la abeja se vuelve
+// una mancha, así que ahí se dibuja el punto liso de siempre. La transición es
+// un mix suave para que no se vea el salto al hacer zoom. Las franjas entran
+// más tarde todavía: pintar rayas en 8 px solo ensucia la silueta.
 const FRAGMENTOS = /* glsl */ `
   varying vec3 vTinte;
   varying float vHueco;
   varying float vAlfa;
   varying float vPx;
 
+  const vec3 NEGRO = vec3(0.043, 0.055, 0.078);
+
   // <=0 dentro de la elipse
   float elipse(vec2 p, vec2 centro, vec2 radios) {
     vec2 q = (p - centro) / radios;
     return dot(q, q) - 1.0;
-  }
-
-  float abeja(vec2 p) {
-    // cuerpo: óvalo vertical, ligeramente bajo el centro
-    float cuerpo = elipse(p, vec2(0.0, -0.04), vec2(0.30, 0.44));
-    // alas: dos óvalos inclinados hacia arriba y afuera
-    float alaI = elipse(p, vec2(-0.30, 0.22), vec2(0.24, 0.15));
-    float alaD = elipse(p, vec2( 0.30, 0.22), vec2(0.24, 0.15));
-    float alas = min(alaI, alaD);
-    float f = min(cuerpo, alas);
-    // borde suave dependiente del tamaño: nítida en grande, blanda en chico
-    float suave = clamp(2.2 / vPx, 0.06, 0.34);
-    return smoothstep(suave, -suave, f);
   }
 
   void main() {
@@ -118,14 +116,34 @@ const FRAGMENTOS = /* glsl */ `
     float aro = smoothstep(1.0, 0.84, d) * smoothstep(0.5, 0.68, d);
     float liso = mix(disco, aro, vHueco);
 
-    // la abeja solo se dibuja si hay píxeles para que se lea
-    float silueta = abeja(p);
+    // borde suave dependiente del tamaño: nítida en grande, blanda en chico
+    float suave = clamp(2.2 / vPx, 0.05, 0.30);
+
+    // cuerpo: óvalo vertical, un poco por debajo del centro
+    float cuerpo = smoothstep(suave, -suave, elipse(p, vec2(0.0, -0.06), vec2(0.32, 0.46)));
+    // alas: dos óvalos hacia arriba y afuera, más tenues que el cuerpo
+    float alaI = smoothstep(suave, -suave, elipse(p, vec2(-0.32, 0.26), vec2(0.26, 0.16)));
+    float alaD = smoothstep(suave, -suave, elipse(p, vec2( 0.32, 0.26), vec2(0.26, 0.16)));
+    float alas = max(alaI, alaD);
+
+    float silueta = max(cuerpo, alas * 0.5);
+
+    // tres franjas cruzando el abdomen (la mitad de abajo del cuerpo)
+    float franjas = 0.0;
+    franjas = max(franjas, smoothstep(0.075, 0.030, abs(p.y + 0.40)));
+    franjas = max(franjas, smoothstep(0.075, 0.030, abs(p.y + 0.22)));
+    franjas = max(franjas, smoothstep(0.075, 0.030, abs(p.y + 0.04)));
+    franjas *= cuerpo;
+    // las rayas solo aparecen cuando hay píxeles para que se distingan
+    franjas *= smoothstep(9.0, 15.0, vPx);
+
     float esAbeja = smoothstep(6.0, 11.0, vPx) * (1.0 - vHueco);
     float forma = mix(liso, silueta, esAbeja);
+    vec3 col = mix(vTinte, mix(vTinte, NEGRO, franjas * 0.9), esAbeja);
 
     float a = forma * vAlfa;
     if (a < 0.012) discard;
-    gl_FragColor = vec4(vTinte, a);
+    gl_FragColor = vec4(col, a);
   }
 `;
 
@@ -239,11 +257,13 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
   );
 
   // tamaño del punto en unidades de mundo, según cuánta gente representa
-  // SUPUESTO: los tres tamaños de punto (0,86 / 0,58 / 0,42) y sus cortes de
+  // SUPUESTO: los tres tamaños de punto (1,30 / 0,88 / 0,62) y sus cortes de
   // LOD (3.000 / 1.500 personas por punto) son estética de legibilidad al
-  // hacer zoom, no un cálculo del motor. Subidos desde 0,5/0,34/0,22: a los
-  // valores viejos las personas no se distinguían sin acercarse.
-  const tamanoBase = ppp >= 3000 ? 0.86 : ppp >= 1500 ? 0.58 : 0.42;
+  // hacer zoom, no un cálculo del motor. Vienen de 0,5/0,34/0,22 en dos
+  // pasos: primero para que la persona se distinguiera sin acercarse, y
+  // ahora para que la silueta de abeja y sus franjas tengan píxeles donde
+  // dibujarse — por debajo de ~15 px las rayas no se resuelven.
+  const tamanoBase = ppp >= 3000 ? 1.30 : ppp >= 1500 ? 0.88 : 0.62;
 
   useFrame((estado, dtCrudo) => {
     const dt = Math.min(dtCrudo, 0.1);
