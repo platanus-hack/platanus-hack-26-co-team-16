@@ -22,7 +22,7 @@ const VENTANA_DECISIONES = 4.0;
 const RITMO_MINIMO_DECISIONES = 6;
 
 // --- La intro (ronda 0) -----------------------------------------------------
-// La ronda 0 no llama al LLM: es la proyección oficial, el punto de partida.
+// La ronda 0 no llama al LLM: es el escenario sin adaptación, el punto de partida.
 // En vez de gastarla en una pantalla de "preparando", se usa para MOSTRAR de
 // qué está hecha la ciudad: primero brotan las empresas, y alrededor de cada
 // una van apareciendo sus personas de a una. Los ~10 s salen de sumar los

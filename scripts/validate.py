@@ -162,7 +162,11 @@ def medicion_v0() -> tuple[Estado, str, dict[str, float] | None]:
         "error_absoluto_pp": error_modelo,
         "error_baseline_pp": error_baseline,
         "skill_b1": skill,
-        "cobertura": float(
+        # B3: se llamaba "cobertura", y esa palabra invita a la pregunta que
+        # hunde el numero: "¿cobertura de que nivel?". No hay nivel: es un
+        # min-max sobre N=5 parafrasis, no un intervalo calibrado. El nombre
+        # nuevo dice literalmente lo que se midio.
+        "observado_en_rango": float(
             pred["rango_entre_parafrasis_pct"][0]
             <= post_ene_jun * 100
             <= pred["rango_entre_parafrasis_pct"][1]
@@ -203,7 +207,8 @@ def _imprimir_v0(n: dict[str, float]) -> None:
     # "banda" NO: con N=5 el p10/p90 es el minimo y el maximo de las cinco
     # parafrasis (en esperanza, los percentiles 16,7 y 83,3). Llamarlo banda
     # sugiere un intervalo calibrado que no es. Ver VALIDATION.md, "Método".
-    print(f"  Cobertura del rango:         {'sí' if n['cobertura'] else 'no'}")
+    print(f"  ¿El observado cae en el rango? {'sí' if n['observado_en_rango'] else 'NO'}"
+          "   (rango entre paráfrasis, N=5, min–max; no es un intervalo de confianza)")
     print(f"  Ancho del rango:             {n['ancho_banda_pp']:.1f} pp  (entre paráfrasis, no calibrado)")
     print("  Corridas:                    BLOQUEADO: el repo no registra N>=5 trayectorias comparables")
     print(f"  Proxy 2025 ene-jun:          {n['pre_ene_jun_pct']:.2f}%")
@@ -218,21 +223,23 @@ def _imprimir_v0(n: dict[str, float]) -> None:
 
 
 def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
-    """El rango entre paráfrasis: cobertura Y agudeza, siempre juntas.
+    """El rango entre paráfrasis: si el observado cae dentro, Y qué tan ancho es.
 
     Es una MEDICIÓN, así que devuelve MEDIDO: el resultado se publica, no se
-    aprueba, y no entra al código de salida. La cobertura 0 no es un fallo del
+    aprueba, y no entra al código de salida. Que el observado quede FUERA no es
+    un fallo del
     candado, es el dato. Existe como fila propia porque `VALIDATION.md` la
     declara en la tabla, y un documento que anuncia una fila que el ejecutor no
     imprime es exactamente la deriva que este trabajo existe para evitar.
     """
     if numeros is None:
-        return Estado.BLOQUEADO, "sin V0 no hay contra qué medir la cobertura"
-    cobertura = "sí" if numeros["cobertura"] else "no"
+        return Estado.BLOQUEADO, "sin V0 no hay contra qué medir el rango"
+    dentro = "SÍ" if numeros["observado_en_rango"] else "NO"
     return (
         Estado.MEDIDO,
-        f"cobertura={cobertura}; ancho={numeros['ancho_banda_pp']:.1f} pp "
-        "(rango entre paráfrasis, NO un p10/p90 calibrado)",
+        f"el observado {dentro} cae dentro del rango entre paráfrasis "
+        f"({numeros['ancho_banda_pp']:.1f} pp de ancho, N=5, min–max; "
+        "no es un p10/p90 calibrado ni un intervalo de confianza)",
     )
 
 

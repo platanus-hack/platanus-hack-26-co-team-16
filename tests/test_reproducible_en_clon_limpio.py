@@ -45,13 +45,16 @@ def _data_de_clon_limpio(destino: Path) -> Path:
 
 
 def test_el_numero_sale_sin_crudos(tmp_path):
-    """Sin `data/raw/`, V0 igual entrega error, skill y cobertura."""
+    """Sin `data/raw/`, V0 igual entrega error, skill y el rango entre parafrasis."""
     v = _validador_con_data(_data_de_clon_limpio(tmp_path))
     estado, detalle, numeros = v.medicion_v0()
 
     assert estado is v.Estado.MEDIDO, f"V0 quedó {estado.value} en un clon limpio: {detalle}"
     assert numeros is not None
-    for clave in ("error_absoluto_pp", "error_firmado_pp", "skill_b1", "cobertura"):
+    # B3: la clave se llamaba "cobertura"; hoy es "observado_en_rango", porque
+    # con N=5 el rango es un min-max entre parafrasis y no una cobertura de
+    # ningun nivel. Ver scripts/validate.py.
+    for clave in ("error_absoluto_pp", "error_firmado_pp", "skill_b1", "observado_en_rango"):
         assert numeros[clave] is not None, f"falta {clave} sin crudos"
 
     # El corte abr-jun es el ÚNICO que puede faltar, y falta en silencio.

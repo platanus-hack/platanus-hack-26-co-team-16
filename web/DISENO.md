@@ -49,7 +49,7 @@ El color mide cuánto se movió cada celda **por culpa del aumento**. Resultado:
 | Momento | Celdas que cruzan el umbral |
 |---|---|
 | Reposo | 0 |
-| Ronda 0 — la proyección oficial | **0** |
+| Ronda 0 — el escenario sin adaptación | **0** |
 | Ronda 1 | 992.000 personas |
 | Ronda 2 | 1.422.000 |
 | Ronda 3 | **1.598.000** |

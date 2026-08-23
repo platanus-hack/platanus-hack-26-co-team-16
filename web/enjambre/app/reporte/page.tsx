@@ -68,7 +68,7 @@ export default function Reporte() {
         `El modelo proyecta ${miles(Math.abs(gente))} personas que ` +
           `${gente > 0 ? "quedan fuera de regla" : "vuelven a la regla"} y que un supuesto de cumplimiento ` +
           `total no contaría. Es la brecha de ESTE modelo contra ese supuesto, no una corrección al dato ` +
-          `oficial: contra lo observado el backtest la falsa (ver «dónde no hay que creerle»).`
+          `del modelo: contra lo observado el backtest la falsa (ver «dónde no hay que creerle»).`
       );
     }
     const dSan = (ult.prob_fiscalizacion - r0.prob_fiscalizacion) * 100;
@@ -179,7 +179,7 @@ export default function Reporte() {
           etiqueta="informalidad al cierre"
           color="var(--azul-vivo)"
         />
-        <Cifra valor={pp(registro.brecha_pp)} etiqueta="brecha contra la proyección oficial" />
+        <Cifra valor={pp(registro.brecha_pp)} etiqueta="brecha contra el escenario sin adaptación" />
         <Cifra
           valor={pct(ult.empleo_relativo)}
           etiqueta="empleo que sobrevive"

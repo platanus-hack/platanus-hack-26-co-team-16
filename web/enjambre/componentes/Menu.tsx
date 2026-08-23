@@ -47,6 +47,33 @@ export default function Menu() {
           </span>
         </button>
       </div>
+
+      {/* C3 · El error del backtest, en la PRIMERA pantalla y sin un clic. Estaba
+          al pie de `/reporte`, que es una página secundaria: lo único que ningún
+          otro simulador publica quedaba donde nadie lo veía. Los tres números
+          salen de `VALIDATION.md:19,44,86` — no de esta prosa. */}
+      <div
+        className="aparecer"
+        style={{
+          fontFamily: "var(--mono)",
+          fontSize: 11,
+          lineHeight: 1.7,
+          color: "var(--tinta-tenue)",
+          textAlign: "center",
+          maxWidth: 460,
+          borderTop: "1px solid var(--linea)",
+          paddingTop: 14,
+        }}
+      >
+        <strong style={{ color: "var(--tinta)" }}>El backtest falsa este modelo.</strong> Erró por{" "}
+        <strong style={{ color: "var(--tinta)" }}>37,37 pp</strong> y con el signo al revés; un
+        baseline de persistencia le gana ocho veces (skill −8,182).
+        <br />
+        Lo publicamos igual, y por eso el número que defendemos es el reparto, no el nivel.{" "}
+        <a href="/reporte" style={{ color: "var(--tinta-tenue)", textDecoration: "underline" }}>
+          dónde no hay que creerle →
+        </a>
+      </div>
     </div>
   );
 }

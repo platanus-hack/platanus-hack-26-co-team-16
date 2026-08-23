@@ -67,7 +67,7 @@ export default function Hero() {
     {
       clave: "brecha",
       valor: pp(delta),
-      etiqueta: "brecha contra la proyección oficial",
+      etiqueta: "brecha contra el escenario sin adaptación",
       color: movida ? "var(--azul-vivo)" : undefined,
     },
     {

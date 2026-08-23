@@ -41,7 +41,10 @@ const FILAS: Fila[] = [
   { metrica: "Masa salarial relativa", tipo: "SUPUESTO", fuente: "el alza se aplica solo al empleo formal — serializar.py" },
   { metrica: "Ocupados bajo el mínimo nuevo", tipo: "SUPUESTO", fuente: "piso nuevo = anterior × (1+alza) — serializar.py" },
   { metrica: "1 ronda = N meses / horizonte", tipo: "SUPUESTO", fuente: "ADR 0005 — el reloj de la simulación" },
-  { metrica: "Banda de incertidumbre (p10–p90)", tipo: "CALCULADO", fuente: "paráfrasis del mismo prompt, N≥2" },
+  // C2/E4 · decía "Banda de incertidumbre (p10–p90)". Con N=5 el p10/p90 ES el
+  // mínimo y el máximo de las cinco paráfrasis, no un percentil calibrado, y
+  // "incertidumbre" se lee como intervalo de confianza — que no calculamos.
+  { metrica: "Rango entre paráfrasis (mín–máx, N=5)", tipo: "CALCULADO", fuente: "5 paráfrasis del mismo prompt — NO es un intervalo de confianza ni un p10/p90 calibrado" },
 ];
 
 // `forzarAbierto` lo usa el reporte: ahí la tabla no es un panel flotante que

@@ -109,7 +109,7 @@ export function registrarCorrida(): CorridaRegistrada | null {
     rondas,
     informalidad_final: ultima.tasa_informalidad,
     empleo_final: ultima.empleo_relativo,
-    // la brecha es contra la ronda 0, que es la proyección oficial
+    // la brecha es contra la ronda 0, que es el escenario sin adaptación
     brecha_pp: (ultima.tasa_informalidad - primera.tasa_informalidad) * 100,
     segundos: s.fin?.segundos ?? null,
     llamadas_api: s.fin?.llamadas_api ?? null,

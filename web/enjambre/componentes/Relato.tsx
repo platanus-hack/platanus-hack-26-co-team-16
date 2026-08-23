@@ -83,7 +83,7 @@ export default function Relato() {
         cola.current.push({
           texto:
             c.ronda === 0
-              ? `ronda 0 · proyección oficial: informalidad ${pct(c.tasa_informalidad)}, empleo pleno asumido`
+              ? `ronda 0 · escenario sin adaptación: informalidad ${pct(c.tasa_informalidad)}, empleo pleno asumido`
               : `— ronda ${c.ronda} cerrada · informalidad ${pct(c.tasa_informalidad)} · empleo ${pct(c.empleo_relativo)} —`,
           tono: "ronda",
         });

@@ -6,14 +6,14 @@
 // mismo con el tamaño del reporte. Esta se conserva como la variante compacta
 // para el lienzo, por si la brecha vuelve a pantalla.
 
-// La gráfica imprescindible: la proyección oficial (plana, la ronda 0 asumida
+// La gráfica imprescindible: el escenario sin adaptación (plana, la ronda 0 asumida
 // para siempre) contra la cascada real, ronda a ronda, con la banda cuando
 // existe. Es el producto del proyecto en 320×96 píxeles.
 //
 // Tres cosas que antes la hacían ilegible y ya no:
 //   1. El eje Y se recalculaba en cada ronda, así que la línea "oficial" — la
 //      referencia que por definición NO se mueve — se movía en pantalla. Ahora
-//      el dominio se ancla a la proyección oficial y solo crece.
+//      el dominio se ancla al escenario sin adaptación y solo crece.
 //   2. No había ejes ni ticks: 20 px de separación no se podían leer como pp.
 //   3. Las dos etiquetas caían en la misma x en la última ronda y se pisaban.
 
@@ -70,7 +70,7 @@ export default function CurvaBrecha() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div className="kicker">la brecha · proyección oficial vs corrida real</div>
+      <div className="kicker">la brecha · escenario sin adaptación vs corrida real</div>
       <svg width={W} height={H} style={{ overflow: "visible" }}>
         {/* grilla y eje Y: sin esto la distancia vertical no es interpretable */}
         {ticks.map((v, i) => (
@@ -119,7 +119,7 @@ export default function CurvaBrecha() {
           fontSize={9.5}
           fontFamily="var(--mono)"
         >
-          oficial
+          sin adaptación
         </text>
         <text
           x={x(ultima) + 6}

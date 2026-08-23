@@ -8,6 +8,13 @@
 > **Por qué el orden importa.** Un umbral escrito después de ver el resultado no es un umbral, es una
 > racionalización. El criterio se commiteó en `2d4aa7e` con los datos de 2025 todavía sin descargar;
 > el número llegó después. Verificable con `git log --date=iso -- VALIDATION.md`.
+>
+> **Y el pre-registro NO fue ciego, que es distinto de que se haya movido un umbral.** El mismo
+> commit `2d4aa7e` ya traía una sección titulada *«Lo que ya se sabe y apunta a la rama B»*: cuando
+> se escribió el criterio, el equipo ya sospechaba que el modelo iba a fallar. Lo que el orden sí
+> garantiza es que **ningún umbral se movió después de ver el número**; lo que no puede reclamar es
+> ceguera. Se dice acá porque está en el repo público y cualquiera lo encuentra con
+> `git show 2d4aa7e:VALIDATION.md`.
 > **Regla del proyecto: el número se publica salga como salga.** Un backtest negativo pero medido y reportado con honestidad sigue siendo el resultado más serio de la sala, porque el resto va a presentar cifras que nadie puede refutar.
 > Metodología completa: `docs/PLAN.md` §5.
 
@@ -18,8 +25,8 @@
 ```
 Error del backtest:            37,37 pp   (firmado modelo - observado: +37,37 pp)
 Skill vs persistencia (B1):    -8,182
-Cobertura del rango:           NO
-Ancho del rango:               33,9 pp  (entre parafrasis, NO calibrado)
+¿El observado cae en el rango?  NO
+Ancho del rango:               33,9 pp  (entre parafrasis, N=5, min-max; NO calibrado)
 Corridas:                      BLOQUEADO - el repo no registra N>=5 trayectorias comparables
 
 Proxy Bogota, GEIH 2025 ene-jun:   34,64 %
@@ -51,6 +58,25 @@ persistencia le gana ocho veces**: predecir "2026 = 2025" erra por 4,07 pp y el 
 | Oficial DANE, abr–jun | 35,60% → 33,30% | **−2,30 pp** |
 
 Distinta definición, distinto trimestre, misma dirección y mismo orden de magnitud.
+
+### Segundo episodio: el error no es casualidad de un año, y el modelo falla en la dirección
+
+Un solo episodio no distingue *«el modelo está mal»* de *«ese año pasó algo raro»*. Por eso se mide
+también el alza anterior, de otra magnitud:
+
+| Episodio | Alza del mínimo | Observado | Lo que el modelo predice |
+|---|---|---|---|
+| 2024 → 2025 | **+9,5 %** | **+2,63 pp** | sube |
+| 2025 → 2026 | **+23,0 %** | **−4,07 pp** | sube, y más |
+
+**Las direcciones se oponen.** El modelo predice que la informalidad sube en los dos y más en el
+grande; lo observado sube un poco en el chico y **baja** en el grande. O sea: el error de 37,37 pp
+no es un año atípico, es que **la relación de signo que el modelo asume no aparece en los datos**.
+Y el movimiento real es de unos pocos puntos en los dos casos, contra los +33 pp que el modelo
+proyecta.
+
+Sale del mismo comando, no de este párrafo: `python scripts/validate.py`, bloque
+*«Serie de dos episodios»*. El insumo de 2024 está versionado en `data/momentos_2024.json`.
 
 Un chequeo independiente de que el pipeline lee bien la realidad: el pico salarial se movió solo, de
 **1.420.000** en 2025 a **1.750.000** en 2026 — sigue al mínimo legal de cada año (1.423.500 y

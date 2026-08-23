@@ -283,7 +283,7 @@
       <div class="cifras">
         <div class="cifra destacada">
           <div class="v num" id="cBrecha">—</div>
-          <div class="k">La brecha: distancia entre la proyección oficial y la ronda 3</div>
+          <div class="k">La brecha: distancia entre el escenario sin adaptación y la ronda 3</div>
         </div>
         <div class="cifra">
           <div class="v num" id="cInfo">—</div>
@@ -305,7 +305,7 @@
       <div class="titulo">La curva de la brecha</div>
       <canvas class="grafico" id="gCurva" height="200"></canvas>
       <p class="sub">
-        La línea gris punteada es lo que proyecta el gobierno: asume cumplimiento total.
+        La línea gris punteada es la ronda 0 de este modelo: el escenario en que nadie se adapta. No es una proyección del gobierno.
         La línea roja es la cascada — como la capacidad de fiscalización es fija,
         más evasores bajan la probabilidad de sanción de cada uno, e inducen más evasión.
         La banda es el rango p10–p90.
@@ -486,7 +486,7 @@ const CELDAS = construirCeldas();
 // plausible a la animación. El motor real (engine/, Manuel) los reemplaza entero.
 const P = {
   base: 0.42,          // informalidad sin política
-  respLineal: 0.22,    // la parte que sí ve la proyección oficial
+  respLineal: 0.22,    // la parte que sí ve el escenario sin adaptación
   amplitudCascada: 0.16,
   codo: 15.0,          // dónde se dispara la cascada, en % de aumento
   suavidad: 2.6,
@@ -821,7 +821,7 @@ function dibujarCurva() {
   g.fillStyle = `rgba(${dr},${dg},${db},0.10)`;
   g.fill();
 
-  // la proyección oficial: se queda en la ronda 0, es una línea recta
+  // el escenario sin adaptación: se queda en la ronda 0, es una línea recta
   g.setLineDash([4, 4]);
   g.strokeStyle = leerToken('--oficial'); g.lineWidth = 1.5;
   g.beginPath(); g.moveTo(X(0), Y(R[0].tasa_informalidad)); g.lineTo(X(3), Y(R[0].tasa_informalidad)); g.stroke();
@@ -910,7 +910,7 @@ const NOTAS = [
   'Ronda 0 — la reacción ingenua. Es lo que proyecta el gobierno: todo el mundo cumple, el costo se absorbe. Nada se mueve todavía.',
   'Ronda 1 — los primeros arquetipos a los que no les da la plata proponen otra cosa. El motor veta lo que el flujo de caja no permite; sobrevive lo demás.',
   'Ronda 2 — cada arquetipo ve lo que hicieron los demás. Con más evasores y la misma capacidad de inspección, la probabilidad de sanción baja.',
-  'Ronda 3 — la cascada. Menos riesgo induce más evasión, y eso vuelve a bajar el riesgo. Esta retroalimentación es lo que la proyección oficial no ve.'
+  'Ronda 3 — la cascada. Menos riesgo induce más evasión, y eso vuelve a bajar el riesgo. Esta retroalimentación es lo que el escenario sin adaptación no ve.'
 ];
 
 function pintarEstrategias() {

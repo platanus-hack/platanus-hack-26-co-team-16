@@ -19,9 +19,9 @@
 # Los dos secretos van con `sync: false`: Render los pide en el dashboard y NO
 # viven en el repo. La llave de Anthropic no se commitea nunca (.gitignore).
 #
-# OJO al mergear a main: `branch:` de abajo apunta a la rama de trabajo. Cuando
-# esto entre a main hay que cambiar los dos a `main` (o cambiar la rama en el
-# dashboard, que es lo mismo y no exige redeploy del Blueprint).
+# Los dos servicios apuntan a `main` (23-ago 07:00). El branch tambien se movio
+# a main en el dashboard de Render, que es lo que de verdad manda si los
+# servicios se crearon a mano y no desde el Blueprint.
 
 services:
   - name: enjambre-api
@@ -29,7 +29,7 @@ services:
     runtime: python
     plan: standard              # 1 CPU / 2 GB — ver docs/DEPLOY.md §costos
     region: virginia            # el más cercano a Colombia de los que ofrece Render
-    branch: rol/integracion-deploy
+    branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.servidor:app --host 0.0.0.0 --port $PORT
     autoDeployTrigger: commit
@@ -49,7 +49,7 @@ services:
     runtime: node
     plan: standard              # `next build` con three.js no cabe en 512 MB
     region: virginia
-    branch: rol/integracion-deploy
+    branch: main
     rootDir: web/enjambre
     # `--include=dev` NO es decorativo: Render define NODE_ENV=production, y con
     # eso `npm ci` se salta las devDependencies. `typescript` y los `@types/*`

@@ -20,7 +20,7 @@ en vivo. El mapa distributivo sector × tramo sigue pendiente.
 ## Qué va aquí
 
 Los cuatro elementos, en este orden:
-1. **Curva de la brecha** — proyección oficial (línea recta) vs cascada real, rondas 0→3. Es la imagen del pitch.
+1. **Curva de la brecha** — escenario sin adaptación (línea recta, ronda 0) vs corrida con adaptación, rondas 0→3. Es la imagen del pitch.
 2. **Slider de política** — 7 / 13,6 / 23% más el barrido fino precomputado que muestra el codo.
 3. **Mapa distributivo** — sector × tramo de ingreso, con bandas de incertidumbre.
 4. **Desglose de estrategias** por segmento, feed Realtime de decisiones, y 3-4 historias con cara.

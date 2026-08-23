@@ -81,8 +81,8 @@ export function Figura({
 /* ---------------------------------------------------------------- la brecha */
 
 /**
- * El dato A1 del proyecto: la distancia entre lo que la proyección oficial
- * asume (cumplimiento total, plana) y lo que sale de dejar decidir a los
+ * El dato A1 del proyecto: la distancia entre lo que el escenario sin
+ * adaptación asume (cumplimiento total, plana) y lo que sale de dejar decidir a los
  * agentes. El área sombreada ENTRE las dos líneas es literalmente la brecha.
  */
 export function GraficaBrecha({ rondas }: { rondas: RondaRegistrada[] }) {
@@ -112,9 +112,9 @@ export function GraficaBrecha({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="la brecha · proyección oficial contra lo que pasa"
+      titulo="la brecha · escenario sin adaptación contra lo que pasa"
       alto={alto}
-      lee={`La línea punteada es lo que el modelo oficial asume: que todo el mundo cumple, para siempre. La línea llena es lo que resulta de dejar decidir a cada empresa con su propia caja. El área entre las dos es la brecha — ${brechaPp
+      lee={`La línea punteada es la ronda 0 de este modelo: el escenario en que nadie se adapta y todo el mundo cumple, para siempre. No es una proyección del gobierno, es nuestro punto de partida. La línea llena es lo que resulta de dejar decidir a cada empresa con su propia caja. El área entre las dos es la brecha — ${brechaPp
         .toFixed(2)
         .replace(".", ",")} pp al cierre del horizonte.`}
     >
@@ -229,6 +229,15 @@ export function GraficaCascada({ rondas }: { rondas: RondaRegistrada[] }) {
  * El dato A3: la política no cae parejo. Barras por sector, ordenadas por
  * cuántos puntos porcentuales se movió su informalidad, con el tamaño de la
  * población afectada al lado. Es la figura que contesta "¿y a quién?".
+ *
+ * B1 · LO QUE ESTA FIGURA NO ES: un mapa de capacidad de pago. El margen sobre
+ * nómina es uniforme (`MARGEN_SOBRE_NOMINA = 0.18`, data/construir_empresas.py:70)
+ * para las 81 celdas y la GEIH no lo observa — lo dice el propio archivo. En el
+ * veto, salario y tamaño se cancelan algebraicamente. Así que lo que este orden
+ * mide es CARGA LEGAL ESTATUTARIA, y correlaciona ~0,94 con el `share_formal` de
+ * entrada: en buena parte es un re-dibujo del insumo. Lo único con fuente legal
+ * real detrás es el costo de despido del CST, que el veto sí cobra. La nota va
+ * también en el `lee` para que la lea quien no abre el código.
  */
 export function GraficaDistributiva({
   arquetipos,
@@ -273,7 +282,7 @@ export function GraficaDistributiva({
       alto={alto}
       lee={`El alza no cae parejo. ${nombreSector(peor.sector)} se lleva el golpe más fuerte: ${peor.delta
         .toFixed(2)
-        .replace(".", ",")} pp sobre ${miles(peor.peso)} trabajadores. Un promedio de ciudad esconde exactamente esto.`}
+        .replace(".", ",")} pp sobre ${miles(peor.peso)} trabajadores. Un promedio de ciudad esconde exactamente esto. — De qué está hecha esta diferencia: es un ranking de CARGA LEGAL ESTATUTARIA (sobrecosto prestacional + costo de despido del CST), no un mapa de capacidad de pago. El margen sobre nómina es uniforme (0,18) para las 81 celdas y no está observado en la GEIH (data/construir_empresas.py:70), y en el veto el salario y el tamaño se cancelan algebraicamente. Lo que sí tiene fuente legal real detrás —y es lo que ordena estas barras— es el costo de despido del CST.`}
     >
       {filas.map((f, i) => {
         const y = 16 + i * 26;
@@ -444,7 +453,7 @@ export function GraficaEmpleo({ rondas }: { rondas: RondaRegistrada[] }) {
         .toFixed(2)
         .replace(".", ",")}%, pero la masa laboral —empleo × jornada— cae ${perdidaIng
         .toFixed(2)
-        .replace(".", ",")}%. La diferencia es gente que conserva el puesto con menos horas: el modelo oficial no ve esa pérdida porque no mira la jornada.`}
+        .replace(".", ",")}%. La diferencia es gente que conserva el puesto con menos horas: el escenario sin adaptación no ve esa pérdida porque no mira la jornada.`}
     >
       {[hi, (hi + lo) / 2, lo].map((v, i) => (
         <g key={i}>

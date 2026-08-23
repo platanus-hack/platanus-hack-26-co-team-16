@@ -96,7 +96,7 @@ export function titular(rondas: EventoRonda[]): Titular | null {
     // signo al revés— y la burbuja no alcanza a mostrar el kicker «medio
     // ficticio», así que el titular se leía como una afirmación del proyecto.
     // Ahora dice de quién es la proyección y contra qué se mide.
-    titulo = `La simulación proyecta ${pp(brecha)} más de informalidad que el escenario de cumplimiento total`;
+    titulo = `La simulación proyecta ${pp(brecha)} más de informalidad que el escenario sin adaptación`;
   } else if ((1 - c.empleo_relativo) > 0.02) {
     titulo = `El costo se paga en puestos: ${pct(1 - c.empleo_relativo)} del empleo ya no está`;
   } else {
