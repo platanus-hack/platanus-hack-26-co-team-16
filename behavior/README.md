@@ -223,6 +223,13 @@ candado 4.
 
 ## Costo — medido, no estimado
 
+> **El modelo de la masa ya no es Haiku.** Desde el 23-08-2026 `MODELO_MASA` es
+> `claude-sonnet-5`. La tabla de abajo se conserva tal cual porque es una
+> medición fechada, no una estimación — pero los costos de una corrida nueva son
+> otros. Medido con Sonnet 5 sobre la grilla real de 81 arquetipos: 94 llamadas,
+> **USD 1,26**, 2 min 46 s. Sonnet cuesta 3x por token y responde más largo, así
+> que `max_tokens` subió de 1024 a 2048 (ver `cliente.py`).
+
 48 arquetipos × 4 rondas = **193 llamadas** por corrida. Medido contra la API
 real el 22-08-2026 con `claude-haiku-4-5`:
 

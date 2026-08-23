@@ -99,7 +99,7 @@ classDiagram
 
     class CapaConductual {
         <<LLM por arquetipo, no por agente>>
-        +modelo_masa: "haiku"
+        +modelo_masa: "sonnet"
         +modelo_narrativa: "modelo grande"
         +cache_disco: HashCache
         +presupuesto_tope_usd: float
