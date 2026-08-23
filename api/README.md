@@ -18,7 +18,7 @@ make servidor          # equivale a: uvicorn api.servidor:app --port 8000
 Eventos del flujo, en orden: `inicio` → (`decision`\*, `ronda`)\* → `fin` \| `error`.
 
 - `decision` sale de la costura `al_decidir_arquetipo` de `behavior/rondas.py`: una celda acaba de decidir, en orden de terminación real. Trae su familia canónica, su `justificacion` y las razones de veto.
-- `ronda` sale de `al_terminar_ronda`. Lleva `contracts/ronda.json` **intacto** bajo la llave `contrato`, y aparte el desglose de estrategias ponderado, el estado vivo por arquetipo y dos cifras derivadas (`masa_salarial_relativa`, `fraccion_bajo_minimo`) que `serializar.py` documenta con su `# SUPUESTO:`.
+- `ronda` sale de `al_terminar_ronda`. Lleva `contracts/ronda.json` **intacto** bajo la llave `contrato`, y aparte el desglose de estrategias ponderado, el estado vivo por arquetipo y tres cifras derivadas (`masa_salarial_relativa`, `masa_salarial_cop`, `fraccion_bajo_minimo`) que `serializar.py` documenta con su `# SUPUESTO:`. `masa_salarial_cop` son los pesos absolutos (COP/mes): el navegador los rearmaba por su cuenta multiplicando el índice relativo por una base que reconstruía desde `poblacion.arquetipos` (S2-8), o sea que la única cifra en pesos de la pantalla se calculaba fuera de esta capa. Es el mismo número —la diferencia medida es 1,6e-05, el redondeo del alambre— calculado donde se puede auditar.
 
 Cada ronda imprime en la terminal las cifras que el motor calculó, para poder
 contrastar contra lo que muestra la pantalla.

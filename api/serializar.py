@@ -124,10 +124,15 @@ def evento_decision(
     }
 
 
-def masa_salarial_relativa(
+def _masa_salarial(
     ronda: Ronda, arquetipos: list[Arquetipo], aumento_pct: float
-) -> float | None:
-    """Proxy de PIB: masa salarial de la ronda / masa salarial en reposo.
+) -> tuple[float, float] | None:
+    """(masa salarial de la ronda, masa salarial en reposo), las dos en COP/mes.
+
+    Devuelve las DOS de una sola pasada porque de acá salen las dos cifras que
+    ve la pantalla —el índice relativo y los pesos absolutos— y calcularlas por
+    separado es volver a abrir el hueco de S2-9: dos fuentes que cuadran por
+    casualidad hasta que alguien toca una.
 
     Derivable de campos reales: peso, fraccion_empleada, horas, salario mediano
     de la celda. # SUPUESTO: el alza se aplica solo al empleo FORMAL de las
@@ -135,6 +140,13 @@ def masa_salarial_relativa(
     (los ingresos están congelados; límite declarado en VALIDATION.md), así que
     el término de precio es aritmética sobre la política, no un resultado del
     motor. El empleo informal no recibe el alza por definición.
+
+    # SUPUESTO: `peso × ingreso_por_trabajador` se lee como COP/mes porque
+    `peso` es el factor de expansión GEIH (personas) y `ingreso_por_trabajador`
+    es el ingreso mensual mediano de la celda. La cifra cubre SOLO la grilla de
+    celdas empleadoras: no incluye cuenta propia, que es un tercio de los
+    ocupados de Bogotá y viaja aparte en el evento `poblacion`. Por eso su
+    nombre honesto es *proxy de PIB laboral* y no *PIB laboral*.
     """
     if not ronda.estado_por_arquetipo:
         return None
@@ -151,7 +163,31 @@ def masa_salarial_relativa(
         formal = 1.0 - e["fraccion_informal"]
         precio = 1.0 + alza * formal
         total += a.peso * e["fraccion_empleada"] * e["horas"] * a.ingreso_por_trabajador * precio
-    return total / base
+    return total, base
+
+
+def masa_salarial_relativa(
+    ronda: Ronda, arquetipos: list[Arquetipo], aumento_pct: float
+) -> float | None:
+    """Proxy de PIB: masa salarial de la ronda / masa salarial en reposo."""
+    m = _masa_salarial(ronda, arquetipos, aumento_pct)
+    return None if m is None else m[0] / m[1]
+
+
+def masa_salarial_cop(
+    ronda: Ronda, arquetipos: list[Arquetipo], aumento_pct: float
+) -> float | None:
+    """La misma masa salarial, en COP/mes absolutos. S2-8.
+
+    Existe para que el navegador no la calcule. Hasta hoy `web/` recomponía los
+    pesos multiplicando el índice relativo por una base que rearmaba él mismo
+    desde `poblacion.arquetipos`: la única cifra en pesos absolutos de la
+    pantalla —y la más citable en un pitch— nacía fuera de la capa que declara
+    "cero números inventados", sin `# SUPUESTO:` que la acompañara. Es el mismo
+    número, calculado donde se puede auditar.
+    """
+    m = _masa_salarial(ronda, arquetipos, aumento_pct)
+    return None if m is None else m[0]
 
 
 def fraccion_bajo_minimo(
@@ -204,6 +240,10 @@ def evento_ronda(
         },
         "masa_salarial_relativa": _redondear(
             masa_salarial_relativa(ronda, arquetipos, aumento_pct)
+        ),
+        # En COP/mes. Redondeado al peso: la pantalla lo muestra en billones.
+        "masa_salarial_cop": _redondear(
+            masa_salarial_cop(ronda, arquetipos, aumento_pct), 0
         ),
         "fraccion_bajo_minimo": _redondear(
             fraccion_bajo_minimo(ronda, arquetipos, aumento_pct)
