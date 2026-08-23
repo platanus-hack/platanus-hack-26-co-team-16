@@ -6,6 +6,7 @@ Todo lo que un agente o una persona necesita para trabajar en este repo está ac
 
 | Documento | Qué es | Cuándo leerlo |
 |---|---|---|
+| [`vet/`](vet/) | 🔴 **LO MÁS RECIENTE (22-ago 23:00).** El vet completo de `main`, las decisiones que salieron de él, el guion de la demo en 3 pasos y **el prompt de arranque de cada track**. Manda sobre cualquier plan anterior en cuanto al **reparto de trabajo**; no manda sobre el producto ni sobre la validación | **Primero, antes que nada, si abres el repo después del 22-ago 22:00** |
 | [`EXPLICACION-SIMPLE.md`](EXPLICACION-SIMPLE.md) | **Todo el proyecto sin jerga**, en dos partes: la promesa y el producto · por qué está bien construido. Para explicárselo a alguien que llega de cero, y para ensayar el pitch. | Si es tu primer contacto con el proyecto |
 | [`IDEA.md`](IDEA.md) | **La espina dorsal.** La idea completa y llenada: las 5 W y la H, propuesta de valor, la anatomía de la simulación (estado del mundo, actores, Δt, palanca, métricas), el flujo punta a punta y lo que NO es. Si solo vas a leer un documento del repo, es este. | Antes que `PLAN.md` si estás llegando |
 | [`PLAN.md`](PLAN.md) | **La fuente de verdad del producto.** Qué se construye, decisiones D1-D10, arquitectura, validación, cronograma, lo que NO se construye. | Antes de escribir cualquier línea de código |
