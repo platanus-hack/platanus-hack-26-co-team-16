@@ -9,6 +9,63 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-23 (sesión del track de backend) — los 3 puntos del track cerrados: `rondas_totales`,
+  la perilla del seed y la banda entre trayectorias. Rama `rol/backend`, commits `9167811` y `8b39b4d`.**
+
+  **S2-9 · `rondas_totales` con fuente única.** Había dos fuentes que cuadraban por casualidad
+  (el literal `4` de `serializar.evento_poblacion` y el default de `behavior.rondas.correr`, al que
+  la API nunca le pasaba nada) más un tercer default en el front (`?? 4`). Ahora `RONDAS_TOTALES`
+  se declara una vez en `api/servidor.py`, donde ya viven los demás parámetros de la corrida, y
+  alimenta los dos lados. `evento_poblacion` lo recibe **keyword-only**: el literal ya no puede
+  volver por construcción, no por disciplina.
+  *Verificado moviendo la constante y contando las rondas que el motor emite:* `=4` → el evento
+  dice 4 y el motor corre `[0,1,2,3]`; `=3` → dice 3 y corre `[0,1,2]`. Antes el evento decía 4
+  pasara lo que pasara. No le escribí test: un test que compara dos números que ahora salen del
+  mismo lugar no puede fallar nunca.
+
+  **S1-4 · la perilla del seed, rotulada y no quitada.** Medido antes de afirmar nada:
+  `modo=reglas`, seed 42 contra 99, las 4 rondas comparadas campo por campo quitando la etiqueta →
+  **trayectorias idénticas, 31,01% en las dos**. Y en el camino del LLM es estructural, más fuerte
+  que la medición: `capa.renderizar()` **no recibe seed** en su firma, así que el prompt no lo lleva,
+  y `cache.clave()` hashea el prompt, así que dos semillas son dos aciertos de caché iguales.
+  Hallazgo de paso: **`engine/seed.py` no lo importa nadie** fuera de su propio test — el módulo con
+  los streams derivados por clave existe y el producto no lo usa; el propio archivo lo confiesa en su
+  encabezado y nadie lo había cruzado con la perilla que la API expone.
+  No se quitó porque el front ya la manda y `web/` no es de este rol. Quedó rotulada en los tres
+  sitios donde alguien la mira: `SEED_EFECTO` en el servidor, el `description` del Query (sale en
+  `/openapi.json`, que sí está servido aunque la UI de docs esté apagada) y `seed_efecto` en el
+  evento `inicio`. **Mandé el enum, no la copia:** si la API manda prosa, la prosa y el hecho quedan
+  en dos lados que se desincronizan, que es justo el bug de S2-9. El día que el seed elija las N
+  paráfrasis, `SEED_EFECTO` pasa a `"trayectoria"` y es la única línea que cambia.
+
+  **S1-7 · la banda honesta, con un marco más fuerte que el del vet.** No es que a la API "le
+  faltara" la banda: **`contracts/ronda.json` YA declara `banda.tipo = "entre_trayectorias"`**, así
+  que la API estaba **fuera de su propio contrato**, publicando la intra-ronda (0,0 pp) donde el
+  contrato promete la de entre trayectorias (22,5 pp). `api/trayectorias.py` corre N trayectorias
+  completas, cada una casada con una paráfrasis distinta desde la ronda 1, y las consolida con
+  `behavior.rondas.consolidar_trayectorias()` — que ya existía y **no la llamaba nadie desde el
+  producto**. Sale la MEDIANA, no la media: la mediana es una trayectoria que de verdad ocurrió.
+  Por eso las rondas salen todas al final (cuál es la mediana no se sabe hasta que las N cierran).
+  Decisión de Mani entre tres formas de transmitir; quedó "mediana al final".
+  *Cuesta lo mismo que la alternativa mala:* 31 celdas × 3 rondas = 93 llamadas por trayectoria,
+  **465 con N=5, exactamente lo que costaría `n_parafrasis=5`** en una sola trayectoria para comprar
+  la banda angosta. El tope de gasto es UNO para toda la corrida; si corta, `trayectorias_efectivas`
+  lo declara en el evento `fin`.
+
+  **Lo que aprendí probando, que valió más que el código.** Dos fixtures fallaron antes de que uno
+  funcionara, y los dos fallos son hallazgos:
+  1. Forzar `informalizar_total` no abre la banda: el veto lo tumba y todas caen al mismo fallback.
+  2. Entrar por el factor prestacional tampoco: **entre 1,30 y 1,70 cambian 0 de 81 decisiones** de
+     la ablación (con p(sanción)=1,6% y multa=1e6). `costo_formal` y `costo_informal` están tan
+     separados que el factor nunca voltea la comparación.
+  El que funcionó es un cliente falso que decide según la redacción: 5 trayectorias distintas,
+  **banda de 8,99 pp**, mediana publicada = la trayectoria 2, una de las 5 que ocurrieron. Ese 8,99
+  **no es un resultado del proyecto** y así está declarado en el encabezado del test.
+  Quedó en `api/test_trayectorias.py`, 5 tests, $0 y sin red. El que importa es el de la paráfrasis:
+  **si el parche dejara de llegar hasta la decisión, nada reventaría** — las N darían el mismo
+  número, la banda saldría de ancho 0, y eso en pantalla se lee como "el modelo es muy preciso",
+  que es la conclusión contraria a la verdadera.
+
 - **2026-08-22 23:00 (sesión del vet) — el vet completo de `main`, y el reparto en 5 tracks. Mergeado en PR #17.**
   - **Lo que hice:** tres auditorías de solo lectura sobre `c63343f` (conductual, pantalla, datos+validación),
     reverificadas contra `b180d51`. Once componentes decididos uno por uno. Todo quedó en
@@ -252,6 +309,15 @@ documentan como trabajo futuro con honestidad:
       (`capa.veto_permisivo` y `demo.veto_doble_prueba`) y enchufar `veto_del_motor`.
 - [ ] Si sobra tiempo, el cuarto archivo es `arquetipos.py`: sin `muestrear()` Dani no
       puede dibujar el mapa distributivo. La plomería de seed ya está.
+- [x] **Track del vet, los 3 puntos** (`rondas_totales`, seed, banda). Commits `9167811`, `8b39b4d`.
+- [ ] **PR de `rol/backend` a `main`, marcado BLOQUEADO por S1-1.** No se mergea antes que Nico.
+- [ ] **S2-8** — el "$X billones/mes · proxy de PIB laboral" se calcula en el navegador
+      (`Metricas.tsx:27,45`), fuera de la capa que declara "cero números inventados". Es la única
+      cifra en pesos absolutos de la pantalla y la más citable en un pitch. Va a `serializar.py`
+      con su `# SUPUESTO:`. Coordinar con Dani.
+- [ ] **V-1** — cuando Nico mida el costo real con caché fría, decidir si `tope_usd` (hoy 3.0,
+      `servidor.py`) alcanza para 465 llamadas. Con criterio, no a ojo.
+- [ ] Correr el verificador del track: prompt 16 re-apuntado + `juez-hackathon`.
 
 ## Cuatro compromisos que ya tomé por escrito, en público
 
@@ -265,7 +331,39 @@ los contradice, el que está mal es el motor.
 | 3 | **El muestreo vive en `engine/`** con la firma de `MODELO.md`: `muestrear(arq, n, rng)`. El de `behavior/arquetipos.py` se borra o se renombra, para que no haya dos con el mismo nombre y semillas distintas | `arquetipos.py` (mío) |
 | 4 | **`C`, `0.18` y `1.5` son míos.** `C` sale de la OIT (1.300 inspectores) vía el supuesto S2; los otros dos de V3. En `behavior/` quedan con `# SUPUESTO:` hasta que el motor los provea | `mundo.py`, `costos.py` |
 
+## Hallazgos de esta sesión que son de OTRA carpeta
+
+**Ninguno lo toqué.** Están medidos, con archivo y línea, listos para que su dueño decida.
+
+| # | Hallazgo | De quién | Por qué importa |
+|---|---|---|---|
+| 1 | 🔴 **S1-1 bloquea DOS tracks, no uno.** `Ronda.a_contrato()` (`behavior/rondas.py:119`) redondea todo lo no-booleano y la banda honesta lleva `tipo`, que es string. Hoy no revienta solo porque la banda degenerada omite `tipo` | Nico | Es **la única línea** entre el producto y su propio contrato. Verificado en los dos sentidos: con `trayectorias=5` la corrida muere con `TypeError: type str doesn't define __round__`; con el fix simulado en memoria el flujo cierra limpio (`inicio · 5 trayectoria · 1215 decision · 4 ronda · fin`) |
+| 2 | 🔴 **La banda solo cubre UNA de las cinco métricas publicadas.** `banda_entre_trayectorias()` calcula percentiles solo sobre `tasa_informalidad`. Medido entre 5 trayectorias: `ingreso_laboral_relativo` se mueve **10,23 pp** y sale a pantalla como número pelado — más que la banda que sí publicamos (8,99 pp) | Nico | Publicar banda sobre una métrica y las otras cuatro peladas es **peor que no publicar ninguna**: le enseña al lector que las que no la llevan son ciertas |
+| 3 | 🟠 **`p10`/`p90` son el mínimo y el máximo hasta N=8.** Verificado corriendo `_percentiles` con N=3,5,9,11,21: solo desde **N=9** se vuelven percentiles interiores | Juanda (pitch) y Dani (copy) | Con N=5 una sola trayectoria rara define todo el borde. Decir "p10-p90" en pantalla es mentir levemente; decir "rango entre las 5 corridas" es exacto |
+| 4 | 🟠 **`degenerada: False` en una banda de ancho cero.** `_percentiles` la marca no-degenerada en cuanto hay 2+ valores, aunque sean todos iguales | Nico | `degenerada` es justo la bandera con la que el front decidiría si dibujar la banda. En `modo=reglas` publica un ancho cero rotulado como real |
+| 5 | 🟠 **La ablación es insensible al factor prestacional.** Entre 1,30 y 1,70 cambian **0 de 81** decisiones (p(sanción)=1,6%, multa=1e6): `costo_formal` y `costo_informal` están tan separados que el factor nunca voltea la comparación | Nico / Juanda | `barrer_factor()` (`behavior/ablacion.py:153`) dice medir *"la sensibilidad del candado 4"*. **Pregunta abierta, no defecto afirmado:** no verifiqué con qué multa corre ese barrido. Si corre con estos parámetros, no está midiendo nada |
+| 6 | 🟢 **`engine/seed.py` no lo importa nadie** fuera de su propio test | mío, declarado | El módulo de determinismo existe y el producto no lo usa. Es coherente con que la perilla sea decorativa, pero conviene decirlo antes de que lo encuentre un juez |
+
+**Para Dani, tres cosas que le cambian el trabajo:**
+1. 🔴 **Que NO haga S2-2 (`parafrasis=5`).** Cuesta las mismas 465 llamadas y compra la banda
+   **angosta**. Con `trayectorias=5` compra la honesta. Mismo dinero, distinta verdad.
+2. Las rondas **ya no llegan en vivo**: llegan las 4 juntas al final, y son las de la mediana.
+   Mientras se calcula llegan `decision` (con campo `trayectoria`) y un evento nuevo `trayectoria`
+   `{indice, de}`. Su cola de rondas pendientes (S2-5) encaja perfecto con esto.
+3. `inicio` trae `seed_efecto`. Con `"etiqueta"` la frase en pantalla es *"la semilla rotula la
+   corrida; hoy no cambia ninguna decisión"*. Va en el mismo panel que `modo` (su S2-1).
+
+**Y una recomendación de diseño que le paso, no le impongo:** con N=5 no hay estadística que
+agregar, hay puntos que mostrar. Una desviación estándar o un IQR sobre 5 datos tiene más error que
+la cosa que describe. Lo correcto es **dibujar las 5 trayectorias** y resaltar la mediana. Es un
+dot plot, no un box plot.
+
 ## Bloqueado / esperando a alguien
+
+> 🔴 **2026-08-23 — el PR de `rol/backend` está BLOQUEADO por S1-1 de Nico.** Es una línea en
+> `behavior/rondas.py:119` (redondear solo lo que es número). Sin eso, `trayectorias=5` revienta la
+> corrida entera. Mergear en orden: primero el suyo, después el mío.
+
 
 **Nada me bloquea para escribir el motor.** El contrato ya está congelado en `main`
 (`contracts/decision.json` + la forma del `Protocol Veto`), y los cuatro puntos de arriba los
