@@ -145,9 +145,17 @@ export default function Reporte() {
   }, [registro, poblacion]);
 
   // Lo que decidió cada empresa en ESTA corrida. El almacén ya lo trae entero;
-  // acá solo se cuenta. En modo reglas la justificación es una cadena fija
-  // («regla fija: costo formal … vs costo informal …»), que no es una frase que
-  // valga la pena citar: por eso se filtra por forma, no por modo.
+  // acá solo se cuenta.
+  //
+  // El filtro de abajo no es cosmético. `justificacion` trae DOS cosas
+  // distintas por el mismo campo: la razón que escribió la empresa, y el
+  // diagnóstico que arma el motor cuando ninguna propuesta pasó («sin ninguna
+  // opción factible tras 3 propuestas vetadas: el sobrecosto del periodo es …»,
+  // con la misma cláusula repetida una vez por intento). Lo segundo no es una
+  // razón: es la máquina hablando de sí misma, y citarlo era exactamente el
+  // defecto que este reporte vino a corregir. Se descarta por prefijo conocido
+  // y por repetición literal — un blob repetido contiene su propio arranque más
+  // de una vez, y ninguna frase escrita por alguien hace eso.
   const queDecidieron = useMemo(() => {
     if (!decisiones.length) return null;
     const porFamilia = new Map<string, number>();
@@ -155,15 +163,25 @@ export default function Reporte() {
       const k = d.dominante ?? "otra";
       porFamilia.set(k, (porFamilia.get(k) ?? 0) + 1);
     }
-    const citables = decisiones
-      .map((d) => d.justificacion?.trim() ?? "")
-      .filter((j) => j.length > 90 && !j.startsWith("regla fija:") && !j.startsWith("tentativa"));
-    const mencionan = (re: RegExp) => citables.filter((j) => re.test(j)).length;
+    // Los prefijos son literales de `behavior/contrato.py:196-205` y
+    // `behavior/ablacion.py:155`, no heurística: es exactamente el texto que
+    // arma el motor cuando la empresa no escribió nada.
+    const MAQUINA =
+      /^(regla fija:|tentativa de fallback|fallback tras \d+ propuestas vetadas|sin ninguna opción factible|sin razones registradas)/i;
+    const esProsa = (j: string) => {
+      if (j.length < 90 || j.length > 700 || MAQUINA.test(j)) return false;
+      // El motor pega hasta 3 razones de veto con «; », y suelen ser la misma
+      // frase repetida. Nadie escribe así.
+      const partes = j.split("; ");
+      return new Set(partes).size === partes.length;
+    };
+    const prosa = decisiones.map((d) => d.justificacion?.trim() ?? "").filter(esProsa);
+    const mencionan = (re: RegExp) => prosa.filter((j) => re.test(j)).length;
     return {
       total: decisiones.length,
       reparto: [...porFamilia.entries()].sort((a, b) => b[1] - a[1]),
-      citas: [...new Set(citables)].sort((a, b) => b.length - a.length).slice(0, 2),
-      nCitables: citables.length,
+      citas: [...new Set(prosa)].sort((a, b) => b.length - a.length).slice(0, 2),
+      nCitables: prosa.length,
       caja: mencionan(/caja|liquidez|flujo/i),
       despido: mencionan(/despid|indemniz/i),
     };
@@ -300,8 +318,9 @@ export default function Reporte() {
         {queDecidieron && (
           <>
             <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tinta-suave)" }}>
-              En esta corrida se tomaron <strong>{queDecidieron.total} decisiones</strong>. Cada una
-              es un grupo de empresas del mismo sector y tamaño escogiendo qué hacer con el alza:
+              Se tomaron <strong>{miles(queDecidieron.total)} decisiones</strong> en total
+              {nCorridas != null && nCorridas > 1 && ` — la ciudad se corrió ${nCorridas} veces`}. Cada
+              una es un grupo de empresas del mismo sector y tamaño escogiendo qué hacer con el alza:
             </p>
             <ul
               style={{
@@ -325,7 +344,7 @@ export default function Reporte() {
             {queDecidieron.citas.length > 0 ? (
               <>
                 <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tinta-suave)", marginTop: 16 }}>
-                  Y estas son razones que dieron, textuales:
+                  Y estas son razones que escribieron, textuales:
                 </p>
                 <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
                   {queDecidieron.citas.map((c, i) => (
@@ -347,7 +366,7 @@ export default function Reporte() {
                 </ul>
                 {queDecidieron.caja > 0 && (
                   <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tinta-suave)", marginTop: 10 }}>
-                    De las {queDecidieron.nCitables} razones que la corrida escribió,{" "}
+                    De las {miles(queDecidieron.nCitables)} razones escritas en esta corrida,{" "}
                     <strong style={{ color: "var(--tinta)" }}>{queDecidieron.caja}</strong> deciden
                     mirando la caja disponible
                     {queDecidieron.despido > 0 && (
