@@ -9,6 +9,36 @@
 
 _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber tu próxima sesión para no arrancar de cero._
 
+- 2026-08-22 (8ª sesión) — **El benchmark existe, corrió, y el modelo está refutado. Mergeado en PR #13 y #14.**
+  - **El hallazgo que lo destrabó todo:** la política del caso demo **ya ocurrió**. El decreto 1469/2025
+    rige desde el 1-ene-2026 y la GEIH 2026 ene–jun que ya estaba en disco es *posterior*. El modelo no
+    necesitaba esperar nada para ser puntuado; solo faltaba bajar GEIH 2025 (catálogo 853) para tener el
+    punto de partida. Eso hice, con el mismo script y sin tocar la lógica — que es lo que hace válida la
+    comparación.
+  - **EL NÚMERO:** `error 37,37 pp` · `skill vs persistencia −8,182` · `cobertura del rango 0`.
+    Proxy 2025 ene–jun **34,64%** → 2026 ene–jun **30,57%** = **−4,07 pp observado**, contra **+33,3 pp
+    predichos**. Signo contrario y un orden de magnitud. El observado cae fuera del propio rango del modelo.
+  - **No es artefacto del proxy:** el DANE oficial da 35,6% → 33,3% en abr–jun (−2,3 pp), leído de los dos
+    boletines PDF. Otra definición, otro trimestre, misma dirección. Y el pico salarial se movió solo de
+    1.420.000 a 1.750.000 siguiendo al mínimo de cada año: el pipeline lee la realidad.
+  - **Lo que hace que el número valga: el pre-registro.** El criterio se commiteó en `2d4aa7e` con los datos
+    de 2025 todavía sin bajar. Ningún umbral se movió y el bloque de las dos ramas es verificable byte a byte.
+    **Si tocas `VALIDATION.md`, no reescribas ese bloque: cópialo.** Ya me pasó y quedó un falso positivo.
+  - **Cuatro defectos que el benchmark destapó**, todos arreglados y en `main`:
+    (1) el objetivo de calibración citaba el dato **nacional** (54,5%) para un modelo de Bogotá (33,3%);
+    (2) la **ronda 0 está mal etiquetada** — se llama "proyección oficial" pero arranca del observado
+    post-política, así que el punto de partida y el objetivo eran el mismo dato;
+    (3) `make validate` **no reproducía el número en un clon limpio** (exigía los crudos gitignorados;
+    funcionaba solo en mi máquina). Ahora sale de los momentos versionados, verificado clonando de GitHub;
+    (4) el proxy no es la definición del DANE (−2,1 pp) y **no se puede reproducir la oficial**: `P3045S1`
+    solo se le pregunta a los asalariados y los 2.315 independientes la tienen vacía.
+  - **Lo que dejé y no es código:** el repo se contradice. `VALIDATION.md` dice falsada mientras
+    `behavior/README.md`, `docs/PLAN.md` §1.1, `docs/IDEA.md`, `README.md` y `AGENTS.md` siguen vendiendo la
+    cascada como hallazgo. Está la lista con línea exacta en el PR #14. **Cruza dueños: va al grupo.**
+  - **Regla que salvó trabajo ajeno:** `main` había avanzado 4 commits (PR #12) mientras yo trabajaba. Hice el
+    merge tomando **su** `VALIDATION.md` como base y montando lo mío encima. Al revés habría borrado su tabla
+    de direcciones de sesgo y su propio arreglo del objetivo de calibración.
+
 - 2026-08-22 (7ª sesión) — **`main` consolidado: los 5 PR abiertos mergeados. Cero abiertos.**
   - **Por qué se hizo:** el equipo quería replanificar sobre una base única en vez de razonar
     sobre cuatro ramas divergentes. El merge no fue la entrega: fue el prerequisito para
