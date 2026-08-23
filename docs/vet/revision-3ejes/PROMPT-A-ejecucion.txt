@@ -1,0 +1,97 @@
+# MÁQUINA A · EJECUCIÓN — lo lanza quien NO sea dueño de engine/ ni behavior/
+# Comando: /juez-tecnico  (y pega todo lo de abajo como argumento)
+
+=== DÓNDE PARARTE — solo lectura, sin rama ===
+Corre esto antes de empezar:
+    git fetch origin && git checkout main && git pull --ff-only
+    git rev-parse --short HEAD    # tiene que decir 9cbd6f2
+
+NO CREES RAMA. Esta revisión no escribe una sola línea de código. Las tres revisiones miden
+el MISMO árbol (9cbd6f2) para que los tres informes se puedan fusionar. Si tu HEAD dice otra
+cosa, avisa en el grupo antes de seguir.
+Los arreglos que salgan de tu informe los hace después el DUEÑO de cada carpeta, en su rama
+de rol. Tú no.
+
+=== LA ESPINA — el problema que el proyecto dice resolver ===
+(No la discutas. Es la vara. Tu trabajo es medir tu capa contra esto.)
+
+QUIÉN TIENE EL PROBLEMA: quien firma un decreto de salario mínimo.
+Hoy la proyección oficial SUPONE que la política se cumple. Ese supuesto no se mide,
+se asume. La informalidad se conoce un año después, por encuesta, cuando ya no hay nada
+que decidir. No existe forma ex-ante de decir QUIÉN no va a poder pagarlo.
+
+QUÉ PRODUCE ESTA SIMULACIÓN QUE NO SE CONSIGUE DE OTRA FORMA:
+un mapa ex-ante de quién absorbe el costo, MÁS el número de qué tan equivocado está ese mapa.
+  1. EL MAPA. 81 celdas de empleador reconstruidas de los microdatos de la GEIH (DANE),
+     cada una con su caja mensual y su costo de despido sacado del Código Sustantivo del
+     Trabajo. Un LLM propone cómo adaptarse en un espacio ABIERTO; un árbitro determinista
+     veta lo que la aritmética no aguanta. Sin caja para indemnizar no puedes despedir.
+  2. EL ERROR. El criterio de éxito se escribió y se commiteó ANTES de bajar los datos con
+     los que se iba a juzgar. Salió mal y se publicó igual: 37,37 pp de error, signo
+     contrario. La persistencia tonta ("el año que viene igual que este") gana 8 veces.
+
+POR QUÉ EL ERROR ES EL PRODUCTO Y NO LA VERGÜENZA: todo simulador de política pública
+entrega un número; ninguno entrega qué tan equivocado está. Por eso se usan como retórica
+y no como instrumento. Este entrega los dos, y lo primero que hizo fue refutar su propio
+mecanismo estrella.
+
+DATO DURO QUE NO SE DISCUTE: la cascada agregada está FALSADA por el propio backtest del
+equipo (VALIDATION.md). Sigue siendo el MECANISMO del modelo, nunca un hallazgo ni un
+resultado. Si encuentras texto, gráfica o animación que la afirme como resultado, eso ES
+un hallazgo tuyo.
+
+=== TU PREGUNTA ÚNICA ===
+¿La simulación que corre de verdad, HOY, en main, hace lo que la espina dice que hace?
+
+No evalúes calidad de código en abstracto. No le creas a ningún README: camina el camino de
+datos con tus propias manos.
+
+1. DE UN CLIC EN "SIMULAR" AL NÚMERO EN PANTALLA. Traza la cadena real:
+   web/ -> api/servidor.py -> engine/ -> behavior/rondas.py -> api/serializar.py -> vuelta.
+   Dónde hay valor precomputado, dónde hay cacheado que se presenta como calculado, y dónde
+   hay un fallback que se dibuja igual que un resultado real.
+2. EL VETO (engine/veto.py). ¿Veta de verdad contra la caja, o hay caminos donde la propuesta
+   del LLM pasa sin pelear? Mide fraccion_fallback y sin_salida en una corrida real.
+3. EL DETERMINISMO. Corre `make run` dos veces con el mismo seed y haz diff de la salida.
+   Si no es idéntica, ese es el hallazgo #1 y todo lo demás pasa a segundo lugar.
+4. LA BANDA. AGENTS.md la declara no-negociable y el vet dice que n_parafrasis>=2 reventaba
+   (behavior/rondas.py:120). Verifica CORRIÉNDOLO, no leyendo el commit que dice que se arregló.
+5. LAS ESTRATEGIAS MUERTAS. DEFECTOS.md §1.1 dice que varias estrategias no mueven ningún
+   número. Cuenta cuántas siguen así. Una estrategia que el LLM propone y que no cambia nada
+   es una demo que le miente al espectador.
+6. LA HIGIENE (behavior/higiene.py). Promete fail-closed y 31 patrones. Corre el test. El
+   pitch la llama "la mitad del argumento de validación", así que tiene que aguantar que la
+   corran en vivo.
+
+Contexto que ya se sabe y no hay que redescubrir: docs/vet/00-hallazgos.md tiene 5 rojos y
+14 naranjas del vet de anoche. Úsalo como piso, no lo repitas. Tu valor está en lo que ESE
+vet no vio o en lo que dijo que se arregló y no se arregló.
+
+=== REGLA DE ESCRITURA — obligatoria en todo el informe ===
+Escribes para tres personas con sueño a las 4 de la mañana que tienen que decidir rápido.
+- Cada hallazgo ABRE con UNA frase en cristiano, como se la explicarías a un niño de 5 años.
+  Después viene la evidencia técnica. Primero el qué pasa, después el por qué.
+- Cada uno de LOS 3 ARREGLOS trae una línea "SI NO LO ARREGLAMOS: ..." en palabras simples,
+  diciendo qué se ve mal en la demo o qué pregunta nos hunde.
+- Viñetas, no párrafos. Si una frase hay que releerla, está mal escrita.
+- Simple NO significa impreciso. Simple y correcto, las dos. Nada de metáforas que mientan.
+
+=== REGLAS DE LA REVISIÓN ===
+- ASUME QUE EL PROYECTO SE ESTÁ RECORTANDO. Nombrar qué se borra es parte del trabajo.
+  Una revisión sin lista de recortes es una revisión que no se hizo.
+- EVIDENCIA O NO EXISTE. Cada afirmación con archivo:línea, cifra de corrida, o comando.
+  Marca cada hallazgo como [VERIFICADO] (lo corriste o lo leíste) o [SOSPECHA] (te huele).
+- PROHIBIDO EL ELOGIO. Nada de "el proyecto está sólido". Gasta el turno y no aporta.
+- NO EDITES NADA. Cada carpeta tiene dueño. Tu informe es un reclamo con fecha, no una decisión.
+- CAJA DE TIEMPO: 25 minutos. Si no alcanzas, entrega incompleto pero entrega. El congelamiento
+  del repo es a las 09:30 y un informe tarde vale cero.
+
+=== FORMATO DE SALIDA — exactamente estos cinco bloques, en este orden, y nada más ===
+1. MENTIRAS — donde tu capa afirma algo que la espina no sostiene. Con archivo:línea.
+   Ordenadas por qué tan rápido lo encuentra un juez con un agente.
+2. HUÉRFANOS — lo que existe y no sirve a ningún paso de la espina. Candidato a salir de la
+   DEMO (no del repo).
+3. FALTANTES — lo que la espina promete y tu capa no entrega.
+4. LOS 3 ARREGLOS — máximo tres. Cada uno: carpeta dueña · minutos estimados · cómo se
+   verifica que quedó · la línea "SI NO LO ARREGLAMOS".
+5. LA PREGUNTA QUE NOS HUNDE — la única pregunta de tu capa que hoy no podemos contestar.

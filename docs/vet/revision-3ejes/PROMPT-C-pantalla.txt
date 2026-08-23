@@ -1,0 +1,104 @@
+# MÁQUINA C · PANTALLA — lo lanza quien NO sea dueño de web/
+# Comando: /juez  (juez-hackathon, y pega todo lo de abajo como argumento)
+
+=== DÓNDE PARARTE — solo lectura, sin rama ===
+Corre esto antes de empezar:
+    git fetch origin && git checkout main && git pull --ff-only
+    git rev-parse --short HEAD    # tiene que decir 9cbd6f2
+
+NO CREES RAMA. Esta revisión no escribe una sola línea de código. Las tres revisiones miden
+el MISMO árbol (9cbd6f2) para que los tres informes se puedan fusionar. Si tu HEAD dice otra
+cosa, avisa en el grupo antes de seguir.
+Los arreglos que salgan de tu informe los hace después el DUEÑO de cada carpeta, en su rama
+de rol. Tú no.
+
+=== LA ESPINA — el problema que el proyecto dice resolver ===
+(No la discutas. Es la vara. Tu trabajo es medir tu capa contra esto.)
+
+QUIÉN TIENE EL PROBLEMA: quien firma un decreto de salario mínimo.
+Hoy la proyección oficial SUPONE que la política se cumple. Ese supuesto no se mide,
+se asume. La informalidad se conoce un año después, por encuesta, cuando ya no hay nada
+que decidir. No existe forma ex-ante de decir QUIÉN no va a poder pagarlo.
+
+QUÉ PRODUCE ESTA SIMULACIÓN QUE NO SE CONSIGUE DE OTRA FORMA:
+un mapa ex-ante de quién absorbe el costo, MÁS el número de qué tan equivocado está ese mapa.
+  1. EL MAPA. 81 celdas de empleador reconstruidas de los microdatos de la GEIH (DANE),
+     cada una con su caja mensual y su costo de despido sacado del Código Sustantivo del
+     Trabajo. Un LLM propone cómo adaptarse en un espacio ABIERTO; un árbitro determinista
+     veta lo que la aritmética no aguanta. Sin caja para indemnizar no puedes despedir.
+  2. EL ERROR. El criterio de éxito se escribió y se commiteó ANTES de bajar los datos con
+     los que se iba a juzgar. Salió mal y se publicó igual: 37,37 pp de error, signo
+     contrario. La persistencia tonta ("el año que viene igual que este") gana 8 veces.
+
+POR QUÉ EL ERROR ES EL PRODUCTO Y NO LA VERGÜENZA: todo simulador de política pública
+entrega un número; ninguno entrega qué tan equivocado está. Por eso se usan como retórica
+y no como instrumento. Este entrega los dos, y lo primero que hizo fue refutar su propio
+mecanismo estrella.
+
+DATO DURO QUE NO SE DISCUTE: la cascada agregada está FALSADA por el propio backtest del
+equipo (VALIDATION.md). Sigue siendo el MECANISMO del modelo, nunca un hallazgo ni un
+resultado. Si encuentras texto, gráfica o animación que la afirme como resultado, eso ES
+un hallazgo tuyo.
+
+=== ANTES DE LEER CÓDIGO, ABRE EL DEPLOY VIVO ===
+    https://enjambre-web.onrender.com
+Corre una simulación completa CON CRONÓMETRO. Primero mira como mira un juez; después
+abre web/ para explicar lo que viste.
+
+=== TU PREGUNTA ÚNICA ===
+Un juez que nunca oyó del proyecto, mirando SOLO la pantalla y sin que nadie le hable:
+¿entiende el problema de la espina, y lo que ve es cierto?
+
+--- MITAD 1 · ¿SE ENTIENDE? ---
+1. LOS PRIMEROS 20 SEGUNDOS. Escribe con TUS palabras qué problema cree el juez que se está
+   resolviendo. Si no coincide con la espina, ese es el hallazgo #1 del informe.
+2. CRONOMETRA LA CORRIDA COMPLETA. Una demo tiene ~3 minutos. Si la corrida pasa de 90
+   segundos, el resto del pitch no existe. Da el número exacto.
+3. LA RUTA DEL RECORTE. Hay /, /reporte y /laboratorio. Si SOLO pudieras mostrar una
+   pantalla, ¿cuál? Las otras dos son candidatas a salir de la demo (no del repo).
+
+--- MITAD 2 · ¿ES CIERTO? Esta es la que hunde el pitch ---
+4. CADA NÚMERO CONTRA SU FUENTE. ¿El panel de Procedencia.tsx marca de verdad
+   DATO / NORMA / CALCULADO / SUPUESTO por métrica, o hay números sin rótulo?
+5. FALLBACK Y SIN SALIDA. ¿La pantalla distingue una decisión REAL de una que cayó al
+   fallback o quedó sin_salida? Si se dibujan igual, la demo afirma lo que no sabe.
+6. MODO LLM vs REGLAS. ¿Se ve en pantalla cuál está corriendo? Si el juez cree que ve LLM y
+   son reglas, es fraude sin intención. Es de las peores que nos pueden encontrar.
+7. LA BANDA. Si la pantalla muestra un rango, ¿deja parecer que es un intervalo de confianza?
+   No lo es: es dispersión entre paráfrasis, sin calibrar. Verifica el rótulo exacto.
+8. EL ERROR DEL BACKTEST. La espina dice que el error publicado es LA MITAD DEL PRODUCTO.
+   ¿Aparece en pantalla, o solo en un .md que el juez nunca va a abrir? Si no está en
+   pantalla, la espina y la interfaz están contando historias distintas.
+9. LA CASCADA. ¿Queda algún texto, gráfica o animación que la presente como RESULTADO?
+   Está falsada. Es el mecanismo, nunca el hallazgo.
+
+Nota: no opines sobre lo bonito. Opina sobre qué comunica y sobre si es cierto.
+
+=== REGLA DE ESCRITURA — obligatoria en todo el informe ===
+Escribes para tres personas con sueño a las 4 de la mañana que tienen que decidir rápido.
+- Cada hallazgo ABRE con UNA frase en cristiano, como se la explicarías a un niño de 5 años.
+  Después viene la evidencia técnica. Primero el qué pasa, después el por qué.
+- Cada uno de LOS 3 ARREGLOS trae una línea "SI NO LO ARREGLAMOS: ..." en palabras simples,
+  diciendo qué se ve mal en la demo o qué pregunta nos hunde.
+- Viñetas, no párrafos. Si una frase hay que releerla, está mal escrita.
+- Simple NO significa impreciso. Simple y correcto, las dos. Nada de metáforas que mientan.
+
+=== REGLAS DE LA REVISIÓN ===
+- ASUME QUE EL PROYECTO SE ESTÁ RECORTANDO. Nombrar qué se borra es parte del trabajo.
+  Una revisión sin lista de recortes es una revisión que no se hizo.
+- EVIDENCIA O NO EXISTE. Cada afirmación con archivo:línea, cifra de corrida, o comando.
+  Marca cada hallazgo como [VERIFICADO] (lo corriste o lo leíste) o [SOSPECHA] (te huele).
+- PROHIBIDO EL ELOGIO. Nada de "el proyecto está sólido". Gasta el turno y no aporta.
+- NO EDITES NADA. Cada carpeta tiene dueño. Tu informe es un reclamo con fecha, no una decisión.
+- CAJA DE TIEMPO: 25 minutos. Si no alcanzas, entrega incompleto pero entrega. El congelamiento
+  del repo es a las 09:30 y un informe tarde vale cero.
+
+=== FORMATO DE SALIDA — exactamente estos cinco bloques, en este orden, y nada más ===
+1. MENTIRAS — donde tu capa afirma algo que la espina no sostiene. Con archivo:línea.
+   Ordenadas por qué tan rápido lo encuentra un juez con un agente.
+2. HUÉRFANOS — lo que existe y no sirve a ningún paso de la espina. Candidato a salir de la
+   DEMO (no del repo).
+3. FALTANTES — lo que la espina promete y tu capa no entrega.
+4. LOS 3 ARREGLOS — máximo tres. Cada uno: carpeta dueña · minutos estimados · cómo se
+   verifica que quedó · la línea "SI NO LO ARREGLAMOS".
+5. LA PREGUNTA QUE NOS HUNDE — la única pregunta de tu capa que hoy no podemos contestar.
