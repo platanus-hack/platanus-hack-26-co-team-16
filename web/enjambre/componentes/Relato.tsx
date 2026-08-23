@@ -6,8 +6,22 @@
 // no teclear el pasado.
 
 import { useEffect, useRef, useState } from "react";
-import { nombreEstrategia, nombreSector, pct } from "@/lib/formato";
-import { usarAlmacen } from "@/estado/simulacion";
+import { miles, nombreSector, pct } from "@/lib/formato";
+import { rondasVisibles, usarAlmacen } from "@/estado/simulacion";
+
+// Qué hizo la celda, en español corriente. `nombreEstrategia` devuelve la
+// etiqueta canónica del motor ("informalizar", "bajar_horas"); acá se narra,
+// porque el relato lo lee alguien que no conoce el modelo.
+const NARRA: Record<string, string> = {
+  informalizar: "se pasan a la informalidad",
+  despedir: "recortan personal",
+  bajar_horas: "recortan la jornada",
+  subir_precios: "suben precios",
+  renegociar: "renegocian",
+  cumplir: "cumplen y pagan el alza",
+  absorber: "absorben el costo",
+};
+const narrar = (k: string) => NARRA[k] ?? k.replace(/_/g, " ");
 
 interface Linea {
   texto: string;
@@ -41,14 +55,20 @@ export default function Relato() {
         const a = poblacion.arquetipos.find((x) => x.id === d.arquetipo_id);
         if (!a || !d.dominante) continue;
         if (a.peso < pesoGrande) continue; // solo las celdas que mueven el agregado
-        const veto = d.vetadas > 0 ? ` · ${d.vetadas} propuesta${d.vetadas > 1 ? "s" : ""} vetada` : "";
+        const veto =
+          d.vetadas > 0
+            ? ` · el motor les vetó ${d.vetadas} salida${d.vetadas > 1 ? "s" : ""}`
+            : "";
         cola.current.push({
-          texto: `${nombreSector(a.sector)} ${a.tamano} → ${nombreEstrategia(d.dominante)}${veto}`,
+          texto: `${nombreSector(a.sector)} ${a.tamano} · ${miles(a.peso)} trabajadores → ${narrar(d.dominante)}${veto}`,
           tono: d.vetadas > 0 ? "veto" : "decision",
         });
       }
-      while (vistasRondas.current < s.rondas.length) {
-        const r = s.rondas[vistasRondas.current++];
+      // S2-5: los cierres de ronda salen de las rondas MOSTRADAS. Antes el
+      // feed tecleaba "ronda 3 cerrada" mientras el enjambre animaba la 1.
+      const vis = rondasVisibles(s);
+      while (vistasRondas.current < vis.length) {
+        const r = vis[vistasRondas.current++];
         const c = r.contrato;
         cola.current.push({
           texto:
@@ -117,14 +137,11 @@ export default function Relato() {
         lineHeight: 1.5,
       }}
     >
-      <div className="kicker" style={{ marginBottom: 0 }}>
-        relato de la corrida
-      </div>
-      {/* S2-6: es un subconjunto filtrado (top-25 celdas por peso, ver
-          `pesoGrande` arriba) y podado si el flujo va más rápido que el
-          tecleo — dicho, no implícito. */}
-      <div style={{ color: "var(--tinta-tenue)", fontSize: 9.5, marginBottom: 4 }}>
-        top-25 celdas por peso · se poda si el flujo va más rápido que el tecleo
+      {/* S2-6 sigue vigente — que esto es un top-25 podado hay que decirlo —
+          pero el sitio donde se dice es el reporte, no un subtítulo de 9,5 px
+          encima del lienzo. El kicker lo insinúa; el reporte lo detalla. */}
+      <div className="kicker" style={{ marginBottom: 4 }}>
+        lo que va pasando · las celdas que más pesan
       </div>
       {visibles.map((l, i) => (
         <div key={i} style={{ color: color(l.tono), opacity: 0.45 + (i / visibles.length) * 0.55 }}>

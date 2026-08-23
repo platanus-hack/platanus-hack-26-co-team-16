@@ -6,32 +6,52 @@
 
 import { useMemo } from "react";
 import { titular } from "@/lib/narrativa";
-import { usarAlmacen } from "@/estado/simulacion";
+import { rondasVisibles, usarAlmacen } from "@/estado/simulacion";
 
 export default function Noticias() {
   const rondas = usarAlmacen((s) => s.rondas);
-  const nota = useMemo(() => titular(rondas), [rondas]);
+  const rondaMostrada = usarAlmacen((s) => s.rondaMostrada);
+  // S2-5: el titular es de la ronda que se está viendo, no de la última que
+  // llegó por el cable.
+  const vis = useMemo(() => rondasVisibles({ rondas, rondaMostrada }), [rondas, rondaMostrada]);
+  const nota = useMemo(() => titular(vis), [vis]);
   if (!nota) return null;
 
   return (
     <div
       key={nota.titulo}
       className="panel aparecer"
+      // Contenida a la fuerza: antes crecía con el largo del titular y de la
+      // cita del LLM, y a 1440×900 se comía el panel de métricas de abajo. El
+      // alto máximo la vuelve predecible; el texto completo va al reporte.
       style={{
         right: 36,
-        top: 208,
-        width: 380,
+        top: 196,
+        width: 360,
+        maxHeight: 190,
+        overflow: "hidden",
         borderLeft: "2px solid var(--rojo)",
-        paddingLeft: 18,
+        paddingLeft: 14,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 7,
       }}
     >
-      <div className="kicker" style={{ color: "var(--rojo)" }}>
+      <div className="kicker" style={{ color: "var(--rojo)", fontSize: 10 }}>
         {nota.kicker}
       </div>
-      <div className="cifra" style={{ fontSize: 24, lineHeight: 1.22, textWrap: "pretty" as never }}>
+      <div
+        className="cifra"
+        style={{
+          fontSize: 19,
+          lineHeight: 1.2,
+          textWrap: "pretty" as never,
+          display: "-webkit-box",
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: "vertical" as never,
+          overflow: "hidden",
+        }}
+      >
         {nota.titulo}
       </div>
       {nota.cita && (
@@ -39,17 +59,16 @@ export default function Noticias() {
           style={{
             fontFamily: "var(--serif)",
             fontStyle: "italic",
-            fontSize: 15.5,
-            lineHeight: 1.45,
+            fontSize: 13.5,
+            lineHeight: 1.4,
             color: "var(--tinta-suave)",
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical" as never,
+            overflow: "hidden",
           }}
         >
           “{nota.cita}”
-        </div>
-      )}
-      {nota.atribucion && (
-        <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--tinta-tenue)", lineHeight: 1.5 }}>
-          {nota.atribucion}
         </div>
       )}
     </div>
