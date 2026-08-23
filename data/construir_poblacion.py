@@ -235,11 +235,41 @@ def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.Data
         "n_descartados_sin_ingreso": int(n_sin_ingreso),
         "ocupados_expandidos": round(float(wtot)),
         "tasa_informalidad_total": round(tasa_informalidad(df), 4),
+        # La descomposicion que faltaba. `tasa_informalidad_total` cubre a TODOS
+        # los ocupados, pero `engine/` solo simula decisiones de EMPLEADOR, y un
+        # cuenta propia no tiene empleador que decida por el: `empresas.parquet`
+        # excluye el codigo 1 a proposito (ver `arquetipos.poblacion_cuenta_propia`).
+        # Comparar la corrida contra el total media 13,5 pp de error que no eran
+        # del modelo sino de la definicion de poblacion: el motor arrancaba
+        # declarando 30,57% y en la ronda 1 pasaba a los 17,99% que su propia
+        # grilla ya traia. Ese salto se leia como conducta y no lo era.
+        "tasa_informalidad_empleados_de_firma": round(tasa_informalidad(df[df["tamano_empresa"] > 1]), 4),
+        "cuenta_propia": {
+            "trabajadores_expandidos": round(float(df.loc[df["tamano_empresa"] == 1, "factor_expansion"].sum())),
+            "share_ocupados": round(float(df.loc[df["tamano_empresa"] == 1, "factor_expansion"].sum() / wtot), 4),
+            "tasa_informalidad": round(tasa_informalidad(df[df["tamano_empresa"] == 1]), 4),
+            "nota": (
+                "Fuera del alcance del motor: sin empleador no hay decision de empleador. "
+                "Se reporta para que el agregado del simulador nunca se lea como si fuera "
+                "toda la ciudad. El objetivo de calibracion del motor es "
+                "`tasa_informalidad_empleados_de_firma`."
+            ),
+        },
         "tasa_informalidad_por_sector": {
             s: round(tasa_informalidad(g), 4) for s, g in df.groupby("sector")
         },
         "tasa_informalidad_por_tamano": {
             t: round(tasa_informalidad(g), 4) for t, g in df.groupby("tamano_grupo")
+        },
+        # El mismo corte que arriba, un nivel mas abajo. `tamano_grupo` mete al
+        # cuenta propia (codigo 1) dentro de "micro", asi que el micro publicado
+        # (66,72%) esta inflado 7,1 pp respecto del micro que el motor simula
+        # (59,61%): `empresas.parquet` mapea 2-4 -> micro y no tiene codigo 1.
+        # `scripts/calibrar_visibilidad.py` ajustaba alfa contra el objetivo
+        # inflado, y por eso a politica cero el modelo todavia formalizaba.
+        "tasa_informalidad_por_tamano_empleados_de_firma": {
+            t: round(tasa_informalidad(g), 4)
+            for t, g in df[df["tamano_empresa"] > 1].groupby("tamano_grupo")
         },
         "distribucion_salarial_cop": percentiles,
         "spike_salarial": {

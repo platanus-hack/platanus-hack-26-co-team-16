@@ -109,6 +109,12 @@ PROB_ANUAL_REFERENCIA_EEUU = 0.014
 # CALIBRA contra la informalidad observada por tamaño con
 # `python scripts/calibrar_visibilidad.py`. `alfa=0` recupera exactamente el
 # reparto uniforme anterior y por eso es el contrafactual auditable del cambio.
+# El valor de abajo lo produjo esa corrida contra
+# `tasa_informalidad_por_tamano_empleados_de_firma` de `data/momentos.json`, que
+# es el objetivo de EMPLEADOS DE FIRMA: el de todos los ocupados mete al cuenta
+# propia dentro de "micro" y contra ese numero inflado salia 1,875, que
+# sacrificaba micro para compensar el error de pyme, que ninguna alfa mueve. Si cambia el objetivo,
+# se vuelve a correr el calibrador y este numero cambia con el.
 ELASTICIDAD_VISIBILIDAD = 1.875
 
 

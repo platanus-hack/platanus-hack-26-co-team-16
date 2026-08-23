@@ -52,8 +52,17 @@ def calibrar() -> tuple[float, dict[str, float], float, dict[str, float]]:
     momentos = json.loads(MOMENTOS.read_text(encoding="utf-8"))
     objetivos = {
         clave: float(valor)
-        for clave, valor in momentos["tasa_informalidad_por_tamano"].items()
+        # El objetivo es el de EMPLEADOS DE FIRMA, no el de todos los ocupados:
+        # `tasa_informalidad_por_tamano` mete al cuenta propia dentro de "micro"
+        # (66,72% contra los 59,61% que el motor simula), y ajustar alfa contra
+        # ese numero inflado hacia que el modelo formalizara a politica cero.
+        for clave, valor in momentos.get(
+            "tasa_informalidad_por_tamano_empleados_de_firma",
+            momentos["tasa_informalidad_por_tamano"],
+        ).items()
     }
+    # El agregado de EMPLEADOS DE FIRMA: el punto fijo que el placebo exige.
+    objetivo_agregado = informalidad_observada(MOMENTOS)
     arquetipos = desde_empresas(EMPRESAS)
     fiscalizacion = EstadoFiscalizacion(
         universo=max(1.0, sum(a.n_empresas for a in arquetipos))
@@ -77,10 +86,21 @@ def calibrar() -> tuple[float, dict[str, float], float, dict[str, float]]:
                 tamano: (tasas[tamano] - objetivos[tamano]) * 100.0
                 for tamano in objetivos
             }
-            peso_total = sum(pesos[tamano] for tamano in objetivos)
-            error_total = sum(
-                pesos[tamano] * abs(errores[tamano]) for tamano in objetivos
-            ) / peso_total
+            # El objetivo que se MINIMIZA es el placebo, no el ajuste por tamano.
+            # ----------------------------------------------------------------
+            # Antes se minimizaba la media absoluta ponderada del error por
+            # tamano, y estaba envenenada: pyme aporta un -10,57 pp que NINGUNA
+            # alfa puede mover (celdas homogeneas + decision binaria => cada
+            # celda solo sale 0% o 100%), asi que el optimizador sacrificaba
+            # micro para compensar un termino que no controla. Medido: con ese
+            # objetivo salia alfa=1,6875 y el placebo daba -1,68 pp; con el
+            # placebo como objetivo sale 1,875 y da -0,92 pp.
+            #
+            # Minimizar el placebo es ademas la condicion de identificacion
+            # correcta: la distribucion observada tiene que ser un punto fijo del
+            # modelo cuando la politica no cambia nada. Los errores por tamano se
+            # siguen reportando, pero como DIAGNOSTICO, no como objetivo.
+            error_total = abs(rondas[-1].tasa_informalidad - objetivo_agregado) * 100.0
             cache[clave] = errores, error_total
         return cache[clave]
 
