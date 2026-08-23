@@ -31,24 +31,22 @@ help:
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
 
+# `scripts/run_simulacion.py` nunca se escribio, y este target imprimia un
+# PENDIENTE: el primer comando de la tabla "Como verificarlo tu mismo" de
+# AGENTS.md era un TODO. La corrida punta a punta SI existe y es
+# `scripts/reproduce.py` (misma poblacion, mismo seed, mismo motor); apuntar
+# aca es decir la verdad, no cablear nada nuevo.
 run:
-	@if [ -f scripts/run_simulacion.py ]; then \
-		$(PY) scripts/run_simulacion.py --seed $(SEED); \
-	else \
-		echo "PENDIENTE · make run"; \
-		echo "  Falta: scripts/run_simulacion.py (R5) sobre engine/ (R2, Manuel)."; \
-		echo "  Se cablea en el checkpoint C3 (H+10): la corrida punta a punta."; \
-		echo "  Mientras tanto la referencia del flujo es docs/FLUJO.md."; \
-	fi
+	@$(PY) scripts/reproduce.py --seed $(SEED)
 
 # Los tests del nucleo viven en `engine/` y `behavior/`, no solo en `tests/`:
 # cada duenio los escribe en su carpeta. Este target los corria solo desde
 # `tests/` e imprimia "No hay tests todavia" mientras 58 pasaban en `engine/`.
 test:
-	@if ! command -v pytest >/dev/null 2>&1; then \
+	@if ! $(PY) -c "import pytest" >/dev/null 2>&1; then \
 		echo "PENDIENTE · make test — pytest no esta instalado (pip install -r requirements.txt)."; \
 	else \
-		pytest engine/ tests/ -q; \
+		$(PY) -m pytest engine/ tests/ -q; \
 		echo ""; \
 		echo "  regresiones de behavior/ (no son pytest, corren solas):"; \
 		$(PY) -m behavior.pruebas | tail -3; \

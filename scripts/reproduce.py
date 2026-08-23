@@ -33,6 +33,8 @@ from behavior.arquetipos import (  # noqa: E402
     informalidad_observada,
 )
 from behavior.cache import Cache  # noqa: E402
+from behavior.cliente import SinCredenciales  # noqa: E402
+from behavior.presupuesto import Presupuesto, PresupuestoAgotado  # noqa: E402
 from behavior.rondas import UMBRAL_ESTABILIDAD_PP, correr  # noqa: E402
 
 CACHE_DEMO = RAIZ / "behavior" / "cache-demo.json"
@@ -42,6 +44,39 @@ MOMENTOS = RAIZ / "data" / "momentos.json"
 # El escenario que se reproduce: el aumento del 23% del caso demo.
 AUMENTO_DEMO = 23.0
 SEED_DEMO = 42
+
+
+class _ConCaida:
+    """La caché primero; lo que no esté cacheado lo resuelve la regla fija.
+
+    Existe porque este script PROMETE reproducir con un comando en una máquina
+    limpia, y antes no cumplía: en cuanto una sola llamada no estaba en la
+    caché, `ClienteConductual` levantaba `SinCredenciales` y el script moría con
+    un stack trace. La promesa del repo —"un extraño con el link tiene que poder
+    usarlo"— se caía en la primera celda.
+
+    La caché deja de cubrir la corrida entera cada vez que cambia algo que entra
+    al texto del prompt (la probabilidad de inspección por celda, o los propios
+    `behavior/prompts/*.md`), porque la clave es un sha256 de ese texto. Cuando
+    eso pasa, la salida sigue siendo determinista y el script lo DICE: reporta
+    cuántas decisiones vinieron del modelo y cuántas de la regla.
+    """
+
+    def __init__(self, llm, reglas: ClienteReglas) -> None:
+        self._llm = llm
+        self._reglas = reglas
+        self.presupuesto = llm.presupuesto
+        self.aciertos = 0
+        self.caidas = 0
+
+    def proponer(self, *a, **kw):
+        try:
+            salida = self._llm.proponer(*a, **kw)
+        except (SinCredenciales, PresupuestoAgotado):
+            self.caidas += 1
+            return self._reglas.proponer(*a, **kw)
+        self.aciertos += 1
+        return salida
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,7 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"falta {EMPRESAS.relative_to(RAIZ)} — es un entregable de R1 (data/).")
         return 2
 
-    cliente = ClienteReglas()
+    reglas = ClienteReglas()
+    cliente = reglas
     modo = "ABLACIÓN (reglas fijas, sin API)"
     if CACHE_DEMO.exists():
         n = Cache().importar(CACHE_DEMO)
@@ -62,7 +98,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from behavior.cliente import ClienteConductual
 
-            cliente = ClienteConductual()
+            # Tope 0 a propósito: este script NO puede gastar. Con credenciales
+            # en el entorno, una llamada fuera de caché moriría en
+            # `presupuesto.comprobar()` antes de salir a la red, y de ahí cae a
+            # la regla fija igual que si no hubiera key.
+            cliente = _ConCaida(
+                ClienteConductual(presupuesto=Presupuesto(tope_usd=0.0)), reglas
+            )
             modo = "LLM sobre caché versionada (nivel 2 de la ADR 0009)"
         except Exception as e:  # noqa: BLE001 - sin credenciales es el caso normal
             print(f"  no se pudo usar la capa LLM ({type(e).__name__}); se usa la ablación")
@@ -98,6 +140,13 @@ def main(argv: list[str] | None = None) -> int:
           f"(umbral {UMBRAL_ESTABILIDAD_PP:g} pp)")
     print(f"fallbacks: {ultima.fraccion_fallback:.1%} de las decisiones · "
           f"sin ninguna opción factible: {ultima.fraccion_sin_salida:.1%}")
+    if isinstance(cliente, _ConCaida):
+        print(f"\norigen de las decisiones: {cliente.aciertos} del modelo (caché ya "
+              f"pagada) · {cliente.caidas} de la regla fija por no estar en caché")
+        if cliente.caidas:
+            print("  La caché no cubre esta corrida: se pagó antes de un cambio que entra")
+            print("  al texto del prompt. La corrida sigue siendo determinista, pero esas")
+            print("  decisiones NO son del modelo. Ver AGENTS.md, pendientes declarados.")
     print("\nPara verificar el determinismo: corre esto dos veces y compara.")
     return 0
 
