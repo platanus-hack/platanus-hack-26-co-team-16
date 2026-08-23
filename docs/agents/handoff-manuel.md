@@ -5,41 +5,39 @@
 > Tus carpetas: `engine/`, `api/` · Tu rama: `rol/backend`
 > Tu misión, entregables y prompt de arranque: [`docs/ROLES.md`](../ROLES.md)
 
-## Cómo retomar (actualizado 2026-08-23)
+## Cómo retomar (actualizado 2026-08-23, sesión 2)
 
 > **Pega esto en una sesión nueva y arranca sin leer nada más.** Lo de abajo es el detalle.
 
 ```
-Trabajas en `engine/` y `api/`, y SOLO ahí. Rama: rol/backend, que ya tiene 3 commits empujados.
-Lee primero docs/agents/handoff-manuel.md: la entrada del 2026-08-23 tiene todo el contexto.
+Trabajas en engine/ y api/, y SOLO ahí. Rama: rol/backend, con 9 commits empujados.
+Lee primero docs/agents/handoff-manuel.md: la entrada del 2026-08-23 (sesión 2).
 
-ESTADO: el PR #19 está abierto y BLOQUEADO por S1-1 de Nico (`behavior/rondas.py:119`, el
-`round()` de `a_contrato()` sobre un `tipo` que es string). No se mergea antes que el suyo.
+ESTADO: PR #19 abierto y BLOQUEADO por S1-1 de Nico (behavior/rondas.py:119, el round() sobre
+banda.tipo, que es string). Los 5 puntos del track de backend del vet están CERRADOS: S2-9,
+S1-4, S1-7, S2-8 y V-1. 71 tests verdes (python3 -m pytest api/ engine/ -q).
 
-LO PRIMERO, y solo cuando S1-1 ya esté en `main`:
-- Traer main a rol/backend, correr `python3 -m pytest api/ engine/ -q` (hoy: 15 verdes) y el
-  smoke del flujo SSE en modo=reglas con trayectorias=5. HOY esa corrida muere a propósito con
-  `TypeError: type str doesn't define __round__`: es la prueba de que S1-1 la bloquea. Cuando
-  pase limpia, el PR #19 está listo para mergear.
+LO PRIMERO, y solo cuando S1-1 esté en main:
+- Traer main a rol/backend, correr los 71 tests y el smoke SSE en modo=reglas con
+  trayectorias=5. HOY muere a propósito con "TypeError: type str doesn't define __round__":
+  esa es la prueba del bloqueo. Cuando pase limpia, PR #19 está listo para que lo revise Juanda.
 
-LO QUE NO ESPERA A NADIE:
-- S2-8: `web/enjambre/componentes/Paneles/Metricas.tsx:27,45` calcula "$X billones/mes · proxy
-  de PIB laboral" EN EL NAVEGADOR, fuera de la capa que declara "cero números inventados". Es la
-  única cifra en pesos absolutos de la pantalla y la más citable en un pitch. Se mueve a
-  `api/serializar.py` con su `# SUPUESTO:`. El cálculo se lee de `web/`, NO se edita `web/`:
-  coordinar el borrado con Dani.
-- V-1: decidir `tope_usd` (hoy 3.0, `api/servidor.py`) contra las 465 llamadas que cuesta una
-  corrida con trayectorias=5. Con la cifra que mida Nico con caché fría, no a ojo.
-- Correr el verificador del track: el prompt 16 re-apuntado
-  (platanus-hack-26-simulations/reencuadre/16-prompt-de-cuestionamiento.md) y `juez-hackathon`.
+LO QUE ESTÁ ESPERANDO A MANI (no arranques sin su OK, cuesta plata):
+- El warmeo de auditoría: UNA trayectoria a 23% = USD 1,26. Audita la cadena entera
+  (credencial -> llamada real -> caché -> exportar -> preload al arrancar) antes de gastar
+  los ~$31 de las 5 posiciones. Requiere que Mani exporte ANTHROPIC_API_KEY: el .env del
+  repo dice ANTHROPIC_KEY y nada hace load_dotenv, así que hoy no llega al proceso.
+  NUNCA le pidas la key por chat.
+- Warmear en un DIRECTORIO APARTE (Cache(directorio=...)), no en behavior/.cache/: así el
+  cache-demo.json sale limpio y no se toca la caché de Nico.
 
-SI SOBRA: `engine/arquetipos.py` con `muestrear(arq, n, rng)` — sin eso Dani no puede dibujar el
-mapa distributivo, y la plomería de seed ya está en `engine/seed.py`.
+LO QUE NO ESPERA A NADIE (si sobra tiempo):
+- engine/arquetipos.py con muestrear(arq, n, rng): sin eso Dani no dibuja el mapa
+  distributivo (dato A3). La plomería de seed ya está en engine/seed.py y hoy no la usa nadie.
 
-REGLAS QUE NO SE NEGOCIAN: no tocar carpetas ajenas (si el arreglo las necesita, se avisa en
-Vibe Coders); cero datos inventados y todo supuesto marcado con `# SUPUESTO:` donde se toma; al
-LLM jamás se le nombra la política, solo la mecánica; `git diff --stat` antes de decir que algo
-se hizo. Nadie pushea a `main`: rama → PR → lo revisa Juanda.
+REGLAS: no tocar carpetas ajenas (si el arreglo las necesita, se avisa en Vibe Coders); todo
+supuesto marcado con # SUPUESTO: donde se toma; al LLM jamás se le nombra la política, solo la
+mecánica; git diff --stat antes de decir que algo se hizo; nadie pushea a main.
 ```
 
 **Ya comunicado al equipo** (Vibe Coders, 2026-08-23): los 6 hallazgos de otras carpetas, el
@@ -48,6 +46,102 @@ se hizo. Nadie pushea a `main`: rama → PR → lo revisa Juanda.
 ## Dónde quedé
 
 _Lo más reciente arriba._
+
+- **2026-08-23 (sesión 2) — el track del vet queda CERRADO: S2-8 y V-1 hechos, los dos
+  verificadores corridos, y un bug propio encontrado por ellos. Commits `5bdc2b6` … `def0db7`.**
+
+  **S2-8 · los pesos absolutos salen del servidor.** `Metricas.tsx:27,45` rearmaba la masa
+  salarial base desde `poblacion.arquetipos` y la multiplicaba por el índice relativo para
+  mostrar "$ 8,15 billones/mes · proxy de PIB laboral": la única cifra en pesos de la pantalla,
+  la más citable en un pitch, nacía **en el navegador**, fuera de la capa que declara "cero
+  números inventados" y sin `# SUPUESTO:`. Ahora viaja como `masa_salarial_cop` en el evento
+  `ronda`. Las dos cifras salen de UNA pasada (`_masa_salarial()`) para no reabrir el hueco de
+  S2-9. *Medido:* es el mismo número, diferencia **1,6e-05 relativo** (todo el `round(rel, 4)`
+  del alambre) y en pantalla el mismo texto a dos decimales de billón. 4 tests en
+  `api/test_serializar.py`. **El borrado en `web/` es de Dani y no está hecho:** hasta que
+  borre, la cifra tiene dos fuentes, que es literalmente el defecto S2-9.
+
+  **V-1 · el tope de gasto se deriva de la corrida que se pidió.** Primero lo derivé de la
+  medición ($1,26 × N × 1,25 = $7,88 fijo) y **eso estaba mal**: el costo no es constante,
+  depende de `cobertura`. Ahora `tope_derivado(cobertura, trayectorias)` cuenta las llamadas
+  exactas con `particionar_por_peso()`, la misma función que usa el motor. No es estimación.
+
+  | `cobertura` | Celdas | Llamadas (×5 tray.) | En frío | Tope |
+  |---|---|---|---|---|
+  | 0,50 | 9 | 135 | $1,81 | $2,26 |
+  | **0,80** (default) | **31** | **465** | **$6,23** | **$7,79** |
+  | 1,00 | 81 | 1.215 | $16,29 | $20,36 |
+
+  `TOPE_USD_MAXIMO = 25,00` es el techo y la única cifra que es juicio y no cuenta: deja pasar
+  la corrida de calidad máxima sin clipar y es el 11% de los ~$230 vivos del equipo. Si lo
+  pedido no cabe, **la corrida se rechaza antes de gastar un peso**, diciendo cuánto cuesta y
+  qué bajar. La tabla quedó en `api/README.md`, que es la respuesta a la pregunta de Q&A
+  "¿cuánto les cuesta mover el slider?".
+
+  **El bug que era MÍO y lo encontró el verificador.** `_parafrasis_fijada()` reemplaza
+  `behavior.capa.parafrasis` por una lambda que **ignora su `n`**, así que `behavior/capa.py:250`
+  da una sola vuelta pase lo que pase: **`parafrasis` quedó inerte en el camino de trayectorias**,
+  y lo rompí yo en el PR anterior. O sea que arreglé una perilla muerta (el seed) y creé otra en
+  el mismo PR, esta documentada como "multiplica el costo por su valor". No se arregla, se
+  declara (`PARAFRASIS_EFECTO = "ninguno"`, mismo patrón que `SEED_EFECTO`): una trayectoria
+  **está definida** por su paráfrasis, así que pedir N paráfrasis adentro de una no significa
+  nada. Y salió del cálculo del tope: con `parafrasis=9` autorizaba 9× lo que se iba a gastar.
+
+  **`engine/MODELO.md`**, carpeta propia: decía *"si solo lees un archivo, lee `rondas.py`"*
+  catorce líneas después de declarar ese archivo como uno de los siete que NO se escriben.
+  Mismo defecto que `AGENTS.md` ya se había corregido el 22-ago.
+
+  **La caché versionada.** `api/servidor.py` ahora levanta `behavior/cache-demo.json` al
+  arrancar, si existe. Es el eslabón que faltaba: la caché en disco vive en la MÁQUINA que corre
+  el motor, así que warmear un portátil **no calienta el deploy**. Hasta hoy solo la importaba
+  `scripts/reproduce.py`. El archivo no existe todavía (`DEFECTOS.md` 3.6, abierto).
+
+  **Lo verificado, en las dos direcciones, sobre esta rama:**
+
+  ```
+  trayectorias=1 -> el flujo cierra limpio (evento fin, banda_tipo "degenerada")
+  trayectorias=5 -> event: error · TypeError: type str doesn't define __round__ method
+  con S1-1 parchado EN MEMORIA -> 5 trayectorias efectivas · banda_tipo entre_trayectorias · fin limpio
+  ```
+
+  La frontera exacta es **trayectorias >= 2**, no `n_parafrasis >= 2`: con una sola trayectoria
+  válida `consolidar_trayectorias()` devuelve la corrida intacta y la banda nunca lleva `tipo`.
+  O sea que el bloqueo cae sobre **la configuración por defecto del endpoint**. Comunicado a
+  Nico en Vibe Coders el 23-ago junto con el cambio del tope.
+
+## Lo que quedó abierto y de quién es
+
+  **Mío, y bloqueado por plata (necesita el OK de Mani):**
+  - El warmeo de auditoría: **1 trayectoria a 23% = USD 1,26**. Audita credencial → llamada →
+    caché → `exportar()` → preload, antes de comprometer los ~$31 de las 5 posiciones
+    (23%, 0%, 10%, 17%, 30%). Decisión de Mani: precalentar en vez de bajar la calidad.
+  - Warmear en un **directorio aparte** (`Cache(directorio=...)`), no en `behavior/.cache/`:
+    deja el `cache-demo.json` limpio y no toca la caché de Nico (505 entradas de Haiku, ya
+    invisibles para Sonnet porque la clave incluye el modelo; **no las borres**).
+
+  **Mío, si sobra:** `engine/arquetipos.py` con `muestrear(arq, n, rng)`. Sin eso Dani no
+  dibuja el mapa distributivo (dato A3).
+
+  **La credencial, que es de Mani y NO se pide por chat:** el `.env` del repo tiene
+  `ANTHROPIC_KEY` y el SDK lee `ANTHROPIC_API_KEY` (`.env.example:36`), y **no hay `load_dotenv`
+  en ningún módulo de Python**. Hoy ese `.env` no llega al proceso. Se arranca con
+  `set -a && source .env && set +a && uvicorn api.servidor:app --port 8000`.
+
+  **De otros, comunicado y sin tocar:**
+  - **Nico (S1-1):** el `round()` de `behavior/rondas.py:119`. Bloquea PR #19 y a Dani.
+  - **Nico:** `behavior/cache-demo.json` hay que exportarlo y commitearlo; el archivo vive en
+    su carpeta. Sin eso el deploy arranca frío siempre.
+  - **Dani:** borrar `Metricas.tsx:24-31,45` cuando entre PR #19. Mientras tanto la cifra en
+    pesos tiene dos fuentes.
+  - **Juanda:** `VALIDATION.md:164` sigue diciendo "fuera de muestra de verdad" cuando la
+    decisión C1 fue retractarlo. `juez-hackathon` lo marca como lo primero que un juez encuentra.
+
+  **Riesgo de demo, decidido pero no resuelto:** el front manda solo `aumento_pct` y `seed`, así
+  que recibe `trayectorias=5`. Las 5 corren EN SERIE (un global de módulo lo obliga,
+  `api/trayectorias.py`) a 2m46s cada una: **~14 minutos en frío** y las rondas salen todas al
+  final por diseño. Un juez que mueve el slider a una posición nueva mira el enjambre 14 minutos
+  sin una sola ronda. La decisión de Mani fue **precalentar**, no bajar la calidad.
+
 
 - **2026-08-23 (sesión del track de backend) — los 3 puntos del track cerrados: `rondas_totales`,
   la perilla del seed y la banda entre trayectorias. Rama `rol/backend`, commits `9167811` y `8b39b4d`.**
