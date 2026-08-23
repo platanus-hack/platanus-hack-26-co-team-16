@@ -63,21 +63,26 @@ _RAIZ = Path(__file__).resolve().parent.parent
 # O sea 3 rondas de LLM, no 4 (ADR 0005, y el docstring de `correr()`).
 RONDAS_TOTALES = 4
 
-# Qué gobierna la perilla `seed` de esta API. Hoy: nada más que su propia
-# etiqueta, y eso se declara en vez de disimularse.
-# Medido, no supuesto: `modo=reglas`, seed 42 contra seed 99, las 4 rondas
-# comparadas campo por campo quitando la etiqueta -> trayectorias IDÉNTICAS
-# (informalidad final 31,01% en ambas). En el camino del LLM no puede ser de
-# otra forma: `capa.renderizar()` no recibe seed, así que el prompt no lo lleva,
-# y `cache.clave()` hashea el prompt, así que dos semillas son dos aciertos de
-# caché iguales. `engine/seed.py` tiene los streams buenos y hoy no lo importa
-# nadie fuera de su propio test; él mismo lo dice en su encabezado.
-# No se quita la perilla: el front ya la manda y `web/` no es de este rol. Se
-# rotula, que es lo que evita que alguien la mueva, no vea nada, y concluya que
-# el modelo es sordo a su propia semilla.
-# El día que el seed elija las N paráfrasis de `banda_entre_trayectorias()`,
-# esto pasa a "trayectoria" y es la única línea que cambia.
-SEED_EFECTO = "etiqueta"  # "etiqueta" | "trayectoria"
+# Qué gobierna la perilla `seed` de esta API.
+#
+# Hasta el 23-ago era "etiqueta", y estaba medido: `modo=reglas`, seed 42 contra
+# seed 99, las 4 rondas comparadas campo por campo -> trayectorias IDÉNTICAS
+# (informalidad final 31,01% en ambas). En el camino del LLM no podía ser de
+# otra forma: `capa.renderizar()` no recibía seed, así que el prompt no lo
+# llevaba, y como `cache.clave()` hashea el prompt, dos semillas eran dos
+# aciertos del mismo caché.
+#
+# Eso cambió: `behavior/contexto.py` sortea con el seed el contexto
+# idiosincrático de cada firma —quién le compra, cómo viene la venta, contra
+# quién compite— y ese texto entra al prompt. Dos semillas son ahora dos
+# poblaciones de firmas distintas sobre los mismos arquetipos, que es lo que la
+# perilla siempre dijo que hacía. `engine/seed.py` sigue teniendo los streams
+# buenos y sigue sin importarlo nadie fuera de su propio test.
+#
+# ⚠️ En el camino de REGLAS FIJAS (`behavior/ablacion.py`) la perilla sigue
+# siendo una etiqueta, y a propósito: la ablación no lee el prompt. Esa es
+# justamente la comparación que la hace útil.
+SEED_EFECTO = "trayectoria"  # "etiqueta" | "trayectoria"
 
 # La otra perilla que hoy no hace nada, y esta la rompí yo en este mismo PR.
 # `api/trayectorias.py` fija en qué paráfrasis corre cada trayectoria
@@ -293,8 +298,10 @@ def flujo(
     seed: int = Query(
         42,
         description=(
-            "Rotula la corrida y viaja en el contrato. HOY NO CAMBIA NINGUNA "
-            "DECISIÓN: nada del bucle de rondas sortea. Ver `SEED_EFECTO`."
+            "Elige el contexto idiosincrático de cada firma (quién le compra, "
+            "cómo viene la venta, contra quién compite) y por lo tanto la "
+            "trayectoria. En el camino de reglas fijas sigue siendo solo un "
+            "rótulo, porque la ablación no lee el prompt. Ver `SEED_EFECTO`."
         ),
     ),
     cobertura: float = Query(0.8, gt=0.0, le=1.0),
