@@ -344,7 +344,7 @@ de sesgo es un dato sobre nuestro propio resultado; sin ella es una excusa.
 | Cuenta propia (23% de los ocupados) | `data/empresas.parquet` excluye a quien trabaja solo: no tiene a quién despedir ni a quién informalizar | El agregado cubre a los **3.235.639 ocupados con empleador**, no a los 4,2 millones. Se reporta aparte con su peso, en vez de dejar que el número se lea como si fuera toda la ciudad |
 | El costo de la fiscalización sobre el Estado | Fuera de alcance declarado | Ninguno sobre las cifras publicadas |
 
-### Dos parámetros que mueven el resultado y no tienen fuente
+### Tres parámetros que mueven el resultado y no tienen fuente
 
 Se nombran acá porque son los que un juez debería atacar primero, y preferimos
 señalarlos nosotros:
@@ -357,6 +357,54 @@ señalarlos nosotros:
    no observamos, y por eso va con barrido y no con una cifra.
 2. **La sanción equivalente a 12 meses de ingreso** (`multa_factor`). Decide si
    evadir paga. Su barrido es de R5.
+3. **El parámetro de visibilidad de la fiscalización, `alfa = 1,875`**
+   (`ELASTICIDAD_VISIBILIDAD`, `engine/fiscalizacion.py:118`). Reparte la
+   capacidad de inspección entre celdas ponderando por tamaño elevado a `alfa`:
+   con `alfa = 0` el reparto es uniforme —el reparto que describe la
+   [ADR 0007](docs/adr/0007-forma-funcional-prob-sancion.md), que no pondera por
+   tamaño, y que el propio código conserva como «el contrafactual auditable del
+   cambio»— y con `alfa` alto la inspección se concentra en las empresas grandes.
+   O sea: la ponderación por tamaño es posterior al ADR y no está en él.
+
+   **Es un parámetro libre ajustado, y es el más sensible del modelo.** No se
+   ajusta contra datos de fiscalización, porque no los tenemos: no existe una
+   serie pública de a quién inspecciona el Ministerio. Se calibra contra la
+   **informalidad observada por tamaño de empresa**, con
+   `scripts/calibrar_visibilidad.py` contra
+   `tasa_informalidad_por_tamano_empleados_de_firma` de `data/momentos.json`.
+
+   Y hay una salvedad que declaramos nosotros antes de que la encuentren
+   leyendo el código: el propio comentario de `engine/fiscalizacion.py:110-117`
+   deja escrito que **1,875 salió de la corrida contra el objetivo que mete al
+   cuenta propia dentro de «micro»** —el que ese comentario llama «ese número
+   inflado»— y que el objetivo correcto es el de empleados de firma. El valor no
+   se ha vuelto a correr contra el objetivo corregido. Queda abierto y con
+   nombre.
+
+   Publicamos el barrido en vez de la cifra sola, con el **placebo** —la corrida
+   sin política, que debería reproducir lo observado— como columna de control:
+
+   | `alfa` | informalidad final a 0% | a 23% | brecha | **placebo** |
+   |---|---|---|---|---|
+   | **0,000** (el reparto uniforme de la ADR 0007) | 0,9567 | 0,9567 | +77,68 pp | **+77,68 pp** |
+   | 1,000 | 0,1631 | 0,2857 | +10,58 pp | −1,68 pp |
+   | **1,875 (el que corre)** | **0,1707** | **0,2406** | **+6,07 pp** | **−0,92 pp** |
+   | 2,500 | 0,2124 | 0,2857 | +10,58 pp | +3,25 pp |
+
+   Dos lecturas que hay que hacer en voz alta y no esconder en la tabla. La
+   primera: con el reparto uniforme el modelo predice **95,67% de informalidad**
+   y el placebo se va **+77,68 pp**. O sea la forma funcional del reparto no es
+   un detalle de implementación: es la mitad del resultado. La segunda: **la
+   brecha de política no es robusta a este parámetro.** Entre `alfa` 1,0 y 2,5
+   se mueve de +10,58 pp a +6,07 y de vuelta a +10,58, y el valor que corre es
+   justo el que deja el placebo más cerca de cero (−0,92 pp). Que el mejor
+   placebo y la menor brecha caigan en el mismo punto es cómodo, y por eso
+   mismo hay que decirlo en vez de dejar que se note.
+
+   Dicho en una frase, que es como va al reporte: *el reparto de la capacidad de
+   inspección tiene un parámetro de visibilidad que no sale de datos de
+   fiscalización, porque no los hay; es el parámetro más sensible del modelo y
+   publicamos su barrido completo.*
 
 ### Lo que sí mejoró y cómo se verifica
 
