@@ -215,6 +215,7 @@ def correr(
     multa_factor: float = 12.0,
     tasa_informalidad_inicial: float,
     n_parafrasis: int = 1,
+    parafrasis_fija: str | None = None,
     parafrasis_por_peso: bool = False,
     paralelismo: int = 8,
     cobertura_llm: float | None = None,
@@ -241,6 +242,10 @@ def correr(
 
     `parafrasis_por_peso=True` reparte las preguntas según cuánta gente
     representa cada arquetipo (B1) en vez de darle la misma cantidad a todos.
+
+    `parafrasis_fija` identifica la redacción de una trayectoria externa y baja
+    intacta hasta `decidir_arquetipo`; cuando existe, esa capa neutraliza
+    `n_parafrasis` porque una trayectoria no puede mezclar redacciones.
 
     `congelar_prob_fiscalizacion=True` corre el experimento de cascada apagada
     (B4): la sanción de cada celda se queda en su valor de la ronda 0 y la
@@ -442,6 +447,7 @@ def correr(
                 multa=a.ingreso_por_trabajador * multa_factor,
                 historial=texto_historial,
                 n_parafrasis=reparto[a.id],
+                parafrasis_fija=parafrasis_fija,
                 # El estado que dejó la ronda anterior, leído del motor.
                 fraccion_informal_previa=estado.fraccion_informal_previa(a.id),
                 # C6 — el candado 3(b): mismos incentivos, otras etiquetas y

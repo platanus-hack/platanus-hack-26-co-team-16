@@ -214,23 +214,46 @@ def test_una_corrida_cara_no_queda_autorizada_como_una_barata():
 def test_la_parafrasis_queda_neutralizada_y_esta_declarada():
     """La perilla `parafrasis` no hace nada en el camino de trayectorias.
 
-    Lo encontró el verificador del track y es un efecto de borde de
-    `_parafrasis_fijada()`: la lambda que fija la redacción ignora su `n`, así
-    que río abajo `behavior/capa.py` da una sola vuelta. Es coherente (una
-    trayectoria ESTÁ definida por su paráfrasis) pero tiene que estar dicho, no
-    escondido. Este test es el que obliga a que la declaración y el hecho no se
-    separen: si alguien vuelve a hacer funcionar la perilla, esto falla y le
+    Es coherente (una trayectoria ESTÁ definida por su paráfrasis) pero tiene que
+    estar dicho, no escondido. Este test obliga a que la declaración y el hecho no
+    se separen: si alguien vuelve a hacer funcionar la perilla, esto falla y le
     recuerda cambiar `PARAFRASIS_EFECTO`.
+
+    REESCRITO cuando las N trayectorias pasaron a correr en paralelo. Antes el
+    mecanismo era `_parafrasis_fijada()`, un context manager que parcheaba el
+    global `behavior.capa.parafrasis` — y ese parche global era justamente lo que
+    obligaba a correr las N EN SERIE (~25 min por corrida). Hoy la redacción viaja
+    como parámetro (`parafrasis_fija`), así que el invariante se comprueba por
+    donde de verdad pasa: **si la redacción llega por parámetro, el global no se
+    consulta ni una vez**.
     """
     import behavior.capa as _capa
 
     from api.servidor import PARAFRASIS_EFECTO
-    from api.trayectorias import _parafrasis_fijada
 
-    with _parafrasis_fijada(0, TEXTOS):
-        assert len(_capa.parafrasis(5)) == 1
-        assert len(_capa.parafrasis(9)) == 1
-    # Y fuera del contexto vuelve a funcionar: el parche no se queda pegado.
+    original = _capa.parafrasis
+    consultas: list[int] = []
+
+    def _espia(n=1):
+        consultas.append(n)
+        return original(n)
+
+    _capa.parafrasis = _espia
+    try:
+        _, n, cliente, _ = _correr()
+    finally:
+        _capa.parafrasis = original
+
+    # 1. El global no se tocó: la redacción entró por parámetro en las N.
+    assert consultas == [], (
+        f"`behavior.capa.parafrasis` se consultó {len(consultas)} veces; "
+        "la redacción debería llegar por `parafrasis_fija`"
+    )
+    # 2. Y aun así cada trayectoria vio SU redacción: neutralizar `n_parafrasis`
+    #    no puede costar la divergencia, que es lo que hace la banda.
+    assert n == N_TRAYECTORIAS
+    assert cliente.indices_vistos == set(range(N_TRAYECTORIAS))
+    # 3. Sin parche pegado: el global sigue entero después de la corrida.
     assert len(_capa.parafrasis(5)) == 5
     assert PARAFRASIS_EFECTO == "ninguno"
 

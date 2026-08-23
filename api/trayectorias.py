@@ -37,10 +37,10 @@ trayectorias, y `banda.tipo` lo dice sin que nadie tenga que preguntarlo.
 
 from __future__ import annotations
 
-import contextlib
-from typing import Any, Callable, Iterator
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable
 
-import behavior.capa as _capa
 from behavior.arquetipos import Arquetipo
 from behavior.cliente import parafrasis as _parafrasis
 from behavior.presupuesto import PresupuestoAgotado
@@ -51,41 +51,6 @@ from behavior.rondas import Ronda, consolidar_trayectorias, correr
 # JAMÁS de temperatura. Y sólo hay 5 archivos en `behavior/prompts/parafrasis/`,
 # así que 5 es también el techo real de hoy.
 N_TRAYECTORIAS = 5
-
-
-@contextlib.contextmanager
-def _parafrasis_fijada(indice: int, disponibles: list[str]) -> Iterator[None]:
-    """Fija en QUÉ paráfrasis corre esta trayectoria, y la restaura al salir.
-
-    Acá está la deuda, y es la razón de que las N vayan EN SERIE: hoy la única
-    forma de elegir cuál paráfrasis usa una corrida es reemplazar
-    `behavior.capa.parafrasis`, que es un global del módulo. Es lo mismo que hace
-    `scripts/barrido_politicas.py`, así que el truco no es nuevo ni es mío; lo
-    que sí es nuevo es que acá corre en el camino del producto.
-
-    Dos hilos con parches distintos se pisarían, así que no se puede
-    paralelizar. Y duele, porque estas llamadas son I/O contra la API: el día que
-    `behavior/` acepte el índice de paráfrasis por parámetro, este bloque se
-    borra, las N corren a la vez y el tiempo total vuelve a ser el de UNA
-    corrida. Es un pedido chico y abierto a R3, no un rediseño.
-
-    Y hay un efecto de borde que se declara acá porque no se ve en ningún otro
-    lado: la lambda **ignora el `n` que le pasan**, así que río abajo
-    `behavior/capa.py` da una sola vuelta pase lo que pase y el parámetro
-    `n_parafrasis` queda NEUTRALIZADO mientras este contexto esté activo. No es
-    un descuido que haya que arreglar: una trayectoria está DEFINIDA por su
-    paráfrasis, así que pedir N paráfrasis adentro de una trayectoria no quiere
-    decir nada. Se declara en `api.servidor.PARAFRASIS_EFECTO` y viaja en el
-    evento `inicio`, para que nadie mueva esa perilla, no vea nada y saque una
-    conclusión sobre el modelo.
-    """
-    original = _capa.parafrasis
-    elegida = disponibles[indice % len(disponibles)]
-    _capa.parafrasis = lambda n=1, _p=elegida: [_p]
-    try:
-        yield
-    finally:
-        _capa.parafrasis = original
 
 
 def correr_consolidada(
@@ -112,13 +77,16 @@ def correr_consolidada(
     parten todas del mismo estado previo y por construcción se parecen más.
 
     `n_parafrasis` no hace nada acá y se recibe solo por compatibilidad de firma
-    con `correr()`: `_parafrasis_fijada()` lo neutraliza, y eso es coherente y no
-    un bug (ver su docstring y `api.servidor.PARAFRASIS_EFECTO`). La banda que se
-    publica es la de entre trayectorias, que es la que reemplazó a la
-    intra-ronda.
+    con `correr()`: cada llamada baja su redacción por `parafrasis_fija`, que la
+    neutraliza de manera local y sin tocar globales. Una trayectoria está
+    DEFINIDA por una sola paráfrasis, así que pedir N adentro no tiene sentido
+    (ver `api.servidor.PARAFRASIS_EFECTO`). La banda que se publica es la de
+    entre trayectorias, que reemplazó a la intra-ronda.
 
     Las tres costuras (`al_*`) llevan el índice de trayectoria adelante para que
-    quien las escuche pueda decir en cuál va sin adivinarlo por el orden.
+    quien las escuche pueda decir en cuál va sin adivinarlo por el orden. Como
+    ahora se disparan desde varios hilos, comparten un lock: el consumidor puede
+    reordenar por índice, pero nunca recibe dos escrituras SSE entrelazadas.
 
     El mismo `cliente` se reusa en las N: no guarda estado por corrida, y así el
     presupuesto y la caché se acumulan solos sobre el total, que es lo que hace
@@ -128,42 +96,58 @@ def correr_consolidada(
     # dólar, y con el mensaje de `parafrasis()` que dice cuántas hay.
     disponibles = _parafrasis(n_trayectorias)
 
-    corridas: list[list[Ronda]] = []
-    for i in range(n_trayectorias):
-        if al_empezar_trayectoria is not None:
-            al_empezar_trayectoria(i, n_trayectorias)
+    lock_callbacks = threading.Lock()
+
+    def _publicar(callback: Callable[..., None] | None, *args: Any) -> None:
+        if callback is None:
+            return
+        with lock_callbacks:
+            callback(*args)
+
+    def _correr_trayectoria(i: int) -> list[Ronda] | None:
+        _publicar(al_empezar_trayectoria, i, n_trayectorias)
         try:
-            with _parafrasis_fijada(i, disponibles):
-                corridas.append(
-                    correr(
-                        arquetipos,
-                        cliente,
-                        aumento_pct=aumento_pct,
-                        rondas_totales=rondas_totales,
-                        seed=seed,
-                        simulacion_id=f"{simulacion_id}-t{i}",
-                        veto=None,
-                        n_parafrasis=n_parafrasis,
-                        cobertura_llm=cobertura_llm,
-                        tasa_informalidad_inicial=tasa_informalidad_inicial,
-                        al_decidir_arquetipo=(
-                            None
-                            if al_decidir_arquetipo is None
-                            else lambda r, aid, res, _i=i: al_decidir_arquetipo(
-                                _i, r, aid, res
-                            )
-                        ),
-                        al_terminar_ronda=(
-                            None
-                            if al_terminar_ronda is None
-                            else lambda ronda, _i=i: al_terminar_ronda(_i, ronda)
-                        ),
+            return correr(
+                arquetipos,
+                cliente,
+                aumento_pct=aumento_pct,
+                rondas_totales=rondas_totales,
+                seed=seed,
+                simulacion_id=f"{simulacion_id}-t{i}",
+                veto=None,
+                n_parafrasis=n_parafrasis,
+                parafrasis_fija=disponibles[i % len(disponibles)],
+                cobertura_llm=cobertura_llm,
+                tasa_informalidad_inicial=tasa_informalidad_inicial,
+                al_decidir_arquetipo=(
+                    None
+                    if al_decidir_arquetipo is None
+                    else lambda r, aid, res, _i=i: _publicar(
+                        al_decidir_arquetipo, _i, r, aid, res
                     )
-                )
+                ),
+                al_terminar_ronda=(
+                    None
+                    if al_terminar_ronda is None
+                    else lambda ronda, _i=i: _publicar(
+                        al_terminar_ronda, _i, ronda
+                    )
+                ),
+            )
         except PresupuestoAgotado:
-            # Corte duro a mitad de camino. Se publica lo que alcanzó a correr y
-            # `n_efectivas` lo declara: preferimos una banda sobre 3 trayectorias
-            # dicha en voz alta que una sobre 5 que no se pagó.
-            break
+            # El corte es por trayectoria: varias pueden encontrar el mismo tope
+            # mientras están en vuelo. Cada una declara su fracaso con `None` y
+            # las demás terminan; solo las corridas completas entran a la banda.
+            return None
+
+    with ThreadPoolExecutor(max_workers=n_trayectorias) as pool:
+        # `pool.map` devuelve en orden de ENTRADA aunque las llamadas terminen en
+        # otro orden. Esa propiedad es parte del determinismo: consolidar jamás
+        # puede ver el orden del scheduler ni el de llegada de la red.
+        corridas_por_indice = list(
+            pool.map(_correr_trayectoria, range(n_trayectorias))
+        )
+
+    corridas = [corrida for corrida in corridas_por_indice if corrida is not None]
 
     return consolidar_trayectorias(corridas), len(corridas)

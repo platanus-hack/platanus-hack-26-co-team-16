@@ -218,6 +218,7 @@ def decidir_arquetipo(
     multa: float,
     historial: str = "",
     n_parafrasis: int = 1,
+    parafrasis_fija: str | None = None,
     fraccion_informal_previa: float | None = None,
     reskin: Reskin | None = None,
 ) -> ResultadoArquetipo:
@@ -226,6 +227,12 @@ def decidir_arquetipo(
     `n_parafrasis=1` para una corrida normal; `n_parafrasis=5` para la corrida
     con barra de error (regla del plan §5: la banda se construye sobre
     paráfrasis del prompt, no sobre temperatura).
+
+    `parafrasis_fija` define una trayectoria completa desde afuera. En ese caso
+    `n_parafrasis` se ignora: pedir N redacciones dentro de una trayectoria no
+    tiene significado porque la trayectoria está definida por UNA redacción.
+    Esta costura reemplaza el parche al global de módulo que obligaba a ejecutar
+    las trayectorias en serie en `api/trayectorias.py`.
 
     `fraccion_informal_previa` es el estado vivo de la planta al empezar la
     ronda: entra al texto del prompt y al `contexto` que consume la ablación.
@@ -247,7 +254,15 @@ def decidir_arquetipo(
     )
     res = ResultadoArquetipo(arquetipo_id=arquetipo.id)
 
-    for instruccion in parafrasis(n_parafrasis):
+    # Una trayectoria está DEFINIDA por su paráfrasis. Si viene fijada, pedir N
+    # paráfrasis adentro no significa nada y `n_parafrasis` queda neutralizado;
+    # sin ella se conserva exactamente el camino histórico de esta función.
+    instrucciones = (
+        [parafrasis_fija]
+        if parafrasis_fija is not None
+        else parafrasis(n_parafrasis)
+    )
+    for instruccion in instrucciones:
         # Dos listas a propósito. `razones_veto` SÍ se le muestra al agente: es
         # la razón física por la que no pudo, y es justo lo que un economista no
         # le daría. `fallos_tecnicos` NO se le muestra nunca: decirle "tu
