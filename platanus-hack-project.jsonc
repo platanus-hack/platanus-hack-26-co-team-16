@@ -2,7 +2,7 @@
   // Your project's name, as it will appear on the voting page.
   // NOTA: nombre derivado de AGENTS.md. Si el equipo quiere otro nombre de
   // marca para el pitch, este es el lugar y hay que cambiarlo antes de entregar.
-  "project-name": "Simulador de cumplimiento de política pública",
+  "project-name": "HIVE",
 
   // Short one-line summary of your project (in Spanish).
   "project-oneliner-spanish": "No responde si una política funciona, sino cuánta gente la cumple y a quién le cae encima.",
