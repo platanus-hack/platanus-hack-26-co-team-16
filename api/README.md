@@ -13,7 +13,7 @@ make servidor          # equivale a: uvicorn api.servidor:app --port 8000
 | Ruta | Qué hace |
 |---|---|
 | `GET /poblacion` | La grilla estática de celdas empleadoras (81 celdas de `data/empresas.parquet`) + los momentos observados. Es lo que el frontend precarga para dibujar el enjambre. |
-| `GET /simulaciones/flujo` | **Corre el motor de verdad y transmite por SSE.** Parámetros: `aumento_pct` (0-50), `seed`, `cobertura` (top-K), `parafrasis`, `tope_usd`, `modo` (`llm` \| `reglas`). |
+| `GET /simulaciones/flujo` | **Corre el motor de verdad y transmite por SSE.** Parámetros: `aumento_pct` (0-50), `seed`, `cobertura` (top-K), `trayectorias` (1-5, de cuántas sale la banda), `parafrasis`, `tope_usd` (corte duro de la corrida ENTERA; el default sale de la medición de costo, ver `TOPE_USD`), `modo` (`llm` \| `reglas`). |
 
 Eventos del flujo, en orden: `inicio` → (`decision`\*, `ronda`)\* → `fin` \| `error`.
 

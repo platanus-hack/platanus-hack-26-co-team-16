@@ -77,6 +77,37 @@ RONDAS_TOTALES = 4
 # esto pasa a "trayectoria" y es la única línea que cambia.
 SEED_EFECTO = "etiqueta"  # "etiqueta" | "trayectoria"
 
+# El tope de gasto de UNA corrida del producto, derivado de una medición y no
+# elegido a ojo. V-1.
+#
+# Lo medido (R3, 23-08-2026, `behavior/README.md` §Costo): una corrida en frío
+# con `claude-sonnet-5` sobre la grilla real y cobertura 0,80 son **94 llamadas
+# y USD 1,26**. Eso es UNA trayectoria. La banda que se publica sale de
+# `N_TRAYECTORIAS` trayectorias completas, así que el costo en frío de la
+# corrida del producto es ese número por N: **USD 6,30 con N=5**.
+#
+# El tope que había era 3,00 —el mismo literal que `behavior.presupuesto`, otra
+# vez dos fuentes cuadrando por casualidad (S2-9)—, y venía de cuando una
+# corrida era una trayectoria. Con 5 se agotaba cerca de la segunda. Y el modo
+# de falla no era "la corrida se para": `correr_consolidada()` consolida con las
+# que alcanzaron, así que la corrida TERMINABA bien y publicaba una banda sobre
+# 2 trayectorias donde el contrato promete la de 5. Un tope mal puesto no se ve
+# como un error, se ve como un resultado.
+#
+# SUPUESTO: el costo por trayectoria escala lineal con `N_TRAYECTORIAS` y la
+# medición se hizo con `cobertura=0,80`; bajarla abarata la corrida y subirla la
+# encarece, y ninguna de las dos rompe el tope hacia abajo. El margen cubre que
+# la medición es UNA corrida (el largo de la respuesta varía) y que el ~0,1% de
+# respuestas que no parsean se reintenta, o sea que gasta dos veces.
+# El corte sigue siendo DURO: subir el tope no gasta más, solo cambia qué
+# significa que salte. Antes saltar era el final normal; ahora es una señal.
+USD_POR_TRAYECTORIA_EN_FRIO = 1.26
+MARGEN_TOPE = 1.25
+TOPE_USD = round(USD_POR_TRAYECTORIA_EN_FRIO * N_TRAYECTORIAS * MARGEN_TOPE, 2)
+# El techo que la API acepta por request. Derivado, no literal: así no puede
+# quedar por debajo del default el día que `N_TRAYECTORIAS` cambie.
+TOPE_USD_MAXIMO = round(TOPE_USD * 2, 2)
+
 app = FastAPI(title="enjambre-api", docs_url=None, redoc_url=None)
 app.add_middleware(
     CORSMiddleware,
@@ -141,7 +172,18 @@ def flujo(
             "Multiplica el costo por su valor: déjalo en 1."
         ),
     ),
-    tope_usd: float = Query(3.0, gt=0.0, le=10.0),
+    tope_usd: float = Query(
+        TOPE_USD,
+        gt=0.0,
+        le=TOPE_USD_MAXIMO,
+        description=(
+            "Corte DURO de gasto para la corrida entera, no por trayectoria. El "
+            "default sale de una medición (94 llamadas / USD 1,26 por "
+            "trayectoria en frío) por N_TRAYECTORIAS, con margen. Si salta, la "
+            "corrida se consolida con las trayectorias que alcanzaron y "
+            "`trayectorias_efectivas` lo declara en el evento `fin`."
+        ),
+    ),
     modo: str = Query("llm", pattern="^(llm|reglas)$"),
 ) -> StreamingResponse:
     """Corre el motor de verdad y transmite cada evento a medida que ocurre.

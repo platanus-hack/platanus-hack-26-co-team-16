@@ -158,6 +158,32 @@ def test_con_una_sola_trayectoria_la_banda_no_miente():
     assert rondas[-1].banda.get("tipo") != "entre_trayectorias"
 
 
+def test_el_tope_paga_las_n_trayectorias():
+    """V-1. El tope por defecto tiene que alcanzar para la corrida que promete.
+
+    No prueba una fórmula, prueba que la plata alcanza. Si mañana alguien sube
+    `N_TRAYECTORIAS` sin tocar el tope, la corrida no fallaría: terminaría bien y
+    publicaría una banda sobre menos trayectorias de las declaradas, que es peor
+    que un error porque parece un resultado. Este test es el que grita.
+    """
+    from api.servidor import (
+        MARGEN_TOPE,
+        TOPE_USD,
+        TOPE_USD_MAXIMO,
+        USD_POR_TRAYECTORIA_EN_FRIO,
+    )
+
+    en_frio = USD_POR_TRAYECTORIA_EN_FRIO * N_TRAYECTORIAS
+    assert TOPE_USD >= en_frio, (
+        f"el tope ${TOPE_USD} no paga las {N_TRAYECTORIAS} trayectorias "
+        f"(${en_frio:.2f} en frío)"
+    )
+    assert MARGEN_TOPE > 1.0, "sin margen, una corrida un poco más cara se corta"
+    # El techo del Query no puede quedar por debajo de su propio default: eso
+    # dejaría el endpoint rechazando su valor por defecto.
+    assert TOPE_USD <= TOPE_USD_MAXIMO
+
+
 if __name__ == "__main__":  # pragma: no cover
     import traceback
 
