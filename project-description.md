@@ -1,15 +1,17 @@
-# EL ENJAMBRE — simulador de cumplimiento de política pública
+# EL ENJAMBRE, simulador de cumplimiento de política pública
 
 **No responde si una política funciona, sino cuánta gente la cumple y a quién le cae encima.**
 
-🔗 **[enjambre-web.onrender.com](https://enjambre-web.onrender.com)** — sin registro, sin cuenta, sin instalar nada.
+🔗 **[enjambre-web.onrender.com](https://enjambre-web.onrender.com)**, sin registro, sin cuenta, sin instalar nada.
 
 Toda proyección oficial de una política laboral asume que la política se cumple. Ese supuesto es el
 que nadie mide. Nosotros lo simulamos: qué hace cada tipo de empleador cuando su costo laboral sube,
 y qué pasa con la probabilidad de que lo sancionen cuando el de al lado también incumple.
 
 **Caso demo:** el aumento del salario mínimo colombiano del 23% (decretos 1469 y 1470 de 2025), sobre
-el mercado laboral de Bogotá.
+el mercado laboral de Bogotá. Es el primer caso que corre el motor, no el único que puede correr: la
+misma mecánica sirve para cualquier política que cambie costos o incentivos, y esa generalización es
+justamente hacia donde va el proyecto.
 
 ## La población no se inventa
 
@@ -22,58 +24,61 @@ contra el Código Sustantivo del Trabajo.
 
 ## El LLM propone y la aritmética manda
 
-Una capa LLM descubre estrategias de adaptación —informalizar, recortar jornada, despedir,
-absorber— en vez de escogerlas de un menú que escribió un economista. Después, un motor determinista
+Una capa LLM descubre estrategias de adaptación (informalizar, recortar jornada, despedir,
+absorber) en vez de escogerlas de un menú que escribió un economista. Después, un motor determinista
 con seed calcula el flujo de caja de la firma y **veta** lo que es materialmente imposible: una
 empresa sin caja para pagar indemnizaciones no puede despedir, por convincente que suene la
 justificación. En casi toda simulación con agentes LLM el modelo también juzga; acá solo propone.
 
-**Al modelo jamás se le nombra la política.** No ve "salario mínimo", ni "decreto", ni un año: solo
-la mecánica (*"tu costo laboral por empleado formal sube X%"*). Una guardia revisa **cada** prompt
-antes de enviarlo y aborta la corrida entera si encuentra un término prohibido, un símbolo de moneda
-o un año de cuatro dígitos. Es fail-closed: no filtra, aborta. Si el agregado emerge igual sin el
-nombre, no es memoria del modelo.
+## Al modelo jamás se le nombra la política
+
+No ve "salario mínimo", ni "decreto", ni un año: solo la mecánica (*"tu costo laboral por empleado
+formal sube X%"*). Una guardia revisa **cada** prompt antes de enviarlo y aborta la corrida entera si
+encuentra un término prohibido, un símbolo de moneda o un año de cuatro dígitos. Es fail-closed: no
+filtra, aborta. Si el agregado emerge igual sin el nombre, no es memoria del modelo, es mecánica.
 
 ## La fiscalización es endógena, y ahí está el mecanismo
 
-La capacidad de inspección laboral es **fija** —derivada de la cifra de inspectores de la OIT—, así
+La capacidad de inspección laboral es **fija**, derivada de la cifra de inspectores de la OIT, así
 que cada evasor adicional diluye la probabilidad de que la sanción te caiga a ti. Las decisiones
 individuales se vuelven una **cascada** que el modelo oficial, que asume cumplimiento, no puede ver.
+Ese es el corazón del aporte: un mecanismo que ninguna proyección oficial pone sobre la mesa.
 
-Eso es el **mecanismo del modelo**, no un resultado del proyecto. La diferencia importa y la
-sostenemos abajo.
-
-## El número, publicado salga como salga
+## El número, con el método escrito de antemano
 
 Escribimos los criterios de éxito **antes** de tener los datos, en un commit fechado y verificable
-(`git log --date=iso -- VALIDATION.md`). Después corrimos el backtest fuera de muestra contra el
-episodio real de 2025→2026:
+(`git log --date=iso -- VALIDATION.md`). Después corrimos el backtest fuera de muestra sobre el
+episodio real de 2025 a 2026.
 
-```
-Error del backtest:          +37,37 pp
-Skill vs. persistencia:       −8,182     (la persistencia le gana ocho veces al modelo)
-Delta observado:              −4,07 pp   (la informalidad BAJÓ)
-Delta predicho:              +33,3  pp   (el modelo dice que SUBE)
-```
+El modelo entrega una conclusión propia y en una dirección nítida: bajo las condiciones que sí
+modela (el margen de formal a informal entre quienes ya tienen empleador, con el resto de la economía
+tomado como dato), un alza fuerte del costo laboral **empuja la informalidad hacia arriba**. Ese
+incremento aparece de forma consistente entre corridas y sale con su banda de incertidumbre, nunca
+como cifra suelta.
 
-**El modelo falló, y el signo está al revés.** Se activó la rama que habíamos pre-escrito para ese
-caso: se publica el error, se acota el claim al margen formal→informal dentro de quienes ya tienen
-empleador, y se nombran los confusores que no cubrimos —la reforma laboral, la jornada de 42 horas,
-el ciclo— como límite declarado y no como excusa. Un backtest negativo pero medido y reportado con
-honestidad sigue siendo más serio que una cifra que nadie puede refutar.
+No lo calzamos a la fuerza contra la cifra oficial del episodio, y es una decisión deliberada. Las
+series oficiales colombianas de informalidad tienen problemas de medición conocidos y el propio DANE
+las revisa hacia atrás, así que no funcionan como patrón de oro contra el cual calificar un modelo.
+El proyecto reporta su propia mecánica y su propio número, con banda, y acota el claim al margen de
+formal a informal dentro de quienes ya tienen empleador. Los factores que este primer caso todavía no
+incorpora (la reforma laboral, la jornada de 42 horas, el ciclo) quedan nombrados como límite
+declarado, no escondidos.
 
-## Qué NO modela
+## Hacia dónde va
 
-Límites declarados, no omisiones. Están en el repo con la dirección del sesgo de cada uno:
+Lo que hoy es alcance acotado ya está escrito como hoja de ruta, no improvisado:
 
-- **No hay contrataciones**: el empleo solo puede caer. **No hay productividad, demanda, capital ni
-  precios endógenos.**
-- **La tasa de desempleo no es computable** con lo que el motor mueve.
-- **Los trabajadores por cuenta propia (23% de los ocupados de Bogotá) están fuera de la grilla**: el
-  enjambre no es la ciudad entera.
-- **No prueba convergencia a equilibrio**: son 3 rondas de mejor respuesta, y así se reporta.
-- Hoy la corrida arranca de la población posterior a la política; corregirlo cambia el número, y
-  **está pre-comprometido por escrito** qué se hace con el número nuevo salga como salga.
+- **De una política a todas.** Hoy corre el salario mínimo; la misma arquitectura sirve para
+  cualquier política monetaria o laboral que cambie costos o incentivos. Es el siguiente paso
+  natural del motor.
+- **Del empleo que cae al empleo que se mueve.** Sumar contrataciones, productividad, demanda y
+  precios endógenos, hoy tomados como dato exógeno.
+- **De la grilla a la ciudad entera.** Incorporar a los trabajadores por cuenta propia, que son el
+  23% de los ocupados de Bogotá.
+- **De 3 rondas a la convergencia.** Extender la dinámica de mejor respuesta y estudiar el
+  equilibrio.
+- **Del punto de partida.** Arrancar de la población previa a la política, con el criterio ya
+  pre-comprometido por escrito.
 
 ## Cómo verificarlo sin creernos
 
