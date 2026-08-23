@@ -51,7 +51,14 @@ services:
     region: virginia
     branch: rol/integracion-deploy
     rootDir: web/enjambre
-    buildCommand: npm ci && npm run build
+    # `--include=dev` NO es decorativo: Render define NODE_ENV=production, y con
+    # eso `npm ci` se salta las devDependencies. `typescript` y los `@types/*`
+    # viven ahi (package.json, de Dani), y `next build` corre `tsc`: sin ellos
+    # el build muere con "you're trying to use TypeScript but do not have the
+    # required package(s) installed". La alternativa seria mover cuatro paquetes
+    # a `dependencies`, o sea editar un archivo de otro dueno para arreglar algo
+    # que es del deploy. Se arregla aca, que es donde vive el problema.
+    buildCommand: npm ci --include=dev && npm run build
     # `npx next start` y no `npm start` a propósito: package.json tiene
     # `next start --port 3000` con el puerto fijo, y ese archivo es de Dani (R4).
     # Invocando el binario directo se respeta $PORT sin tocarle nada.
