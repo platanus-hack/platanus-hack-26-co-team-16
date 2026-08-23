@@ -132,7 +132,7 @@ La fila del candado 1 se confirmó contra la fuente primaria, no contra prensa:
 | Proxy del repo, ene–jun, con filtro de ingreso | **30,57%** (el de `momentos.json`) |
 | Proxy del repo, abr–jun, mismo filtro | 30,81% |
 | Oficial DANE, abr–jun | 33,3% |
-| **Brecha proxy − oficial** | **≈ −2,1 pp** |
+| **Brecha proxy − oficial**, misma ventana abr–jun | **−2,49 pp** (corregido, ver abajo) |
 
 **No podemos reproducir hoy la definición oficial**, por una razón concreta: clasificar a un
 independiente en sector formal o informal exige saber si su unidad está registrada, y `P3045S1`
@@ -141,8 +141,14 @@ Reconstruirla exige variables del módulo de independientes que hoy no se extrae
 
 **Consecuencia de diseño, y es la central del backtest:** se puntúa **proxy contra proxy, con el
 mismo código en los dos extremos**. Si el predicho saliera del proxy y el observado de un boletín, no
-se mediría error del modelo sino deriva de definición. Los 2,1 pp contra el DANE quedan como
+se mediría error del modelo sino deriva de definición. Los 2,49 pp contra el DANE quedan como
 **limitación declarada**, no como fallo de validación.
+
+> **Corrección del 2026-08-23.** Esta brecha decía `≈ −2,1 pp` en los dos lugares donde aparece. La
+> resta de la tabla de arriba da otra cosa: `30,81 − 33,3 = −2,49 pp`. El −2,1 salía del 31,17% del
+> pre-registro, y cuando el proxy se movió a 30,81% nadie recalculó la diferencia. **La limitación
+> declarada estaba subestimada en 0,4 pp**, o sea que el error apuntaba a favor nuestro. Lo levantó
+> Alejo (R1) revisando `data/`; el archivo es de R5 y la corrección se hace acá.
 
 **El matiz que importa para el pitch:** la elasticidad publicada es *una recta*. Nuestro aporte declarado (dato A2 del plan) es si existe un **codo** — un umbral donde la cascada se dispara y la recta deja de valer. Reproducir la recta en el tramo bajo es lo que nos da derecho a hablar del codo en el tramo alto.
 
@@ -160,9 +166,26 @@ GEIH 2026 (catalogo 900) --el mismo script, sin cambios---------->  proxy POST  
 ```
 
 Verificado: 2025 tiene la misma estructura de variables que 2026 (`P3069`, `P6920`, `P6430`,
-`P6426`, `P6800`, `INGLABO`, `FEX_C18`, `RAMA2D_R4`), así que no hay armonización de por medio. Y es
-fuera de muestra de verdad: la población se instancia con 2025 y el modelo nunca ve 2026. El control
-de contaminación se sostiene porque al LLM jamás se le nombra la política.
+`P6426`, `P6800`, `INGLABO`, `FEX_C18`, `RAMA2D_R4`), así que no hay armonización de por medio. El
+control de contaminación se sostiene porque al LLM jamás se le nombra la política.
+
+> ### ⛔ Retractado el 2026-08-23
+>
+> Acá decía, textual: *"Y es fuera de muestra de verdad: la población se instancia con 2025 y el
+> modelo nunca ve 2026."* **Es falso, y el propio documento lo contradice dos párrafos más abajo**
+> (§*"Lo que V0 destapó"*). Se retracta en vez de borrarse porque una afirmación de validación que
+> desaparece sin dejar rastro es peor que una equivocada.
+>
+> **El hecho, verificable en un comando:** ningún ejecutable lee `data/poblacion_2025.parquet`. El
+> archivo está versionado, y `git grep poblacion_2025` pega en **un solo sitio**, que además es un
+> mensaje de error: `scripts/validate.py:133`. La simulación arranca de `data/empresas.parquet` y
+> de `momentos.json` —GEIH **2026**, seis meses DESPUÉS del decreto—, así que el punto de partida y
+> el objetivo son el mismo dato.
+>
+> **Qué es realmente, entonces.** V0 es fuera de muestra en el **dato observado contra el que se
+> puntúa** y en el control de contaminación del LLM; **no** en la población desde la que arranca la
+> corrida. Mientras eso siga así, el modelo parte del resultado que debía predecir. Es el defecto
+> S3-1 del vet, y lo que se hará con el número cuando se arregle está pre-comprometido más abajo.
 
 **Se excluyen 2020-2021** (COVID rompe cualquier backtest laboral) y se dice explícitamente: eso suma
 credibilidad. Un segundo punto (GEIH 2024 → +9,5% → puntuar contra 2025) daría n=2, que sigue siendo
@@ -324,6 +347,36 @@ el número y el pitch se mantiene. El codo (A2) sigue sin afirmarse hasta que el
 **Se activó la B.** `error = 37,37 pp`, `skill = −8,182`, cobertura `NO`: ninguna de las dos
 condiciones de la rama A se cumple, ni de cerca. Los tres movimientos se aplican tal como están
 escritos arriba, sin agregar ninguno.
+
+## Pre-compromiso — qué se hace con el número que viene
+
+**Commiteado el 2026-08-23, ANTES de que la corrida nueva exista.** Va acá abajo, separado del
+bloque pre-registrado de arriba, para no tocarle una coma: ese bloque tiene un comparador contra
+`2d4aa7e` y meterse en el medio produciría un falso positivo. Verificable igual que el otro, con
+`git log --date=iso -- VALIDATION.md`.
+
+**Qué está por cambiar.** S3-1: hoy la simulación arranca de la población POST-política (GEIH 2026)
+en vez de la PRE-política (2025) — lo que se retracta más arriba. Cuando se corrija, el backtest se
+vuelve a correr. Lo que se hará con ese número queda decidido ahora, antes de verlo:
+
+1. **El número nuevo REEMPLAZA a EL NÚMERO**, salga como salga. No se elige el mejor de los dos, no
+   se reporta el viejo "por completitud", y no se decide qué hacer después de conocer la cifra.
+2. **Los dos quedan publicados, cada uno con su hash de commit y la fecha de su corrida.** El viejo
+   (37,37 pp) no se borra: se marca como superado y se dice por qué.
+3. **Las dos ramas de arriba se re-evalúan tal como están escritas.** Si el número nuevo cae en la
+   rama A, se activa la A y se dice explícitamente que antes estuvo activa la B. Si vuelve a caer
+   en la B, se dice que cayó dos veces.
+4. **Si el arreglo no alcanza a entrar antes de la entrega**, se publica EL NÚMERO viejo con esta
+   sección pegada al lado: el resultado que hay, y el defecto conocido que no alcanzamos a
+   corregir. No se presenta como si el problema no existiera.
+
+**Qué NO promete esto.** No promete que el número mejore. S3-1 corrige un **vicio del diseño**
+—arrancar del dato que se quiere predecir—, no el modelo: el motor sigue prediciendo que la
+informalidad SUBE cuando el dato observado dice que BAJÓ, y eso no lo arregla mover el punto de
+partida. El error puede bajar, subir o quedarse donde está.
+
+> **Quién lo corre:** Nico (R3) con Alejo (R1). Este bloque se commitea antes que la corrida
+> justamente para que ellos puedan arrancar sin que el criterio dependa del resultado.
 
 ## Supuestos tomados
 
