@@ -1,0 +1,21 @@
+{
+  "aumento_pct": 0.0,
+  "cache": {
+    "aciertos": 0,
+    "archivo": null,
+    "fallos": 0,
+    "motivo": "ablacion determinista: no hay llamadas que cachear",
+    "usada": false
+  },
+  "esquema": "manifiesto-corrida/v1",
+  "seed": 42,
+  "sha256_artefacto": "5de3528bd04d985f4c7abcb95753f68e0865faedd4b484642b4f7db2223af82e",
+  "versiones": {
+    "anthropic": "1.0.0",
+    "implementacion": "CPython",
+    "numpy": "1.26.4",
+    "pandas": "2.2.2",
+    "pyarrow": "14.0.2",
+    "python": "3.12.4"
+  }
+}

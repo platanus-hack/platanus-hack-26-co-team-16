@@ -6,6 +6,7 @@ reporta como BLOQUEADO y hace que el proceso termine con código distinto de 0.
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -58,13 +59,28 @@ def _ejecutar(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def candado_g1() -> Resultado:
-    """Determinismo punta a punta: seed + caché + versiones.
+PRODUCTOR = RAIZ / "scripts" / "run_simulacion.py"
+ARTEFACTOS = RAIZ / "artefactos"
+MANIFIESTO_PUBLICADO = ARTEFACTOS / "corrida.manifiesto.json"
+
+
+def candado_g1(seco: bool = False) -> Resultado:
+    """Determinismo punta a punta: seed + manifiesto de caché + versiones.
 
     Acumula TODOS los motivos en vez de devolver el primero. Con retorno
     temprano, arreglar `anthropic` destapaba el siguiente bloqueo y daba la
     impresión de que la compuerta estaba a un paso de cerrar cuando le faltaban
     tres. Un estado que oculta lo que viene después no sirve para planear.
+
+    Este candado EJECUTA, no inspecciona. Antes terminaba con un
+    `faltan.append("falta el artefacto canónico...")` incondicional: devolvía
+    `BLOQUEADO` aunque todo lo demás estuviera, así que ningún trabajo podía
+    cerrarlo nunca. Ahora corre `scripts/run_simulacion.py --solo-hash` dos
+    veces y compara los SHA-256, que es literalmente lo que el candado promete
+    en `VALIDATION.md`: *"dos corridas con el mismo (seed, manifiesto de caché,
+    versiones) dan salida idéntica"*.
+
+    Corre por la ablación determinista: $0, sin API key y sin red.
     """
     faltan = []
     requisitos = RAIZ / "requirements.txt"
@@ -72,10 +88,74 @@ def candado_g1() -> Resultado:
         faltan.append("falta requirements.txt")
     elif "anthropic==" not in requisitos.read_text(encoding="utf-8").lower():
         faltan.append("anthropic sin fijar (no está instalado)")
-    if not (RAIZ / "scripts" / "run_simulacion.py").exists():
+    if not PRODUCTOR.exists():
         faltan.append("falta scripts/run_simulacion.py para comparar dos corridas completas")
-    faltan.append("falta el artefacto canónico de salida y el manifiesto de caché")
-    return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+    if faltan:
+        return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+
+    if seco:
+        return (
+            Estado.BLOQUEADO,
+            "--dry: los requisitos están, pero no se corrieron las dos corridas "
+            "que deciden el candado (quita --dry para ejecutarlo)",
+        )
+
+    corridas = [_ejecutar(str(PRODUCTOR), "--solo-hash") for _ in range(2)]
+    for i, c in enumerate(corridas, 1):
+        if c.returncode != 0:
+            detalle = (c.stderr + c.stdout).strip().splitlines()
+            ultima = detalle[-1] if detalle else "sin salida"
+            return Estado.FALLA, f"la corrida {i} salió {c.returncode}: {ultima}"
+    hashes = [c.stdout.strip() for c in corridas]
+    if hashes[0] != hashes[1]:
+        return (
+            Estado.FALLA,
+            f"dos corridas con el mismo seed dieron artefactos distintos: "
+            f"{hashes[0][:12]}… contra {hashes[1][:12]}…",
+        )
+
+    # Y contra lo PUBLICADO. Que dos corridas de hoy coincidan prueba que el
+    # motor es determinista; no prueba que el artefacto versionado siga
+    # describiendo este motor. El repo ya tiene esa herida abierta con
+    # `data/prediccion_modelo.json` (ver el recuadro de VALIDATION.md), así que
+    # acá se mira explícitamente en vez de confiar.
+    #
+    # Sólo cuenta como FALLA si el entorno es el MISMO: el candado compara
+    # "(seed, manifiesto, versiones)", así que un artefacto producido con otras
+    # versiones no es comparable y decirlo es más honesto que reprobarlo.
+    nota = "artefacto publicado: no hay (correr `make run` para escribirlo)"
+    if MANIFIESTO_PUBLICADO.exists():
+        pub = json.loads(MANIFIESTO_PUBLICADO.read_text(encoding="utf-8"))
+        if pub.get("sha256_artefacto") == hashes[0]:
+            nota = "coincide con el artefacto publicado"
+        elif pub.get("versiones") != _versiones_de_esta_maquina():
+            nota = (
+                "el artefacto publicado se produjo con OTRAS versiones, así que "
+                "no es comparable (regenerar con `make run`)"
+            )
+        else:
+            return (
+                Estado.FALLA,
+                "mismo entorno y mismo seed, pero el artefacto publicado no "
+                f"coincide: {pub.get('sha256_artefacto', '?')[:12]}… contra "
+                f"{hashes[0][:12]}… — está podrido, regenerar con `make run`",
+            )
+    return Estado.PASA, f"dos corridas → {hashes[0][:12]}… idéntico; {nota}"
+
+
+def _versiones_de_esta_maquina() -> dict[str, str]:
+    """Las mismas versiones que estampa `scripts/run_simulacion.py`.
+
+    Se importa del productor en vez de reimplementarse: dos listas de paquetes
+    que tienen que coincidir y viven en archivos distintos divergen, y cuando
+    divergen este candado empieza a comparar peras con manzanas en silencio.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_run_simulacion", PRODUCTOR)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo._versiones()
 
 
 def candado_g2() -> Resultado:
@@ -91,27 +171,75 @@ def candado_g2() -> Resultado:
         from behavior.capa import Reskin  # noqa: F401
     except ImportError:
         return Estado.BLOQUEADO, "higiene PASA; behavior.capa.Reskin no existe"
+    # Por qué esto sigue BLOQUEADO y NO se cierra con la ablación.
+    #
+    # Se midió (23-ago): correr el par canónica/re-skinneada con `ClienteReglas`
+    # —el camino determinista, gratis, sin API key— da **+0,000000 pp** de
+    # diferencia en la informalidad final, con un factor de re-skin de 0,4844.
+    # Ese cero no es evidencia de no-contaminación: `Reskin` reescribe el TEXTO
+    # del prompt (`capa.renderizar()`), y las reglas fijas de la ablación no leen
+    # texto, deciden sobre los números del arquetipo. O sea que el candado
+    # pasaría midiendo un canal por el que la contaminación no puede viajar.
+    #
+    # G2 pregunta si el MODELO reconoce el escenario por sus magnitudes. Sólo el
+    # camino LLM puede responder eso, y cuesta créditos. Se deja BLOQUEADO a
+    # propósito: un PASA vacío en la compuerta de no-contaminación es peor que
+    # un bloqueo declarado, porque es exactamente la mitad del argumento de
+    # validación del proyecto.
     return (
         Estado.BLOQUEADO,
-        "higiene PASA; Reskin implementado (behavior/capa.py) pero falta "
-        "registrar la corrida canónica y la re-skinneada para compararlas",
+        "higiene PASA; Reskin implementado (behavior/capa.py) pero el par "
+        "canónica/re-skinneada exige el camino LLM: por la ablación mueve "
+        "0,000000 pp porque las reglas fijas no leen el texto del prompt, "
+        "y ese PASA no mediría nada",
     )
 
 
 def candado_g3() -> Resultado:
-    """Corrida sin política contra proxy y orden micro > pyme > grande."""
-    salida = DATA / "calibracion_base.json"
-    if not salida.exists():
-        return Estado.BLOQUEADO, "no existe data/calibracion_base.json de una corrida sin política"
+    """Corrida sin política contra proxy y orden micro > pyme > grande.
+
+    El productor ya existe: `scripts/run_simulacion.py --aumento 0` escribe
+    `artefactos/calibracion_base.json`. Se sigue aceptando el archivo en
+    `data/` por si el equipo decide versionarlo ahí (esa carpeta es de R1).
+
+    **El objetivo cambió de denominador, y era un defecto.** Este candado
+    comparaba contra `tasa_informalidad_total` (30,57%: TODOS los ocupados de
+    Bogotá) una corrida que sólo simula empleados de firma. `data/empresas.parquet`
+    excluye a propósito a los 964.004 cuenta propia —una unidad sin empleados no
+    puede despedir ni informalizar a nadie—, y `arquetipos.informalidad_observada()`
+    ya lo documenta al devolver 17,99%. Con el objetivo equivocado el candado
+    medía 12,58 pp de error puramente contable y habría reprobado el modelo por
+    un cambio de universo. El objetivo correcto es
+    `tasa_informalidad_empleados_de_firma`.
+    """
+    salida = next(
+        (r for r in (ARTEFACTOS / "calibracion_base.json", DATA / "calibracion_base.json")
+         if r.exists()),
+        None,
+    )
+    if salida is None:
+        return (
+            Estado.BLOQUEADO,
+            "falta la corrida sin política: producirla con "
+            "`python3 scripts/run_simulacion.py --aumento 0`",
+        )
     observado = json.loads((DATA / "momentos.json").read_text(encoding="utf-8"))
     calibrado = json.loads(salida.read_text(encoding="utf-8"))
     tasa = float(calibrado["tasa_informalidad_total"])
-    objetivo = float(observado["tasa_informalidad_total"])
+    objetivo = float(observado["tasa_informalidad_empleados_de_firma"])
     tamanos = calibrado["tasa_informalidad_por_tamano"]
+    objetivo_tamanos = observado["tasa_informalidad_por_tamano_empleados_de_firma"]
     orden = tamanos["micro"] > tamanos["pyme"] > tamanos["grande"]
     error_pp = abs(tasa - objetivo) * 100
     estado = Estado.PASA if error_pp <= 2.0 and orden else Estado.FALLA
-    return estado, f"error={error_pp:.2f} pp; orden micro>pyme>grande={orden}"
+    desglose = " · ".join(
+        f"{k} {tamanos[k] * 100:.2f}% vs {objetivo_tamanos[k] * 100:.2f}% obs"
+        for k in ("micro", "pyme", "grande")
+    )
+    return estado, (
+        f"error={error_pp:.2f} pp sobre empleados de firma (umbral 2 pp); "
+        f"orden micro>pyme>grande={orden}; {desglose}"
+    )
 
 
 def _tasa_periodo(anio: int, meses: list[str]) -> float:
@@ -186,7 +314,11 @@ def medicion_v0() -> tuple[Estado, str, dict[str, float] | None]:
     return Estado.MEDIDO, f"proxy contra proxy desde momentos versionados{sufijo}", numeros
 
 
-def medicion_m3() -> Resultado:
+def medicion_m3(seco: bool = False) -> Resultado:
+    if seco:
+        # `barrer_factor(real=True)` corre la ablación ocho veces. Es gratis pero
+        # no es instantáneo, y `--dry` promete no correr simulaciones.
+        return Estado.BLOQUEADO, "--dry: no se corrió el barrido de 8 factores"
     try:
         from behavior.ablacion import barrer_factor
 
@@ -243,8 +375,35 @@ def medicion_m4(numeros: dict[str, float] | None) -> Resultado:
     )
 
 
-def main() -> int:
-    resultados = [("G1 reproducibilidad", candado_g1()), ("G2 no contaminación", candado_g2()), ("G3 calibración base", candado_g3())]
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Sale con código 1 mientras haya compuertas que no estén en PASA. "
+               "Las MEDICIONES no entran al código de salida: publicar un número "
+               "feo es el resultado, no un fallo.",
+    )
+    # `--dry` estaba citado en el informe del juez científico y NO existía: este
+    # archivo no tenía `argparse`, así que cualquier bandera se ignoraba en
+    # silencio y el comando del informe corría la validación completa mientras
+    # su autor creía estar haciendo una pasada seca.
+    ap.add_argument(
+        "--dry", action="store_true",
+        help="pasada seca: verifica que los productores de cada candado existan, "
+             "pero no corre las simulaciones que deciden G1. No cambia el "
+             "veredicto de nada que ya esté medido.",
+    )
+    ap.add_argument(
+        "--json", action="store_true",
+        help="emite el resultado como JSON en vez del informe legible",
+    )
+    args = ap.parse_args(argv)
+
+    resultados = [
+        ("G1 reproducibilidad", candado_g1(seco=args.dry)),
+        ("G2 no contaminación", candado_g2()),
+        ("G3 calibración base", candado_g3()),
+    ]
     estado_v0, detalle_v0, numeros = medicion_v0()
     # M1 y M2 van SEPARADAS: `VALIDATION.md` declara siete filas y el ejecutor
     # imprimía seis porque las agrupaba. Un documento que anuncia una fila que el
@@ -264,11 +423,36 @@ def main() -> int:
                                                      f"persistencia erra {numeros['error_baseline_pp']:.2f} pp")),
         ])
     resultados.extend([
-        ("M3 ablación", medicion_m3()),
+        ("M3 ablación", medicion_m3(seco=args.dry)),
         ("M4 rango entre paráfrasis", medicion_m4(numeros)),
     ])
 
-    print("VALIDACIÓN PRE-REGISTRADA")
+    # Solo las compuertas deciden. Una medición no reprueba: publicar un número
+    # feo ES el resultado.
+    #
+    # Se eligen por NOMBRE, no por estado. Se filtraban por `estado in
+    # COMPUERTAS`, y `BLOQUEADO` está ahí: una medición que no podía correr
+    # —M3 cuando la ablación revienta, o bajo `--dry`— se colaba al código de
+    # salida y hacía reprobar la validación por algo que el propio
+    # `VALIDATION.md` declara que no puede reprobar. Qué es compuerta lo dice el
+    # pre-registro, no el estado que le tocó hoy.
+    compuertas = [(n, e) for n, (e, _) in resultados if n.startswith("G")]
+    codigo = 0 if all(e is Estado.PASA for _, e in compuertas) else 1
+
+    if args.json:
+        print(json.dumps({
+            "compuertas": {n: e.value for n, e in compuertas},
+            "filas": [
+                {"nombre": n, "estado": e.value, "detalle": d}
+                for n, (e, d) in resultados
+            ],
+            "numero": numeros,
+            "dry": args.dry,
+            "codigo_de_salida": codigo,
+        }, ensure_ascii=False, indent=2, sort_keys=True))
+        return codigo
+
+    print("VALIDACIÓN PRE-REGISTRADA" + ("  ·  --dry (pasada seca)" if args.dry else ""))
     for nombre, (estado, detalle) in resultados:
         print(f"  [{estado.value:9}] {nombre}: {detalle}")
     if numeros is None:
@@ -277,10 +461,7 @@ def main() -> int:
     else:
         _imprimir_v0(numeros)
 
-    # Solo las compuertas deciden. Una medición no reprueba: publicar un número
-    # feo ES el resultado.
-    compuertas = [e for _, (e, _) in resultados if e in COMPUERTAS]
-    return 0 if all(e is Estado.PASA for e in compuertas) else 1
+    return codigo
 
 
 if __name__ == "__main__":

@@ -1,0 +1,179 @@
+{
+  "entradas": {
+    "arquetipos": 81,
+    "firmas": 368490.7,
+    "fuente_momentos": "data/momentos.json",
+    "fuente_poblacion": "data/empresas.parquet",
+    "peso_total": 3235639.0,
+    "tasa_informalidad_inicial": 0.1799,
+    "universo": "empleados_de_firma"
+  },
+  "escenario": {
+    "aumento_pct": 23.0,
+    "costo_usd": 0.0,
+    "llamadas_al_proveedor_llm": 0,
+    "modo": "ablacion-determinista",
+    "nivel_adr_0009": 3,
+    "rondas_pedidas": 4,
+    "seed": 42
+  },
+  "esquema": "corrida-canonica/v1",
+  "final": {
+    "brecha_pp": 6.071781644323,
+    "empleo_relativo": 1.0,
+    "estabilizada": true,
+    "ingreso_laboral_relativo": 0.988112526027,
+    "movimiento_ultima_ronda_pp": 0.0,
+    "tasa_informalidad": 0.240617816443,
+    "tasa_informalidad_por_tamano": {
+      "grande": 0.008099983752,
+      "micro": 0.834719506856,
+      "pyme": 0.105728844881
+    },
+    "umbral_estabilidad_pp": 2.0
+  },
+  "rondas": [
+    {
+      "banda": {
+        "degenerada": true,
+        "p10": 0.1799,
+        "p90": 0.1799
+      },
+      "desglose_estrategias": {},
+      "empleo_relativo": 1.0,
+      "estabilizada": false,
+      "fraccion_fallback": 0.0,
+      "fraccion_fallback_ponderada": 0.0,
+      "fraccion_jornada_recortada": 0.0,
+      "fraccion_sin_salida": 0.0,
+      "fraccion_sin_salida_ponderada": 0.0,
+      "ingreso_laboral_relativo": 1.0,
+      "movimiento_pp": 0.0,
+      "politica": {
+        "aumento_pct": 23.0,
+        "tipo": "cambio_costo_laboral"
+      },
+      "prob_fiscalizacion": 0.6294,
+      "prob_fiscalizacion_evasores": 0.009908012491,
+      "ronda": 0,
+      "seed": 42,
+      "simulacion_id": "sim-local",
+      "tasa_informalidad": 0.1799,
+      "tasa_informalidad_por_tamano": {
+        "grande": 0.008099983752,
+        "micro": 0.596115727765,
+        "pyme": 0.105728844881
+      },
+      "traslado_precios_pct": 0.0
+    },
+    {
+      "banda": {
+        "degenerada": true,
+        "p10": 0.2406,
+        "p90": 0.2406
+      },
+      "desglose_estrategias": {
+        "absorber": 0.880226224248,
+        "bajar_horas": 0.024359577814,
+        "informalizar": 0.095414197937
+      },
+      "empleo_relativo": 1.0,
+      "estabilizada": false,
+      "fraccion_fallback": 0.691358024691,
+      "fraccion_fallback_ponderada": 0.757025428362,
+      "fraccion_jornada_recortada": 0.024359577814,
+      "fraccion_sin_salida": 0.62962962963,
+      "fraccion_sin_salida_ponderada": 0.732665850548,
+      "ingreso_laboral_relativo": 0.9951,
+      "movimiento_pp": 6.0718,
+      "politica": {
+        "aumento_pct": 23.0,
+        "tipo": "cambio_costo_laboral"
+      },
+      "prob_fiscalizacion": 0.6294,
+      "prob_fiscalizacion_evasores": 0.009908012491,
+      "ronda": 1,
+      "seed": 42,
+      "simulacion_id": "sim-local",
+      "tasa_informalidad": 0.2406,
+      "tasa_informalidad_por_tamano": {
+        "grande": 0.008099983752,
+        "micro": 0.834719506856,
+        "pyme": 0.105728844881
+      },
+      "traslado_precios_pct": 0.0
+    },
+    {
+      "banda": {
+        "degenerada": true,
+        "p10": 0.2406,
+        "p90": 0.2406
+      },
+      "desglose_estrategias": {
+        "absorber": 0.975640422186,
+        "bajar_horas": 0.024359577814
+      },
+      "empleo_relativo": 1.0,
+      "estabilizada": true,
+      "fraccion_fallback": 0.691358024691,
+      "fraccion_fallback_ponderada": 0.757025428362,
+      "fraccion_jornada_recortada": 0.024359577814,
+      "fraccion_sin_salida": 0.62962962963,
+      "fraccion_sin_salida_ponderada": 0.732665850548,
+      "ingreso_laboral_relativo": 0.9912,
+      "movimiento_pp": 0.0,
+      "politica": {
+        "aumento_pct": 23.0,
+        "tipo": "cambio_costo_laboral"
+      },
+      "prob_fiscalizacion": 0.6198,
+      "prob_fiscalizacion_evasores": 0.009213814778,
+      "ronda": 2,
+      "seed": 42,
+      "simulacion_id": "sim-local",
+      "tasa_informalidad": 0.2406,
+      "tasa_informalidad_por_tamano": {
+        "grande": 0.008099983752,
+        "micro": 0.834719506856,
+        "pyme": 0.105728844881
+      },
+      "traslado_precios_pct": 0.0
+    },
+    {
+      "banda": {
+        "degenerada": true,
+        "p10": 0.2406,
+        "p90": 0.2406
+      },
+      "desglose_estrategias": {
+        "absorber": 0.975640422186,
+        "bajar_horas": 0.024359577814
+      },
+      "empleo_relativo": 1.0,
+      "estabilizada": true,
+      "fraccion_fallback": 0.691358024691,
+      "fraccion_fallback_ponderada": 0.757025428362,
+      "fraccion_jornada_recortada": 0.024359577814,
+      "fraccion_sin_salida": 0.62962962963,
+      "fraccion_sin_salida_ponderada": 0.732665850548,
+      "ingreso_laboral_relativo": 0.9881,
+      "movimiento_pp": 0.0,
+      "politica": {
+        "aumento_pct": 23.0,
+        "tipo": "cambio_costo_laboral"
+      },
+      "prob_fiscalizacion": 0.6198,
+      "prob_fiscalizacion_evasores": 0.009213814778,
+      "ronda": 3,
+      "seed": 42,
+      "simulacion_id": "sim-local",
+      "tasa_informalidad": 0.2406,
+      "tasa_informalidad_por_tamano": {
+        "grande": 0.008099983752,
+        "micro": 0.834719506856,
+        "pyme": 0.105728844881
+      },
+      "traslado_precios_pct": 0.0
+    }
+  ]
+}

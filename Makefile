@@ -13,13 +13,16 @@ PY    ?= $(shell [ -x .venv/bin/python3 ] && echo .venv/bin/python3 || echo pyth
 SEED  ?= 42
 
 .DEFAULT_GOAL := help
-.PHONY: help run test validate reproduce estado supuestos servidor enjambre humo
+.PHONY: help run determinismo calibracion test validate reproduce estado supuestos \
+        servidor enjambre humo
 
 help:
 	@echo ""
 	@echo "  team-16 · Simulador de cumplimiento de politica publica"
 	@echo ""
-	@echo "  make run        Corre una simulacion completa (seed=$(SEED))"
+	@echo "  make run        Corre una simulacion completa (seed=$(SEED), \$$0, sin API key)"
+	@echo "  make determinismo  Dos corridas y compara: la prueba de AGENTS.md"
+	@echo "  make calibracion   La corrida SIN politica que pide la compuerta G3"
 	@echo "  make test       Tests del nucleo determinista"
 	@echo "  make validate   Los 4 candados de validacion e imprime EL numero"
 	@echo "  make reproduce  Reproduce el resultado principal con un comando"
@@ -31,44 +34,48 @@ help:
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
 
+# Corre por la ABLACION determinista: $0, sin API key y sin red. El camino del
+# producto (LLM) se corre desde la API (`make servidor`); este target existe para
+# que un jurado que acaba de clonar el repo pueda teclear algo y ver la corrida.
 run:
-	@if [ -f scripts/run_simulacion.py ]; then \
-		$(PY) scripts/run_simulacion.py --seed $(SEED); \
+	$(PY) scripts/run_simulacion.py --seed $(SEED)
+
+# La prueba que AGENTS.md promete: "mismo seed, mismo resultado, verificable
+# corriendo make run dos veces". Estaba enunciada y no habia forma de correrla.
+determinismo:
+	@echo "  dos corridas con seed=$(SEED), comparando el artefacto canonico..."
+	@$(PY) scripts/run_simulacion.py --seed $(SEED) --solo-hash > .det.a
+	@$(PY) scripts/run_simulacion.py --seed $(SEED) --solo-hash > .det.b
+	@if diff -q .det.a .det.b >/dev/null; then \
+		echo "  IDENTICO · sha256 $$(cat .det.a)"; rm -f .det.a .det.b; \
 	else \
-		echo "PENDIENTE · make run"; \
-		echo "  Falta: scripts/run_simulacion.py (R5) sobre engine/ (R2, Manuel)."; \
-		echo "  Se cablea en el checkpoint C3 (H+10): la corrida punta a punta."; \
-		echo "  Mientras tanto la referencia del flujo es docs/FLUJO.md."; \
+		echo "  DISTINTO: $$(cat .det.a) contra $$(cat .det.b)"; \
+		rm -f .det.a .det.b; exit 1; \
 	fi
+
+# La corrida SIN politica que pide la compuerta G3 de VALIDATION.md.
+calibracion:
+	$(PY) scripts/run_simulacion.py --seed $(SEED) --aumento 0
 
 # Los tests del nucleo viven en `engine/` y `behavior/`, no solo en `tests/`:
 # cada duenio los escribe en su carpeta. Este target los corria solo desde
 # `tests/` e imprimia "No hay tests todavia" mientras 58 pasaban en `engine/`.
+# Tambien se saltaba `api/`, asi que `make test` decia 95 y la suite que el
+# equipo corre a mano decia 111: dos cuentas distintas de lo mismo.
 test:
 	@if ! command -v pytest >/dev/null 2>&1; then \
 		echo "PENDIENTE · make test — pytest no esta instalado (pip install -r requirements.txt)."; \
 	else \
-		pytest engine/ tests/ -q; \
+		pytest engine/ api/ tests/ -q; \
 		echo ""; \
 		echo "  regresiones de behavior/ (no son pytest, corren solas):"; \
 		$(PY) -m behavior.pruebas | tail -3; \
 	fi
 
+# Sale con codigo 1 mientras haya compuertas fuera de PASA, y eso es a proposito.
+# `make validate ARGS=--dry` hace la pasada seca (no corre simulaciones).
 validate:
-	@if [ -f scripts/validate.py ]; then \
-		$(PY) scripts/validate.py; \
-	else \
-		echo ""; \
-		echo "  VALIDACION — sin datos aun."; \
-		echo ""; \
-		echo "  EL numero del backtest existe en el checkpoint C5 (H+20 a H+26)."; \
-		echo "  Se publica salga como salga: un error grande medido y reportado"; \
-		echo "  vale mas que una cifra que nadie puede refutar."; \
-		echo ""; \
-		echo "  Los 4 candados y su estado: VALIDATION.md"; \
-		echo "  Metodologia completa:      docs/PLAN.md seccion 5"; \
-		echo ""; \
-	fi
+	$(PY) scripts/validate.py $(ARGS)
 
 # C4 — corre en una maquina limpia SIN API key. Importa la cache versionada del
 # escenario demo si existe; si no, cae a la ablacion, que es determinista sin
@@ -85,7 +92,9 @@ estado:
 	@echo "  Que esta cableado:"
 	@for f in Makefile README.md AGENTS.md ARCHITECTURE.md VALIDATION.md LICENSE \
 	          scripts/run_simulacion.py scripts/validate.py scripts/reproduce.py \
-	          data/poblacion.parquet data/momentos.json; do \
+	          data/poblacion.parquet data/momentos.json \
+	          artefactos/corrida.json artefactos/corrida.manifiesto.json \
+	          artefactos/calibracion_base.json; do \
 		if [ -e "$$f" ]; then echo "    [x] $$f"; else echo "    [ ] $$f"; fi; \
 	done
 	@echo ""
