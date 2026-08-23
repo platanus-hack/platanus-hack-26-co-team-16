@@ -240,3 +240,146 @@ paráfrasis bien nombrado.
   Eje A/próxima corrida.
 - Coherencia temporal de `behavior/ablacion.py:71-102` (COP/mes sumado con COP/trimestre). No
   verificado por mí.
+
+---
+---
+
+# ANEXO — para iterar después con corridas reales
+
+> **Escrito el 23-ago por la sesión que lanzó el Eje B (Claude Opus 5), no por `juez-cientifico`.**
+> Va debajo y **no toca ni una línea del informe de arriba**: el informe es el reclamo del agente,
+> esto es lo que la sesión verificó por su cuenta y lo que queda pendiente de corrida.
+> Sigue sin ser normativo. Los arreglos los hace el dueño de cada carpeta, en su rama, por PR.
+
+## A · Qué se verificó en disco (independiente del agente)
+
+Un informe de agente es un reclamo, no evidencia. Estas cuatro se comprobaron aparte:
+
+| Afirmación del informe | Estado | Evidencia |
+|---|---|---|
+| `MARGEN_SOBRE_NOMINA = 0.18` uniforme para las 81 celdas | **CONFIRMADO** | `data/construir_empresas.py:70`, aplicado en `:153` como `flujo_caja = nomina · 0,18`. No hay ninguna otra fuente de caja. |
+| El álgebra del sobrecosto en el veto | **CONFIRMADO con una corrección** | `engine/veto.py:443-445`. Ver A.1. |
+| `VALIDATION.md` no menciona el segundo episodio | **CONFIRMADO** | `grep -c "2,63\|2\.63" VALIDATION.md` → **0** |
+| `VALIDATION.md` no menciona la no-cegera | **CONFIRMADO** | `grep -c "no fue ciego" VALIDATION.md` → **0** |
+
+### A.1 · Corrección al álgebra: falta el término `jornada`
+
+El informe escribe `sobrecosto = en_regla · ingreso · factor · (a/100) · 3`. La línea real
+(`engine/veto.py:442-445`) lleva un factor más:
+
+```
+jornada    = 1 − reduccion_horas_pct/100          # engine/veto.py:442
+sobrecosto = en_regla · ingreso · factor · (a/100) · 3 · jornada
+```
+
+**No rescata el veredicto, y conviene saber por qué antes de que lo pregunte un juez:**
+`jornada = 1` exactamente para `absorber` y `cumplir` (ninguna de las dos trae
+`reduccion_horas_pct`), que son las ramas sobre las que se calculó el ranking. Solo baja de 1 en
+`bajar_horas`. Y aun ahí es una **variable de decisión del agente**, no un atributo de la celda:
+no introduce heterogeneidad *entre* celdas, que es lo que el veredicto necesitaría para caerse.
+La cancelación de salario y tamaño se sostiene.
+
+### A.2 · Un comando del informe no existe
+
+`LOS 3 ARREGLOS · C` propone verificar con `python scripts/validate.py --dry`. **Ese flag no
+existe:** `scripts/validate.py` no tiene `argparse` (único `__main__` en `:279`, cero
+`add_argument`). El comando correcto para verificar el arreglo C es la inspección estática:
+
+```bash
+grep -rn "Cobertura" scripts/ web/     # debe dar 0 en contexto de banda
+sed -n '160,175p' scripts/validate.py  # la frase nueva en su sitio
+```
+
+## B · Qué árbol se midió, y por qué importa para la fusión
+
+- **Medido: `9218dc3`** — el commit más reciente de `main`, en un worktree de solo lectura.
+- **El `PROMPT-B` fija `9cbd6f2`** y ese SHA quedó viejo: el propio PR #29 que trajo el reparto de
+  la revisión se mergeó *después*. La diferencia entre los dos es **solo `docs/vet/revision-3ejes/`**,
+  no toca código, así que ningún hallazgo de este informe cambia.
+- **Para el que fusione:** si los ejes A y C se lanzaron con el SHA literal del prompt, los tres
+  informes no están midiendo el mismo árbol. Verificarlo antes de fusionar, o la regla de "lo que
+  aparece en dos listas va primero" compara contra árboles distintos.
+
+## C · Pendientes que solo se resuelven corriendo
+
+Ordenados por cuánto mueven el veredicto. **Ninguno se corrió en esta sesión.**
+
+> **Antes de correr nada:** `make run` **no existe todavía** — `scripts/run_simulacion.py` no está
+> en el repo y el target imprime `PENDIENTE`. Las corridas reales de hoy entran por
+> `behavior/demo.py`, `behavior/ablacion.py`, `scripts/barrido_politicas.py` y `scripts/validate.py`.
+>
+> **Costo:** sin `--llm` todo corre por la **ablación determinista** y cuesta **$0**, repetible sin
+> límite. Con `--llm` se gasta del presupuesto de $50/persona; `barrido_politicas.py` acepta
+> `--tope` en USD.
+>
+> **Trampa de nombre:** `demo.py --reparto` **no** es el mapa distributivo. Es "repartir las
+> paráfrasis por peso poblacional" (B1). Quien vaya a atacar C.1 con ese flag va a medir otra cosa.
+
+### C.1 · El experimento que decide el veredicto principal — margen heterogéneo
+
+- **Qué se resuelve:** si el ranking de celdas es un resultado del modelo o un re-plot de `share_formal`.
+- **Cómo:** reemplazar el `0,18` constante por un margen por celda con fuente (EAM, Supersociedades,
+  o el que haya) y recalcular Spearman `ranking ↔ share_formal`. Es cambio en `data/` — **dueño: Alejo (R1)**.
+- **Qué resultado cambiaría el veredicto:** que la correlación baje sustancialmente de **0,94**.
+  Si se queda arriba de ~0,85, el mapa sigue siendo endógeno al insumo y hay que rebautizarlo igual.
+- **Costo: $0** (recálculo sobre parquet, sin LLM).
+
+### C.2 · La ponderación de `tasa_informalidad` por empleo superviviente — [SOSPECHA, heredada, SIN VERIFICAR]
+
+- **Qué se resuelve:** si una celda que despide media planta sigue aportando la misma masa informal
+  al agregado (`behavior/rondas.py:334-349`, `:489-513`). Si es cierto, **contamina EL NÚMERO**, no
+  solo el mapa.
+- **Cómo:** corrida de ablación con una política que fuerce `despedir`, comprobando si `Σw·q/Σw`
+  se mueve al mismo tiempo que el empleo.
+  ```bash
+  python -m behavior.ablacion --real --aumento 23
+  ```
+- **Costo: $0.** **Dueño: Nico (R3).** Es el pendiente más barato con más consecuencia.
+
+### C.3 · El exponente de visibilidad α = 1,875 — leído, no derivado
+
+- **Qué se resuelve:** si α está calibrado contra la informalidad que el modelo debe reproducir
+  (`engine/fiscalizacion.py:142-171`, ADR 0007). Si lo está, es circular.
+- **Cómo:** `python scripts/calibrar_visibilidad.py` y contrastar con `data/calibracion_visibilidad.json`.
+- **Costo: $0.** **Dueño: Manuel (R2).** Materia compartida con el Eje A.
+
+### C.4 · Coherencia temporal en `behavior/ablacion.py:71-102` — COP/mes sumado con COP/trimestre
+
+- **Qué se resuelve:** un error de unidades de factor 3 en la ablación, que es justo el camino
+  determinista con el que se reproduce todo sin API key (ADR 0009).
+- **Costo: $0**, es lectura. **Dueño: Nico (R3).**
+
+### C.5 · La cascada como mecanismo, demostrada en vez de afirmada
+
+- **Qué se resuelve:** la lámina puede decir "esto es el mecanismo, y así se ve cuando lo apagamos"
+  en vez de afirmar la cascada como resultado (que el backtest ya falsó).
+- **Cómo:** el flag B4 ya existe — congela `p(sanción)` en su valor de ronda 0:
+  ```bash
+  python -m behavior.demo --real --sin-cascada --aumento 23
+  python -m behavior.demo --real --aumento 23            # el contraste
+  ```
+- **Costo: $0** sin `--llm`. **Dueño: Nico (R3) + Dani (R4)** para la lámina.
+
+### C.6 · El segundo episodio, con el comando que lo imprime
+
+- **Qué se resuelve:** el arreglo **B** necesita la cifra citable, no la recordada.
+- **Cómo:** `python scripts/validate.py` (sin flags) — el segundo episodio se computa en `:174-179`.
+- **Costo: $0.** **Dueño: Juanda (R5).**
+
+### C.7 · La banda de 33,9 pp, medida de nuevo
+
+- **Qué se resuelve:** hoy el rango es min–max de N=5 paráfrasis. Con N mayor deja de ser
+  "el mínimo y el máximo que salieron" y empieza a poder llamarse algo.
+- **Cómo:** `python -m behavior.demo --real --llm --parafrasis 9 --tope 5`
+- **Costo: SÍ gasta LLM.** Es el único pendiente de esta lista que toca presupuesto. **Dueño: Nico (R3).**
+
+## D · Lo que este eje NO miró
+
+Queda declarado para que la fusión no lo dé por cubierto:
+
+- **La pantalla.** Qué dice cada leyenda de `web/` es del **Eje C**. Este eje solo marcó por `grep`
+  que tres componentes mencionan cascada; el texto exacto no se leyó.
+- **La ejecución.** Si la simulación corre, escala y es reproducible es del **Eje A**.
+- **Cualquier corrida.** Este informe es 100% lectura estática más 4 cálculos sobre
+  `data/empresas.parquet` y `data/momentos*.json`. **Cero corridas del motor**, cero llamadas al
+  proveedor de LLM, cero gasto.
