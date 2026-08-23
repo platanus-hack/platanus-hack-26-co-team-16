@@ -10,6 +10,8 @@ export default function Titulo() {
   // delante del enjambre en cuanto llega más de una ronda de golpe.
   const rondaMostrada = usarAlmacen((s) => s.rondaMostrada);
   const avance = usarAlmacen((s) => s.avance);
+  // P4.1: lo mostrado, no lo calculado
+  const decididasMostradas = usarAlmacen((s) => s.decididasMostradas);
   const poblacion = usarAlmacen((s) => s.poblacion);
   const conexion = usarAlmacen((s) => s.conexion);
   const modo = usarAlmacen((s) => s.modo);
@@ -21,6 +23,13 @@ export default function Titulo() {
   return (
     <div className="panel" style={{ left: 36, top: 32, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* P5.1 · marca de esquina. Mismo truco de mezcla que en la carga:
+            el PNG no tiene alfa y su negro se funde con el fondo. */}
+        <img
+          src="/hive-logo.png"
+          alt="HIVE"
+          style={{ width: 26, height: 26, objectFit: "cover", mixBlendMode: "screen", flexShrink: 0 }}
+        />
         <div className="kicker">simulación de política · mercado laboral de Bogotá</div>
         {modo && (
           <div
@@ -65,10 +74,10 @@ export default function Titulo() {
         </div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 12, letterSpacing: "0.1em", color: "var(--tinta-tenue)" }}>
           {enCurso !== null
-            ? `RONDA ${enCurso} DECIDIENDO · ${avance.decididos}/${avance.total || "—"} CELDAS`
+            ? `RONDA ${enCurso} DECIDIENDO · ${decididasMostradas}/${avance.total || "—"} CELDAS`
             : cerrada >= 0
               ? `RONDA ${cerrada} DE ${total - 1}`
-              : "PREPARANDO"}
+              : "CONSTRUYENDO LA CIUDAD"}
         </div>
       </div>
     </div>

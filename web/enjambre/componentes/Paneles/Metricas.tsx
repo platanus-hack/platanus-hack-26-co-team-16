@@ -99,6 +99,12 @@ export default function Metricas() {
     });
   }
 
+  // Tope de 6 filas. No es estética: con las 9 posibles el panel llega a ~453
+  // px de alto y, anclado a bottom:96, a 1440×900 su borde superior sube hasta
+  // pisar el bloque de noticias. El panel se queda con las que se leen de un
+  // vistazo y el reporte lleva la tabla completa, sin recortar.
+  const visibles = filas.slice(0, 6);
+
   return (
     <div
       className="panel"
@@ -106,28 +112,28 @@ export default function Metricas() {
     >
       <CurvaBrecha />
       <div>
-        {filas.map((f) => (
+        {visibles.map((f) => (
           <div
             key={f.nombre}
             style={{
               display: "flex",
               alignItems: "baseline",
               justifyContent: "space-between",
-              gap: 18,
-              padding: "8px 0",
+              gap: 16,
+              padding: "5px 0",
               borderTop: "1px solid var(--linea)",
             }}
           >
-            <div style={{ fontSize: 13, color: "var(--tinta-suave)" }}>{f.nombre}</div>
-            <div className="cifra" style={{ fontSize: 21, color: f.color ?? "var(--tinta)", whiteSpace: "nowrap" }}>
+            <div style={{ fontSize: 12.5, lineHeight: 1.25, color: "var(--tinta-suave)" }}>{f.nombre}</div>
+            <div className="cifra" style={{ fontSize: 19, color: f.color ?? "var(--tinta)", whiteSpace: "nowrap" }}>
               {f.valor}
             </div>
           </div>
         ))}
       </div>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--tinta-tenue)", textAlign: "right" }}>
-        celdas empleadoras GEIH-DANE · cifras de esta corrida · masa salarial y bajo-mínimo con supuesto declarado
-      </div>
+      {/* El pie que declaraba procedencia y supuestos se fue al reporte: es
+          justo la clase de texto pequeño que satura el lienzo, y ahí se puede
+          leer completo en vez de resumido a una línea. */}
     </div>
   );
 }
