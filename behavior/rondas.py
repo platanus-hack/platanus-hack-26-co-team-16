@@ -56,6 +56,36 @@ from engine.veto import EstadoVivo, veto_del_motor
 # que viene el agente. El motor tiene la última palabra sobre el estado del
 # mundo; esto es solo el agregado que vuelve a los agentes la ronda siguiente.
 
+DECIMALES_BANDA_CONTRATO = 4
+
+
+def _serializar_banda(banda: dict[str, Any]) -> dict[str, Any]:
+    """Redondea los NÚMEROS de la banda y deja pasar intacto lo que no lo es.
+
+    La banda no es un dict de floats, aunque el tipo declarado lo sugiera: lleva
+    `degenerada` (bool) y `tipo` (str, la etiqueta de QUÉ dispersión se midió).
+    El serializador conserva soporte recursivo, pero `a_contrato()` entrega la
+    banda plana que congela `contracts/ronda.json`; los rangos de las demás
+    métricas viven en `Ronda.rangos_metricas`, fuera de ese contrato.
+
+    Acá había un dict-comp que redondeaba todo lo que no fuera `bool`, así que
+    `tipo` entraba a `round()` y mataba la corrida completa con
+    `TypeError: type str doesn't define __round__ method`. No se veía con una
+    sola trayectoria porque `consolidar_trayectorias()` devuelve la corrida
+    intacta y la banda nunca lleva `tipo`; aparecía desde la segunda —o desde la
+    segunda paráfrasis, por la otra ruta, `_banda()`—, es decir en la
+    configuración por defecto del endpoint, no en una perilla apagada.
+    """
+    fuera = {}
+    for k, v in banda.items():
+        if isinstance(v, dict):
+            fuera[k] = _serializar_banda(v)
+        elif isinstance(v, (bool, str)) or v is None:
+            fuera[k] = v
+        else:
+            fuera[k] = round(v, DECIMALES_BANDA_CONTRATO)
+    return fuera
+
 
 @dataclass
 class Ronda:
@@ -99,6 +129,11 @@ class Ronda:
     # del mismo estado. Es diagnóstico interno, no la banda que se publica: por
     # construcción es más angosta que la dispersión entre trayectorias completas.
     banda_intra_ronda: dict[str, Any] = field(default_factory=dict)
+    # S1-2/S1-4: diagnóstico por cada número de `a_contrato()`. NO entra dentro
+    # de `banda`: `contracts/ronda.json` congela esa estructura como un dict
+    # plano. La API puede exponer este campo aparte cuando su dueño congele la
+    # interfaz aditiva; mientras tanto no se rompe a ningún consumidor actual.
+    rangos_metricas: dict[str, Any] = field(default_factory=dict)
     # Foto del estado vivo al CERRAR la ronda, por arquetipo:
     # {fraccion_informal, fraccion_empleada, horas}. Existe para la interfaz (el
     # enjambre necesita saber cuánta planta de cada celda sigue empleada, fuera
@@ -116,10 +151,7 @@ class Ronda:
             "tasa_informalidad": round(self.tasa_informalidad, 4),
             "prob_fiscalizacion": round(self.prob_fiscalizacion, 4),
             "empleo_relativo": round(self.empleo_relativo, 4),
-            "banda": {
-                k: (v if isinstance(v, bool) else round(v, 4))
-                for k, v in self.banda.items()
-            },
+            "banda": _serializar_banda(self.banda),
             # C3 + A4 + A5 — campos NUEVOS respecto de `contracts/ronda.json`
             # congelado en H+4. Se avisó al grupo junto con `banda.degenerada`,
             # que ya se emitía sin estar declarado (§4.4), y el contrato del repo
@@ -190,6 +222,7 @@ def correr(
     al_decidir_arquetipo: Callable[[int, str, ResultadoArquetipo], None] | None = None,
     fiscalizacion: EstadoFiscalizacion | None = None,
     congelar_prob_fiscalizacion: bool = False,
+    alfa_visibilidad: float | None = None,
     reskin: Reskin | None = None,
 ) -> list[Ronda]:
     """Corre las rondas de mejor respuesta y devuelve el agregado de cada una.
@@ -210,8 +243,14 @@ def correr(
     representa cada arquetipo (B1) en vez de darle la misma cantidad a todos.
 
     `congelar_prob_fiscalizacion=True` corre el experimento de cascada apagada
-    (B4): la sanción se queda en su valor de la ronda 0 y la diferencia contra
-    la corrida normal es, en pp, cuánto de la brecha pone la cascada.
+    (B4): la sanción de cada celda se queda en su valor de la ronda 0 y la
+    diferencia contra la corrida normal es, en pp, cuánto de la brecha pone la
+    cascada. El `prob_fiscalizacion` agregado del contrato es el promedio de las
+    probabilidades por celda ponderado por `peso`, porque el contrato describe
+    el riesgo que enfrenta una persona representativa, no una firma sin tamaño.
+
+    `alfa_visibilidad` existe para reproducir la calibración; `None` usa el
+    valor congelado por el motor. No es una perilla de la política ni del usuario.
 
     El calendario es el de la [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md):
     una ronda es un trimestre, la **ronda 0 es la reacción ingenua** —la
@@ -292,26 +331,34 @@ def correr(
             universo=max(1.0, universo_de_firmas(arquetipos))
         )
 
-    def _fraccion_firmas_fuera_de_regla() -> float:
-        """Qué fracción del universo de FIRMAS está fuera de regla.
+    def _celdas_evasoras() -> list[tuple[str, int, float]]:
+        """Conteos vivos de firmas evasoras para repartir la capacidad fija."""
+        total_firmas = sum(a.n_empresas for a in arquetipos)
+        return [
+            (
+                a.id,
+                a.n_trabajadores,
+                (
+                    a.n_empresas
+                    if total_firmas > 0
+                    else fiscalizacion.universo * a.peso / peso_total
+                )
+                * estado.fraccion_informal[a.id],
+            )
+            for a in arquetipos
+        ]
 
-        La sanción se le aplica a unidades productivas, no a trabajadores: es la
-        divergencia del defecto §3.5, donde esta capa contaba personas y el motor
-        contaba empresas para la misma probabilidad. Con la grilla real se
-        pondera por `n_empresas`; sin ella se cae al peso poblacional, que es lo
-        único disponible en el andamio.
-        """
-        pesos_firma = sum(a.n_empresas for a in arquetipos)
-        if pesos_firma <= 0:
-            return min(1.0, sum(a.peso * estado.fraccion_informal[a.id] for a in arquetipos) / peso_total)
-        return min(
-            1.0,
-            sum(a.n_empresas * estado.fraccion_informal[a.id] for a in arquetipos) / pesos_firma,
+    def _promedio_prob(probabilidades: dict[str, float]) -> float:
+        return (
+            sum(a.peso * probabilidades[a.id] for a in arquetipos) / peso_total
         )
 
     # La p(sanción) de la ronda 0, que es también la que se congela cuando se
     # corre el experimento de cascada apagada (B4).
-    prob_inicial = fiscalizacion.prob(_fraccion_firmas_fuera_de_regla())
+    probs_iniciales = fiscalizacion.prob_celdas(
+        _celdas_evasoras(), alfa=alfa_visibilidad
+    )
+    prob_inicial = _promedio_prob(probs_iniciales)
 
     # RONDA 0 — la proyección oficial (ADR 0005). No se llama al LLM: por
     # definición asume cumplimiento total, así que la informalidad se queda en la
@@ -351,11 +398,14 @@ def correr(
         # experimento que CUANTIFICA la cascada: la diferencia entre esta corrida
         # y la normal es, en puntos porcentuales, cuánto de la brecha pone el
         # hecho de que la capacidad de fiscalización no crece.
-        prob = (
-            prob_inicial
+        probs = (
+            probs_iniciales
             if congelar_prob_fiscalizacion
-            else fiscalizacion.prob(_fraccion_firmas_fuera_de_regla())
+            else fiscalizacion.prob_celdas(
+                _celdas_evasoras(), alfa=alfa_visibilidad
+            )
         )
+        prob = _promedio_prob(probs)
 
         # Las RONDAS son secuenciales por definición (cada una responde al
         # agregado de la anterior), pero los ARQUETIPOS dentro de una ronda son
@@ -383,7 +433,7 @@ def correr(
                 # dice "periodo 1 de 3", no "de 4".
                 rondas_totales=rondas_totales - 1,
                 tasa_informalidad=tasa,
-                prob_fiscalizacion=prob,
+                prob_fiscalizacion=probs[a.id],
                 # SUPUESTO: la sanción equivale a `multa_factor` meses de
                 # ingreso por trabajador (por defecto 12). Es el parámetro que
                 # decide si evadir paga, así que es de los primeros que R5 debe
@@ -571,6 +621,15 @@ def _percentiles(valores: list[float], *, tipo: str) -> dict[str, Any]:
     distintas y dan números muy distintos (0,0 pp contra 22,5 pp en la corrida
     medida). Publicar una donde se espera la otra es la forma más rápida de
     perder credibilidad en el Q&A, así que la etiqueta viaja con el número.
+
+    CÓMO NOMBRAR ESTO EN PANTALLA. Con las N chicas que corremos, `p10` y `p90`
+    no son percentiles interiores sino los extremos de la muestra. Medido sobre
+    esta misma función: `p90` recién se despega del máximo en N=6, y `p10` del
+    mínimo en N=11. Con los N=5 del endpoint, entonces, son literalmente el
+    mínimo y el máximo de las corridas, y rotularlos "p10-p90" promete una
+    estadística que no se calculó. El nombre exacto es "rango entre las N
+    corridas". No es un defecto del cálculo —con 5 puntos no hay percentil
+    interior que calcular— sino de cómo se etiqueta.
     """
     if not valores:
         return {"p10": 0.0, "p90": 0.0, "degenerada": True, "tipo": tipo}
@@ -581,27 +640,96 @@ def _percentiles(valores: list[float], *, tipo: str) -> dict[str, Any]:
     vs = sorted(valores)
     k10 = max(0, int(0.10 * (len(vs) - 1)))
     k90 = min(len(vs) - 1, int(round(0.90 * (len(vs) - 1))))
-    return {"p10": vs[k10], "p90": vs[k90], "degenerada": False, "tipo": tipo}
+    # `degenerada` mide si hay dispersión que dibujar, no si hubo más de un
+    # valor. Con N corridas que dan todas el mismo número —el caso normal en
+    # `modo=reglas`, donde la ablación es determinista— el ancho es cero y una
+    # banda de ancho cero rotulada como real le dice al front que dibuje una
+    # precisión que no se midió. Contar valores en vez de medir el ancho hacía
+    # exactamente eso desde el segundo valor idéntico.
+    return {
+        "p10": vs[k10],
+        "p90": vs[k90],
+        "degenerada": round(vs[k10], DECIMALES_BANDA_CONTRATO)
+        == round(vs[k90], DECIMALES_BANDA_CONTRATO),
+        "tipo": tipo,
+    }
 
 
 # --- B2: la banda que se PUBLICA es la de trayectorias completas -------------
 
 
+# Los números de dominio que publica `a_contrato()`. `seed` y `ronda` son
+# coordenadas, no resultados; `estabilizada` es la etiqueta booleana de
+# `movimiento_pp`. La regresión deriva esta lista también desde el contrato real
+# para que una omisión acá no vuelva a verificarse a sí misma.
+METRICAS_NUMERICAS_CONTRATO = (
+    "tasa_informalidad",
+    "prob_fiscalizacion",
+    "empleo_relativo",
+    "traslado_precios_pct",
+    "ingreso_laboral_relativo",
+    "movimiento_pp",
+)
+
+
 def banda_entre_trayectorias(corridas: list[list[Ronda]], ronda: int = -1) -> dict[str, Any]:
-    """p10/p90 de la tasa final entre N corridas completas e independientes.
+    """La banda PLANA de tasa que exige el contrato congelado.
 
-    Esta es la banda honesta y es la que va a la pantalla. La otra —la que
-    calcula `_banda()`— mide la dispersión de las paráfrasis DENTRO de una ronda
-    partiendo todas del mismo estado, y por construcción es más angosta: en la
-    corrida medida daba 0,0 pp mientras la dispersión real entre trayectorias
-    independientes era de 22,5 pp.
+    La otra —la que calcula `_banda()`— mide dispersión DENTRO de una ronda. Esta
+    compara trayectorias completas observadas. En el producto esas trayectorias
+    están pareadas por estado y seed y difieren por paráfrasis: no son réplicas
+    iid y esta función no afirma que lo sean.
 
-    Publicar la angosta no era una decisión, era un accidente del código; pero
-    el efecto habría sido presentar una precisión que el modelo no tiene. La
-    banda se ENSANCHA con esta corrección, y ese ensanchamiento es el arreglo.
+    Los nombres `p10`/`p90` se conservan porque son parte de
+    `contracts/ronda.json`; con N=5 sus valores son el mínimo y el máximo. El
+    reporte correcto es "rango entre las N trayectorias", no un intervalo de
+    confianza ni cinco realizaciones independientes. Las demás métricas van al
+    diagnóstico separado `rangos_entre_trayectorias()`.
     """
-    finales = [c[ronda].tasa_informalidad for c in corridas if c]
-    return _percentiles(finales, tipo="entre_trayectorias")
+    validas = [c for c in corridas if c]
+    return _percentiles(
+        [c[ronda].tasa_informalidad for c in validas], tipo="entre_trayectorias"
+    )
+
+
+def _rango_muestral(valores: list[float]) -> dict[str, Any]:
+    """Extremos observados, sin convertirlos en percentiles inferenciales."""
+    if not valores:
+        raise ValueError("un rango muestral requiere al menos una observación")
+    minimo, maximo = min(valores), max(valores)
+    minimo_publicado = round(minimo, DECIMALES_BANDA_CONTRATO)
+    maximo_publicado = round(maximo, DECIMALES_BANDA_CONTRATO)
+    return {
+        "minimo": minimo_publicado,
+        "maximo": maximo_publicado,
+        "degenerado": minimo_publicado == maximo_publicado,
+    }
+
+
+def rangos_entre_trayectorias(
+    corridas: list[list[Ronda]], ronda: int = -1
+) -> dict[str, Any]:
+    """Diagnóstico honesto de todas las métricas, fuera del contrato plano.
+
+    `fuente_variacion` es deliberadamente descriptiva: esta capa recibe
+    trayectorias terminadas y no inventa si cambiaron por paráfrasis, seed u
+    otra coordenada. El llamador que las construye conserva esa procedencia.
+    """
+    validas = [c for c in corridas if c]
+    metricas = {}
+    if validas:
+        metricas = {
+            metrica: _rango_muestral(
+                [getattr(c[ronda], metrica) for c in validas]
+            )
+            for metrica in METRICAS_NUMERICAS_CONTRATO
+        }
+    return {
+        "metodo": "rango_muestral",
+        "n_efectivas": len(validas),
+        "fuente_variacion": "trayectorias_observadas",
+        "metricas": metricas,
+    }
 
 
 def consolidar_trayectorias(corridas: list[list[Ronda]]) -> list[Ronda]:
@@ -615,13 +743,20 @@ def consolidar_trayectorias(corridas: list[list[Ronda]]) -> list[Ronda]:
     if not corridas:
         return []
     validas = [c for c in corridas if c]
+    if not validas:
+        return []
     if len(validas) == 1:
-        return validas[0]
+        unica = validas[0]
+        for n, r in enumerate(unica):
+            r.rangos_metricas = rangos_entre_trayectorias(validas, ronda=n)
+        return unica
     orden = sorted(validas, key=lambda c: c[-1].tasa_informalidad)
     mediana = orden[len(orden) // 2]
     for n, r in enumerate(mediana):
         r.banda_intra_ronda = dict(r.banda)
-        r.banda = banda_entre_trayectorias(validas, ronda=min(n, len(validas[0]) - 1))
+        indice = min(n, len(validas[0]) - 1)
+        r.banda = banda_entre_trayectorias(validas, ronda=indice)
+        r.rangos_metricas = rangos_entre_trayectorias(validas, ronda=indice)
     return mediana
 
 

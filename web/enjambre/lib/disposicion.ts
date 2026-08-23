@@ -25,10 +25,17 @@ export interface Celda {
 // `web/DISENO.md`: la GEIH expande ~630 personas por fila encuestada, así que
 // bajar de ahí sería dibujar una resolución que la encuesta no tiene. Con la
 // grilla real (3,24 M de trabajadores con empleador) eso da ~3.200 puntos en el
-// nivel más cercano y ~400 en el más lejano.
+// nivel más cercano y ~1.080 en el más lejano.
+//
+// Los dos niveles de arriba bajaron de 8.000/3.000 a 3.000/1.500. No es
+// estética: con 8.000 personas por punto muchas celdas quedaban en 1-3 puntos,
+// y ahí `nExp = round(n·(1−fraccion_empleada))` necesita ~50% de despidos para
+// redondear siquiera a UN punto — o sea que los despidos moderados eran
+// literalmente invisibles. El piso de 1.000 NO se toca: ese tiene una razón de
+// honestidad, no de legibilidad.
 export const NIVELES_LOD = [
-  { zoomMax: 18, personasPorPunto: 8000 },
-  { zoomMax: 45, personasPorPunto: 3000 },
+  { zoomMax: 18, personasPorPunto: 3000 },
+  { zoomMax: 45, personasPorPunto: 1500 },
   { zoomMax: Infinity, personasPorPunto: 1000 },
 ];
 
@@ -51,9 +58,15 @@ export function crearRng(seed: number): () => number {
 }
 
 /**
- * Coloca las celdas en una nube elíptica orgánica. Las más pesadas primero
- * (consiguen el centro); rechazo por distancia mínima con relajación gradual
- * para garantizar que todas entren.
+ * Coloca las celdas en una nube elíptica. Las más pesadas primero (consiguen
+ * el centro); rechazo por distancia mínima con relajación gradual para
+ * garantizar que todas entren.
+ *
+ * Se probaron barrios por sector con dispersión gaussiana, buscando que la
+ * nube se viera más orgánica. Se revirtió: la elipse deja las empresas más
+ * juntas y el enjambre se lee como UN cuerpo, que es lo que la pieza necesita.
+ * Los barrios separaban los grupos lo suficiente como para que pareciera un
+ * diagrama de sectores, no una ciudad.
  */
 export function disponer(arquetipos: ArquetipoEstatico[], seed = 20260322): Map<string, Celda> {
   const rng = crearRng(seed);

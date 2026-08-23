@@ -517,7 +517,33 @@ def informalidad_observada(ruta: str | Path = "data/momentos.json") -> float:
     Es el punto de partida de la ronda 0 — la proyección oficial de la ADR 0005
     asume cumplimiento total, o sea que la informalidad se queda donde la
     encuesta la encontró.
+
+    Devuelve la tasa de los EMPLEADOS DE FIRMA, no la de todos los ocupados.
+    ------------------------------------------------------------------------
+    Esta función devolvía `tasa_informalidad_total` (30,57%), que cubre a todos
+    los ocupados de Bogotá. Pero el motor solo simula decisiones de EMPLEADOR, y
+    `data/empresas.parquet` excluye a propósito al cuenta propia —964.004
+    personas, el 23% de los ocupados, 72,79% informales— porque una unidad sin
+    empleados no puede despedir ni informalizar a nadie
+    (ver `poblacion_cuenta_propia()`, que ya lo documentaba).
+
+    La consecuencia estaba medida: la ronda 0 DECLARABA 30,57% y la ronda 1
+    CALCULABA 17,99% desde la propia grilla, así que el simulador parecía
+    formalizar 13,5 pp de la ciudad en la primera ronda incluso con alza 0%. Ese
+    salto se leía como conducta del modelo y era un cambio de denominador.
+    Contra el objetivo correcto el error a política cero es −0,92 pp, no −13,50.
+
+    El total sigue publicado en `momentos.json` y `poblacion_cuenta_propia()`
+    sigue reportando la parte que el motor no cubre: acá no se esconde nada, se
+    compara contra la población que el motor efectivamente simula.
     """
     import json
 
-    return float(json.loads(Path(ruta).read_text(encoding="utf-8"))["tasa_informalidad_total"])
+    momentos = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    # SUPUESTO: un `momentos.json` viejo (anterior a la descomposición) no trae
+    # la clave. Se cae al total para no reventar, que es el comportamiento de
+    # antes, y así los artefactos de 2024/2025 se siguen leyendo.
+    return float(
+        momentos.get("tasa_informalidad_empleados_de_firma")
+        or momentos["tasa_informalidad_total"]
+    )

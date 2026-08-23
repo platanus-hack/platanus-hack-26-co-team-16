@@ -1,0 +1,90 @@
+# render.yaml — el deploy. Dueño: Juanda (R5 · integración). Ver docs/DEPLOY.md.
+#
+# Dos servicios en Render, en la misma región:
+#
+#     [enjambre-web :Next]  --/api/*-->  [enjambre-api :FastAPI]  --> behavior/ + engine/
+#
+# La interfaz es 100% cliente y habla con el motor por `/api/...` relativo
+# (web/enjambre/estado/flujo.ts), que `next.config.mjs` reescribe hacia
+# ENJAMBRE_API. O sea: el servidor de Next hace de PROXY del SSE, y ahí está la
+# razón de que los dos servicios vivan acá y no en Vercel: una corrida LLM medida
+# tarda 166 s, y Vercel corta los rewrites con destino externo a los 120 s
+# (ROUTER_EXTERNAL_TARGET_ERROR). Render aguanta 100 minutos de request.
+#
+# Instancias `standard` y no `free` A PROPÓSITO, y es lo único que quita el
+# spin-down de 15 minutos ("el cooldown"): Render apaga un servicio Free que pasa
+# 15 min sin tráfico y tarda ~1 min en volver. Los créditos del hackathon pagan
+# eso; el plan de pago es lo que hay que elegir para gastarlos.
+#
+# Los dos secretos van con `sync: false`: Render los pide en el dashboard y NO
+# viven en el repo. La llave de Anthropic no se commitea nunca (.gitignore).
+#
+# OJO al mergear a main: `branch:` de abajo apunta a la rama de trabajo. Cuando
+# esto entre a main hay que cambiar los dos a `main` (o cambiar la rama en el
+# dashboard, que es lo mismo y no exige redeploy del Blueprint).
+
+services:
+  - name: enjambre-api
+    type: web
+    runtime: python
+    plan: standard              # 1 CPU / 2 GB — ver docs/DEPLOY.md §costos
+    region: virginia            # el más cercano a Colombia de los que ofrece Render
+    branch: rol/integracion-deploy
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.servidor:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: commit
+    # SIN numInstances ni autoscaling, y no es un olvido: el candado que impide
+    # dos corridas simultáneas (`_ocupado`, api/servidor.py) vive en memoria del
+    # proceso. Con dos instancias dejaría de existir y dos corridas se pisarían.
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.3           # el default de Render hoy y el de la máquina donde se verificó
+      - key: PYTHONUNBUFFERED
+        value: "1"              # sin esto los prints por ronda no aparecen en los logs
+      - key: ANTHROPIC_API_KEY
+        sync: false             # se pega en el dashboard. NUNCA en el repo.
+
+  - name: enjambre-web
+    type: web
+    runtime: node
+    plan: standard              # `next build` con three.js no cabe en 512 MB
+    region: virginia
+    branch: rol/integracion-deploy
+    rootDir: web/enjambre
+    # `--include=dev` NO es decorativo: Render define NODE_ENV=production, y con
+    # eso `npm ci` se salta las devDependencies. `typescript` y los `@types/*`
+    # viven ahi (package.json, de Dani), y `next build` corre `tsc`: sin ellos
+    # el build muere con "you're trying to use TypeScript but do not have the
+    # required package(s) installed". La alternativa seria mover cuatro paquetes
+    # a `dependencies`, o sea editar un archivo de otro dueno para arreglar algo
+    # que es del deploy. Se arregla aca, que es donde vive el problema.
+    buildCommand: npm ci --include=dev && npm run build
+    # `npx next start` y no `npm start` a propósito: package.json tiene
+    # `next start --port 3000` con el puerto fijo, y ese archivo es de Dani (R4).
+    # Invocando el binario directo se respeta $PORT sin tocarle nada.
+    startCommand: npx next start --hostname 0.0.0.0 --port $PORT
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      # ┌─────────────────────────────────────────────────────────────────┐
+      # │ ENJAMBRE_API SE LEE EN EL **BUILD**, NO AL ARRANCAR. VERIFICADO. │
+      # └─────────────────────────────────────────────────────────────────┘
+      # `next build` evalúa `rewrites()` de next.config.mjs y CONGELA el destino
+      # dentro de `.next/routes-manifest.json`. Se comprobó a mano: un servidor
+      # arrancado con otro ENJAMBRE_API siguió proxyando al destino del build.
+      #
+      #     "destination": "http://localhost:8000/:path*"   <- horneado
+      #
+      # Consecuencias, y son la trampa más cara de este deploy:
+      #   1. Si el primer build corre sin esta variable, queda `localhost:8000`
+      #      DENTRO del contenedor del frontend. La página carga perfecto y
+      #      ninguna simulación arranca nunca. Falla en silencio.
+      #   2. Cambiarla NO basta con reiniciar: hay que volver a BUILDEAR.
+      #      Render redespliega solo al editar una variable, y ese redeploy sí
+      #      re-corre el build, así que alcanza con guardarla.
+      #   3. Al crear el Blueprint todavía no existe la URL de la API. Se pone
+      #      cualquier placeholder, y apenas la API tenga URL se edita ACÁ.
+      #      Ese cambio dispara el rebuild que hornea el destino correcto.
+      - key: ENJAMBRE_API
+        sync: false             # la URL pública de enjambre-api, SIN barra final

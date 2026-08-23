@@ -3,9 +3,11 @@
 // del navegador, espejo de los prints del servidor, para poder verificar que lo
 // que se ve es lo que el motor calculó.
 
+import { registrarCorrida } from "@/lib/corrida";
 import {
   EventoDecision,
   EventoFin,
+  EventoInicio,
   EventoRonda,
   Poblacion,
   usarAlmacen,
@@ -40,8 +42,12 @@ export function iniciarCorrida(): void {
   fuente = new EventSource(`/api/simulaciones/flujo?${q}`);
 
   fuente.addEventListener("inicio", (e) => {
+    const i = JSON.parse((e as MessageEvent).data) as EventoInicio;
+    // S2-1: con qué modo corrió (llm o reglas) tiene que quedar visible en
+    // pantalla, no solo en la consola — un juez tiene que poder verlo.
+    usarAlmacen.getState().setModo(i);
     usarAlmacen.getState().setConexion("corriendo");
-    console.info("[enjambre] corrida iniciada:", JSON.parse((e as MessageEvent).data));
+    console.info("[enjambre] corrida iniciada:", i);
   });
 
   fuente.addEventListener("decision", (e) => {
@@ -74,6 +80,12 @@ export function iniciarCorrida(): void {
     usarAlmacen.getState().setFin(f);
     console.info("[enjambre] corrida terminada:", f);
     detenerCorrida();
+    // P7: la corrida se archiva en el histórico del laboratorio. Es lo único
+    // que hace que la evidencia se acumule entre corridas en vez de perderse
+    // al cerrar la pestaña. Deliberadamente sin `await` y sin romper nada si
+    // falla: que el archivo no se pueda escribir (deploy de solo lectura) no
+    // puede afectar lo que el usuario está viendo.
+    archivarCorrida();
   });
 
   fuente.addEventListener("error", (e) => {
@@ -98,5 +110,26 @@ export function detenerCorrida(): void {
   if (fuente) {
     fuente.close();
     fuente = null;
+  }
+}
+
+/** Manda la corrida terminada al histórico del laboratorio. Nunca lanza. */
+async function archivarCorrida(): Promise<void> {
+  try {
+    const registro = registrarCorrida();
+    if (!registro) return;
+    const r = await fetch("/laboratorio/registro", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(registro),
+    });
+    const j = await r.json();
+    console.info(
+      j?.ok
+        ? "[enjambre] corrida archivada en el histórico del laboratorio"
+        : `[enjambre] no se archivó la corrida: ${j?.razon ?? "razón desconocida"}`
+    );
+  } catch (e) {
+    console.warn("[enjambre] no se pudo archivar la corrida:", e);
   }
 }

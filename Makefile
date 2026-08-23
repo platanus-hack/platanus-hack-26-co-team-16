@@ -13,7 +13,7 @@ PY    ?= $(shell [ -x .venv/bin/python3 ] && echo .venv/bin/python3 || echo pyth
 SEED  ?= 42
 
 .DEFAULT_GOAL := help
-.PHONY: help run test validate reproduce estado supuestos servidor enjambre
+.PHONY: help run test validate reproduce estado supuestos servidor enjambre humo
 
 help:
 	@echo ""
@@ -26,6 +26,7 @@ help:
 	@echo "  make estado     Que esta cableado y que no"
 	@echo "  make servidor   La API del enjambre (uvicorn :8000, SSE por ronda)"
 	@echo "  make enjambre   El frontend (Next.js :3000; requiere make servidor aparte)"
+	@echo "  make humo       Humo contra el deploy: make humo URL=https://..."
 	@echo ""
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
@@ -112,6 +113,22 @@ enjambre:
 		cd web/enjambre && npm install --no-audit --no-fund; \
 	fi
 	cd web/enjambre && npm run dev
+
+# ¿La URL desplegada transmite una corrida de verdad? La home puede cargar
+# perfecto con el motor caído: esto abre el SSE y verifica que las rondas
+# cierran. Corre la ablación determinista, así que cuesta $0 y se puede repetir
+# cuantas veces haga falta. `LLM=1` corre el camino del producto y SÍ gasta.
+humo:
+	@if [ -z "$(URL)" ]; then \
+		echo ""; \
+		echo "  uso: make humo URL=https://enjambre-web-xxxx.onrender.com"; \
+		echo "       make humo URL=... LLM=1   # el camino del producto (gasta creditos)"; \
+		echo ""; \
+		echo "  El runbook completo del deploy esta en docs/DEPLOY.md"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@"$(PY)" scripts/humo_deploy.py $(URL) $(if $(LLM),--llm,)
 
 # El informe de honestidad del proyecto, con UN solo comando.
 #

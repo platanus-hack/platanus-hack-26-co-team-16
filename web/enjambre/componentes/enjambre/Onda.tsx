@@ -54,6 +54,9 @@ export default function Onda({ motor }: { motor: MotorVisual }) {
     // lo que hacen los puntos en pantalla. El hero muestra la tasa del contrato,
     // que parte del universo observado completo — pueden diferir y es sabido.
     const brecha = peso > 0 ? Math.max(0, neto / peso) : 0;
+    // SUPUESTO: 0,04pp de piso de visibilidad y el mapeo brecha→radio
+    // (4 + 55·√brecha, tope 30) son escala visual arbitraria para que la
+    // onda quepa en pantalla — no salen de ningún dato del motor.
     const objetivoR = brecha > 0.0004 ? Math.min(30, 4 + 55 * Math.sqrt(brecha)) : 0;
     const ox = delta > 0 ? cx / delta : 0;
     const oy = delta > 0 ? cy / delta : 0;

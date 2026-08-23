@@ -9,7 +9,7 @@ Salida:   data/poblacion.parquet  — una fila por agente-trabajador de Bogota,
 Determinista: transformacion pura sin muestreo (no requiere seed); el parquet
 se escribe ordenado por id, asi dos corridas producen el mismo archivo.
 
-Uso:  python data/construir_poblacion.py [--anio 2026]
+Uso:  python data/construir_poblacion.py [--anio 2026] [--meses abril,mayo,junio]
 """
 
 from __future__ import annotations
@@ -134,6 +134,7 @@ def cargar_mes(mes: str, anio: int = 2026) -> pd.DataFrame:
 
 
 def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.DataFrame, dict]:
+    ventana_explicita = meses is not None
     meses = MESES if meses is None else meses
     crudo = pd.concat([cargar_mes(m, anio) for m in meses], ignore_index=True)
     n_crudo = len(crudo)
@@ -235,11 +236,41 @@ def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.Data
         "n_descartados_sin_ingreso": int(n_sin_ingreso),
         "ocupados_expandidos": round(float(wtot)),
         "tasa_informalidad_total": round(tasa_informalidad(df), 4),
+        # La descomposicion que faltaba. `tasa_informalidad_total` cubre a TODOS
+        # los ocupados, pero `engine/` solo simula decisiones de EMPLEADOR, y un
+        # cuenta propia no tiene empleador que decida por el: `empresas.parquet`
+        # excluye el codigo 1 a proposito (ver `arquetipos.poblacion_cuenta_propia`).
+        # Comparar la corrida contra el total media 13,5 pp de error que no eran
+        # del modelo sino de la definicion de poblacion: el motor arrancaba
+        # declarando 30,57% y en la ronda 1 pasaba a los 17,99% que su propia
+        # grilla ya traia. Ese salto se leia como conducta y no lo era.
+        "tasa_informalidad_empleados_de_firma": round(tasa_informalidad(df[df["tamano_empresa"] > 1]), 4),
+        "cuenta_propia": {
+            "trabajadores_expandidos": round(float(df.loc[df["tamano_empresa"] == 1, "factor_expansion"].sum())),
+            "share_ocupados": round(float(df.loc[df["tamano_empresa"] == 1, "factor_expansion"].sum() / wtot), 4),
+            "tasa_informalidad": round(tasa_informalidad(df[df["tamano_empresa"] == 1]), 4),
+            "nota": (
+                "Fuera del alcance del motor: sin empleador no hay decision de empleador. "
+                "Se reporta para que el agregado del simulador nunca se lea como si fuera "
+                "toda la ciudad. El objetivo de calibracion del motor es "
+                "`tasa_informalidad_empleados_de_firma`."
+            ),
+        },
         "tasa_informalidad_por_sector": {
             s: round(tasa_informalidad(g), 4) for s, g in df.groupby("sector")
         },
         "tasa_informalidad_por_tamano": {
             t: round(tasa_informalidad(g), 4) for t, g in df.groupby("tamano_grupo")
+        },
+        # El mismo corte que arriba, un nivel mas abajo. `tamano_grupo` mete al
+        # cuenta propia (codigo 1) dentro de "micro", asi que el micro publicado
+        # (66,72%) esta inflado 7,1 pp respecto del micro que el motor simula
+        # (59,61%): `empresas.parquet` mapea 2-4 -> micro y no tiene codigo 1.
+        # `scripts/calibrar_visibilidad.py` ajustaba alfa contra el objetivo
+        # inflado, y por eso a politica cero el modelo todavia formalizaba.
+        "tasa_informalidad_por_tamano_empleados_de_firma": {
+            t: round(tasa_informalidad(g), 4)
+            for t, g in df[df["tamano_empresa"] > 1].groupby("tamano_grupo")
         },
         "distribucion_salarial_cop": percentiles,
         "spike_salarial": {
@@ -250,23 +281,54 @@ def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.Data
         "terciles_ingreso_cop": {"t1_max": round(t1), "t2_max": round(t2)},
         "n_arquetipos": int(poblacion["arquetipo"].nunique()),
     }
+    if ventana_explicita:
+        momentos["meses"] = meses
     return poblacion, momentos
+
+
+def _parsear_meses(valor: str) -> list[str]:
+    meses = [mes.strip().lower() for mes in valor.split(",") if mes.strip()]
+    if not meses:
+        raise argparse.ArgumentTypeError("--meses requiere al menos un mes")
+    invalidos = [mes for mes in meses if mes not in MESES]
+    if invalidos:
+        validos = ", ".join(MESES)
+        raise argparse.ArgumentTypeError(
+            f"mes(es) no válido(s): {', '.join(invalidos)}; opciones: {validos}"
+        )
+    return meses
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Construye la población GEIH de Bogotá.")
     parser.add_argument("--anio", type=int, choices=(2024, 2025, 2026), default=2026)
+    parser.add_argument(
+        "--meses",
+        type=_parsear_meses,
+        help="meses separados por comas; por ejemplo: abril,mayo,junio",
+    )
     args = parser.parse_args()
 
-    poblacion, momentos = construir(args.anio)
+    poblacion, momentos = construir(args.anio, args.meses)
     out = Path(__file__).parent
-    sufijo = "" if args.anio == 2026 else f"_{args.anio}"
-    poblacion_path = out / f"poblacion{sufijo}.parquet"
-    momentos_path = out / f"momentos{sufijo}.json"
-    poblacion.to_parquet(poblacion_path, index=False)
+    sufijo_anio = "" if args.anio == 2026 else f"_{args.anio}"
+    if args.meses:
+        # Una ventana parcial escribe SOLO los momentos. El parquet de la ventana
+        # completa es el entregable de R1 y todo el equipo construye contra el;
+        # versionar ademas un parquet por corte duplicaria microdatos para
+        # responder una sola pregunta: como se ve la ventana que publica el DANE.
+        ventana = f"{args.meses[0][:3]}_{args.meses[-1][:3]}"
+        momentos_path = out / f"momentos_{ventana}{sufijo_anio}.json"
+        salida_principal = momentos_path.name
+    else:
+        poblacion_path = out / f"poblacion{sufijo_anio}.parquet"
+        momentos_path = out / f"momentos{sufijo_anio}.json"
+        poblacion.to_parquet(poblacion_path, index=False)
+        salida_principal = poblacion_path.name
+
     with open(momentos_path, "w", encoding="utf-8") as f:
         json.dump(momentos, f, ensure_ascii=False, indent=2)
-    print(f"{poblacion_path.name}: {len(poblacion)} agentes, "
+    print(f"{salida_principal}: {len(poblacion)} agentes, "
           f"{momentos['ocupados_expandidos']:,} ocupados expandidos, "
           f"{momentos['n_arquetipos']} arquetipos")
     print(f"informalidad total: {momentos['tasa_informalidad_total']:.1%}")

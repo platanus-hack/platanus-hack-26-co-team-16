@@ -1,18 +1,26 @@
 "use client";
 
-// Pantalla 4: el enjambre. El lienzo three.js atrás; los paneles de dato,
-// narrativa y tiempo flotando encima. Cada panel es un componente separado.
+// Pantalla 4: el enjambre. El lienzo three.js atrás y lo mínimo flotando
+// encima. La pieza es el mapa, así que el chrome se recortó a lo que no se
+// puede leer en ninguna otra parte:
+//
+//   · `Relato` ("lo que va pasando") — fuera. Era una columna de 330 px
+//     tecleando un top-25 podado que nadie alcanzaba a leer. Su contenido
+//     vive completo y ordenado en el reporte.
+//   · `Metricas` y su `CurvaBrecha` — fuera del lienzo. Las cifras que
+//     importan pasaron a `Hero` (mudas, con etiqueta al pasar el mouse) y
+//     las gráficas al reporte, donde tienen tamaño para leerse.
+//   · `Noticias` — rehecho como burbujas arriba, ya no como bloque lateral.
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import Globo from "@/componentes/Globo";
 import BarraTiempo from "@/componentes/Paneles/BarraTiempo";
-import Estrategias from "@/componentes/Paneles/Estrategias";
+import ColumnaIzquierda from "@/componentes/Paneles/ColumnaIzquierda";
+import Continuar from "@/componentes/Paneles/Continuar";
 import Hero from "@/componentes/Paneles/Hero";
-import Leyenda from "@/componentes/Paneles/Leyenda";
-import Metricas from "@/componentes/Paneles/Metricas";
 import Titulo from "@/componentes/Paneles/Titulo";
 import Noticias from "@/componentes/Noticias";
-import Relato from "@/componentes/Relato";
 import { usarAlmacen } from "@/estado/simulacion";
 
 // three.js solo vive en el cliente
@@ -27,22 +35,43 @@ export default function Simulacion() {
     <div style={{ position: "absolute", inset: 0 }}>
       <Lienzo />
       {conexion === "terminada" && (
-        <button
-          className="boton aparecer"
-          style={{ position: "absolute", right: 36, top: 150, zIndex: 20, padding: "12px 22px", fontSize: 11 }}
-          onClick={() => setFase("politica")}
+        // Estaba en `top:150`, pisando la línea de la banda del Hero con
+        // z-index 20. Abajo a la derecha no compite con nada: Metricas termina
+        // en bottom:96 y la barra de tiempo va centrada.
+        <div
+          className="aparecer"
+          style={{ position: "absolute", right: 36, bottom: 30, zIndex: 20, display: "flex", gap: 10 }}
         >
-          otra política
-        </button>
+          {/* P3: al terminar TODAS las rondas aparece el reporte, con todo lo
+              que se sacó del lienzo para que la simulación se viera. */}
+          <Link
+            href="/reporte"
+            className="boton boton--primario"
+            style={{ padding: "12px 22px", fontSize: 11 }}
+          >
+            ver reporte
+          </Link>
+          <button
+            className="boton"
+            style={{ padding: "12px 22px", fontSize: 11 }}
+            onClick={() => setFase("politica")}
+          >
+            otra política
+          </button>
+        </div>
       )}
       <Titulo />
+      {/* `Procedencia` sale del lienzo: abierto tapaba el centro del enjambre
+          con z-index 20, que es justo donde viven las celdas más pesadas. Su
+          tabla DATO/NORMA/CALCULADO/SUPUESTO se mudó al reporte (P3), donde se
+          lee entera en vez de flotando sobre la simulación: se monta en
+          `app/reporte/page.tsx` con `forzarAbierto`, entre las gráficas y los
+          límites. No es un huérfano — es el mismo componente en otra sala. */}
       <Hero />
       <Noticias />
-      <Relato />
-      <Estrategias />
-      <Metricas />
+      <ColumnaIzquierda />
       <BarraTiempo />
-      <Leyenda />
+      <Continuar />
       <Globo />
       {error && (
         <div

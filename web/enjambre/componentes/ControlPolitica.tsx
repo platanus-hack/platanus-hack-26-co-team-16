@@ -5,6 +5,7 @@
 
 import { iniciarCorrida } from "@/estado/flujo";
 import { usarAlmacen } from "@/estado/simulacion";
+import { copMes } from "@/lib/formato";
 
 const MARCAS = [0, 7, 13.6, 23, 25];
 
@@ -12,6 +13,7 @@ export default function ControlPolitica() {
   const aumento = usarAlmacen((s) => s.aumentoPct);
   const setAumento = usarAlmacen((s) => s.setAumentoPct);
   const setFase = usarAlmacen((s) => s.setFase);
+  const poblacion = usarAlmacen((s) => s.poblacion);
 
   const simular = () => {
     iniciarCorrida();
@@ -37,7 +39,11 @@ export default function ControlPolitica() {
           <span style={{ fontSize: 64, color: "var(--tinta-suave)" }}> %</span>
         </div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--tinta-tenue)" }}>
-          sobre el costo laboral formal por empleado · el decreto de 2026 fue +23,0 %
+          {/* S2-12: antes decía "el decreto de 2026 fue +23,0 %" fijo en el
+              texto, sin fuente, mientras `piso_salarial_anterior` ya viaja en
+              /api/poblacion y se descartaba. Ahora sale del dato real. */}
+          sobre el costo laboral formal por empleado
+          {poblacion && ` · piso vigente ${copMes(poblacion.piso_salarial_anterior)}/mes antes del alza`}
         </div>
       </div>
 

@@ -14,6 +14,12 @@ team-16
 - Nicolás Sánchez ([@nicosanchport10](https://github.com/nicosanchport10))
 - Juan David Torres Casas ([@jdtorres59](https://github.com/jdtorres59))
 
+## Pruébalo
+
+**→ [enjambre-web.onrender.com](https://enjambre-web.onrender.com)** — sin registro, sin cuenta, sin
+instalar nada. Cada clic en *Simular* lanza una corrida **real** del motor contra la grilla de la
+GEIH y transmite cada ronda a medida que ocurre: nada precomputado.
+
 ## Qué es
 
 Un simulador que no responde *"¿funciona la política?"* sino **"¿cuánta gente la cumple y a quién le cae encima?"** — el supuesto que toda proyección oficial da por cierto y que nadie mide.
@@ -108,6 +114,22 @@ code to a personal repo:
 3. Connect your deploy service (Vercel, Render, …) to your **personal** repo and deploy from there.
 
 Your commits stay mirrored here for judging, while the deploy runs from the repo you control.
+
+### Lo que está desplegado ahora
+
+| Servicio | URL | Qué es |
+|---|---|---|
+| Interfaz | **https://enjambre-web.onrender.com** | La URL de la entrega. Next.js; también hace de proxy del SSE |
+| API del motor | https://enjambre-api.onrender.com | FastAPI. `GET /poblacion` y `GET /simulaciones/flujo` |
+
+Los dos corren en Render desde el espejo, con la configuración versionada en
+[`render.yaml`](render.yaml). El runbook completo —cómo se redespliega, la trampa de `ENJAMBRE_API`,
+qué hacer si se cae en vivo y los límites declarados de la URL pública— está en
+[`docs/DEPLOY.md`](docs/DEPLOY.md). Para comprobar que la cadena completa transmite de verdad:
+
+```bash
+make humo URL=https://enjambre-web.onrender.com
+```
 
 
 **En este repo el doble push ya está cableado.** Verifícalo con `git remote -v`: deben

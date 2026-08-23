@@ -1,5 +1,13 @@
 "use client";
 
+// ⚠️ NO SE MONTA. Salió del lienzo en `Simulacion.tsx` (P2) junto con su
+// `CurvaBrecha`, y hoy no lo importa nadie. Las cifras que importan pasaron a
+// `Hero` (mudas, con la etiqueta al pasar el mouse) y las gráficas al reporte.
+// Se conserva porque es el único lugar donde la aritmética de masa salarial y
+// bajo-el-mínimo está cableada a la pantalla; si esas dos vuelven, vuelven por
+// acá. Es también el único importador vivo de `CurvaBrecha`, así que esa
+// gráfica está huérfana por transitividad.
+
 // Las tasas generales, pocas y en tiempo real. Solo campos que el motor emite
 // o que son aritmética declarada sobre ellos (masa salarial y bajo-el-mínimo
 // llegan calculados del servidor, con su # SUPUESTO documentado en api/).
@@ -7,7 +15,7 @@
 import { useMemo } from "react";
 import CurvaBrecha from "./CurvaBrecha";
 import { copBillones, pct } from "@/lib/formato";
-import { ultimaRonda, usarAlmacen } from "@/estado/simulacion";
+import { usarAlmacen } from "@/estado/simulacion";
 
 interface Fila {
   nombre: string;
@@ -16,9 +24,9 @@ interface Fila {
 }
 
 export default function Metricas() {
-  const rondas = usarAlmacen((s) => s.rondas);
   const poblacion = usarAlmacen((s) => s.poblacion);
-  const ult = ultimaRonda({ rondas });
+  // S2-5: la ronda mostrada, no la última llegada (ver motorVisual.ts).
+  const ult = usarAlmacen((s) => s.rondaMostrada);
 
   // masa salarial base (COP/mes) para traducir el índice relativo a plata
   const masaBase = useMemo(
@@ -50,11 +58,32 @@ export default function Metricas() {
     nombre: "Prob. de sanción · fiscalización endógena",
     valor: pct(c.prob_fiscalizacion, 2),
   });
+  // SUPUESTO: 0,1% es el piso de "vale la pena mostrarlo" para estas filas
+  // (aquí y en fallback/sin_salida más abajo) — ruido de redondeo por debajo,
+  // elegido para no llenar el panel de ceros. No es un umbral del motor.
   if (ult.fraccion_jornada_recortada > 0.001) {
     filas.push({
       nombre: "Conserva el empleo con jornada recortada",
       valor: pct(ult.fraccion_jornada_recortada),
       color: "var(--ambar)",
+    });
+  }
+  // S2-7: fraccion_fallback y fraccion_sin_salida viajan en el contrato
+  // (serializar.py) desde antes, pero ningún panel los leía. Es lo primero
+  // que pide un juez técnico: cuánto del modelo terminó en la salida de
+  // emergencia en vez de en una decisión real.
+  if (ult.fraccion_fallback > 0.001) {
+    filas.push({
+      nombre: "Decisiones en fallback (LLM sin propuesta viable)",
+      valor: pct(ult.fraccion_fallback),
+      color: ult.fraccion_fallback > 0.05 ? "var(--rojo)" : "var(--ambar)",
+    });
+  }
+  if (ult.fraccion_sin_salida > 0.001) {
+    filas.push({
+      nombre: "Sin salida factible · todo vetado",
+      valor: pct(ult.fraccion_sin_salida),
+      color: "var(--rojo)",
     });
   }
   if (ult.fraccion_bajo_minimo != null) {
@@ -63,6 +92,8 @@ export default function Metricas() {
       valor: pct(ult.fraccion_bajo_minimo),
     });
   }
+  // SUPUESTO: 0,5% de piso para mostrar traslado a precios — mismo criterio
+  // de "no llenar el panel con ruido de redondeo" que arriba.
   if (c.traslado_precios_pct > 0.005) {
     filas.push({
       nombre: "Traslado a precios declarado por firmas",
@@ -76,6 +107,12 @@ export default function Metricas() {
     });
   }
 
+  // Tope de 6 filas. No es estética: con las 9 posibles el panel llega a ~453
+  // px de alto y, anclado a bottom:96, a 1440×900 su borde superior sube hasta
+  // pisar el bloque de noticias. El panel se queda con las que se leen de un
+  // vistazo y el reporte lleva la tabla completa, sin recortar.
+  const visibles = filas.slice(0, 6);
+
   return (
     <div
       className="panel"
@@ -83,28 +120,28 @@ export default function Metricas() {
     >
       <CurvaBrecha />
       <div>
-        {filas.map((f) => (
+        {visibles.map((f) => (
           <div
             key={f.nombre}
             style={{
               display: "flex",
               alignItems: "baseline",
               justifyContent: "space-between",
-              gap: 18,
-              padding: "8px 0",
+              gap: 16,
+              padding: "5px 0",
               borderTop: "1px solid var(--linea)",
             }}
           >
-            <div style={{ fontSize: 13, color: "var(--tinta-suave)" }}>{f.nombre}</div>
-            <div className="cifra" style={{ fontSize: 21, color: f.color ?? "var(--tinta)", whiteSpace: "nowrap" }}>
+            <div style={{ fontSize: 12.5, lineHeight: 1.25, color: "var(--tinta-suave)" }}>{f.nombre}</div>
+            <div className="cifra" style={{ fontSize: 19, color: f.color ?? "var(--tinta)", whiteSpace: "nowrap" }}>
               {f.valor}
             </div>
           </div>
         ))}
       </div>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--tinta-tenue)", textAlign: "right" }}>
-        celdas empleadoras GEIH-DANE · cifras de esta corrida · masa salarial y bajo-mínimo con supuesto declarado
-      </div>
+      {/* El pie que declaraba procedencia y supuestos se fue al reporte: es
+          justo la clase de texto pequeño que satura el lienzo, y ahí se puede
+          leer completo en vez de resumido a una línea. */}
     </div>
   );
 }

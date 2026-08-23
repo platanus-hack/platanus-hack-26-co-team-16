@@ -18,6 +18,8 @@ verifica que hoy NO ocurre. Si alguna vuelve a fallar, el bug volvió.
 
 from __future__ import annotations
 
+import pathlib
+
 import shutil
 import sys
 import tempfile
@@ -440,9 +442,199 @@ def punto_11_la_tasa_inicial_no_tiene_default_de_andamio() -> None:
 
     from behavior.arquetipos import informalidad_observada
 
+    # Se compara contra `momentos.json`, no contra un literal. Lo que este punto
+    # protege es que la tasa SALGA DEL ARTEFACTO y no de un andamio (el 0,42 sin
+    # fuente del PR #4); clavar el numero acá hacía que el candado se disparara
+    # cuando el artefacto cambiaba por una razon legitima. Paso justo: al separar
+    # empleados de firma de cuenta propia, el objetivo del motor paso de 0,3057
+    # (todos los ocupados) a 0,1799 (los que el motor de verdad simula), y este
+    # check fallaba señalando un cambio correcto.
+    import json
+
+    momentos = json.loads(
+        (pathlib.Path(__file__).resolve().parents[1] / "data" / "momentos.json")
+        .read_text(encoding="utf-8")
+    )
+    esperado = momentos.get(
+        "tasa_informalidad_empleados_de_firma", momentos["tasa_informalidad_total"]
+    )
     _check(
-        abs(informalidad_observada() - 0.3057) < 1e-9,
-        f"momentos.json publica {informalidad_observada():.4f}, no 0,42",
+        abs(informalidad_observada() - esperado) < 1e-9,
+        f"informalidad_observada() da {informalidad_observada():.4f} y "
+        f"momentos.json publica {esperado:.4f}",
+    )
+    _check(
+        abs(informalidad_observada() - 0.42) > 1e-9,
+        "informalidad_observada() volvio al 0,42 de andamio, sin fuente",
+    )
+
+
+def s1_1_la_banda_con_tipo_sobrevive_a_a_contrato() -> None:
+    """S1-1: `a_contrato()` redondeaba `banda.tipo`, que es un string.
+
+    Mataba la corrida con `TypeError: type str doesn't define __round__ method`
+    en la configuración POR DEFECTO del endpoint (5 trayectorias), no en una
+    perilla apagada: desde la segunda trayectoria `_percentiles()` pone `tipo`.
+    """
+    print("\nS1-1 — el round() de a_contrato() no toca los strings de la banda")
+    from behavior.rondas import Ronda, consolidar_trayectorias
+
+    def _r(n, tasa, ingreso):
+        return Ronda(
+            simulacion_id="sim-s1-1", seed=42, ronda=n,
+            politica={"tipo": "cambio_costo_laboral", "aumento_pct": 23},
+            tasa_informalidad=tasa, prob_fiscalizacion=0.02, empleo_relativo=1.0,
+            banda={"p10": tasa, "p90": tasa, "degenerada": True},
+            ingreso_laboral_relativo=ingreso,
+        )
+
+    corridas = [[_r(0, 0.30, 1.0), _r(1, 0.50 + i * 0.05, 1.0 - i * 0.03)] for i in range(5)]
+    mediana = consolidar_trayectorias(corridas)
+    _check(mediana[-1].banda.get("tipo") == "entre_trayectorias",
+           "con 5 trayectorias la banda queda etiquetada entre_trayectorias")
+    try:
+        contrato_json = mediana[-1].a_contrato()
+        ok = True
+    except TypeError as e:
+        contrato_json, ok = {}, False
+        _check(False, "a_contrato() no revienta con banda.tipo", str(e))
+    if ok:
+        _check(contrato_json["banda"]["tipo"] == "entre_trayectorias",
+               "a_contrato() serializa banda.tipo sin redondearlo")
+        # El contrato lo exige desde H+4: contracts/ronda.json declara `tipo`.
+        _check(isinstance(contrato_json["banda"]["p10"], float),
+               "los números de la banda sí se redondean")
+
+
+def s1_2_la_banda_cubre_todas_las_metricas_publicadas() -> None:
+    """Los rangos internos cubren los números reales del contrato.
+
+    La prueba anterior comparaba la salida contra `METRICAS_PUBLICADAS`, la
+    misma constante que construía la salida. Una omisión en la constante se
+    verificaba a sí misma y pasaba; por eso `movimiento_pp` quedó afuera.
+    """
+    print("\nS1-2 — los rangos cubren los números reales de a_contrato()")
+    from behavior.rondas import (
+        Ronda,
+        consolidar_trayectorias,
+    )
+
+    def _r(i):
+        return Ronda(
+            simulacion_id="s", seed=42, ronda=1,
+            politica={}, tasa_informalidad=0.50 + i * 0.05,
+            prob_fiscalizacion=0.02 + i * 0.001,
+            empleo_relativo=1.0 - i * 0.01, banda={},
+            traslado_precios_pct=float(i),
+            ingreso_laboral_relativo=1.0 - i * 0.03,
+            movimiento_pp=i * 0.1,
+        )
+
+    mediana = consolidar_trayectorias([[_r(i)] for i in range(5)])[-1]
+    contrato = mediana.a_contrato()
+    numericas = {
+        k for k, v in contrato.items()
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
+    } - {"seed", "ronda"}
+    rangos = getattr(mediana, "rangos_metricas", {})
+    cubiertas = set(rangos.get("metricas", {}))
+    _check(
+        cubiertas == numericas,
+        f"los rangos cubren las {len(numericas)} métricas numéricas reales",
+        f"faltan: {numericas - cubiertas}; sobran: {cubiertas - numericas}",
+    )
+    movimiento = rangos.get("metricas", {}).get("movimiento_pp", {})
+    _check(
+        movimiento.get("maximo", 0) > movimiento.get("minimo", 0),
+        "movimiento_pp tiene su propio rango",
+    )
+
+
+def s1_4_la_banda_congelada_sigue_plana_y_el_rango_declara_metodo() -> None:
+    """`banda.metricas` no existe en `contracts/ronda.json`.
+
+    Los rangos adicionales quedan fuera de `a_contrato()` hasta que sus dueños
+    los expongan como campo aditivo del evento API y congelen ese contrato.
+    """
+    print("\nS1-4 — banda queda plana; rangos declaran método y muestra")
+    from behavior.rondas import (
+        Ronda,
+        consolidar_trayectorias,
+        rangos_entre_trayectorias,
+    )
+
+    corridas = [
+        [Ronda(
+            simulacion_id="s", seed=42, ronda=1, politica={},
+            tasa_informalidad=0.40 + i * 0.01,
+            prob_fiscalizacion=0.02, empleo_relativo=1.0, banda={},
+        )]
+        for i in range(5)
+    ]
+    mediana = consolidar_trayectorias(corridas)[-1]
+    publicada = mediana.a_contrato()["banda"]
+    _check(
+        set(publicada) == {"p10", "p90", "degenerada", "tipo"},
+        "a_contrato() conserva la banda plana congelada",
+        f"claves publicadas: {sorted(publicada)}",
+    )
+    rangos = getattr(mediana, "rangos_metricas", {})
+    _check(
+        rangos.get("metodo") == "rango_muestral"
+        and rangos.get("n_efectivas") == 5
+        and rangos.get("fuente_variacion") == "trayectorias_observadas",
+        "el diagnóstico no promete percentiles ni réplicas iid",
+        f"metadatos: {rangos}",
+    )
+
+    unica = consolidar_trayectorias([corridas[0]])[-1]
+    diagnostico_unico = getattr(unica, "rangos_metricas", {})
+    _check(
+        diagnostico_unico.get("n_efectivas") == 1
+        and unica.banda.get("tipo") != "entre_trayectorias",
+        "una trayectoria declara n=1 sin inventar banda entre trayectorias",
+        f"banda={unica.banda}; diagnóstico={diagnostico_unico}",
+    )
+
+    diagnostico_vacio = rangos_entre_trayectorias([])
+    _check(
+        diagnostico_vacio.get("n_efectivas") == 0
+        and diagnostico_vacio.get("metricas") == {},
+        "cero trayectorias no fabrica rangos 0–0",
+        f"diagnóstico={diagnostico_vacio}",
+    )
+
+
+def s1_3_ancho_cero_se_rotula_degenerada() -> None:
+    """`degenerada` medía «hubo 2+ valores», no «hay dispersión que dibujar».
+
+    En modo=reglas la ablación es determinista: N trayectorias dan el mismo
+    número y se publicaba una banda de ancho cero rotulada como real.
+    """
+    print("\nS1-3 — una banda de ancho cero se rotula degenerada")
+    from behavior.rondas import Ronda, _percentiles
+
+    iguales = _percentiles([0.42] * 5, tipo="entre_trayectorias")
+    _check(iguales["degenerada"] is True,
+           "5 valores idénticos -> degenerada=True (ancho 0, nada que dibujar)")
+    distintos = _percentiles([0.40, 0.55], tipo="entre_trayectorias")
+    _check(distintos["degenerada"] is False,
+           "2 valores distintos -> degenerada=False (sí hay dispersión)")
+
+    casi_iguales = _percentiles(
+        [0.420001, 0.420002], tipo="entre_trayectorias"
+    )
+    ronda = Ronda(
+        simulacion_id="s1-3", seed=42, ronda=1, politica={},
+        tasa_informalidad=0.42, prob_fiscalizacion=0.02,
+        empleo_relativo=1.0, banda=casi_iguales,
+    )
+    publicada = ronda.a_contrato()["banda"]
+    _check(
+        publicada["p10"] == publicada["p90"]
+        and publicada["degenerada"] is True,
+        "si el contrato publica un punto, degenerada=True",
+        f"salió {publicada}",
     )
 
 
@@ -457,6 +649,10 @@ def main() -> int:
         punto_7_fallos_tecnicos_se_cuentan_con_reintento_exitoso,
         punto_8_lo_pagado_queda_cacheado_aunque_dispare_el_corte,
         punto_11_la_tasa_inicial_no_tiene_default_de_andamio,
+        s1_1_la_banda_con_tipo_sobrevive_a_a_contrato,
+        s1_2_la_banda_cubre_todas_las_metricas_publicadas,
+        s1_3_ancho_cero_se_rotula_degenerada,
+        s1_4_la_banda_congelada_sigue_plana_y_el_rango_declara_metodo,
     ):
         prueba()
     print()
