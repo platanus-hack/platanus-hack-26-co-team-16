@@ -1,5 +1,13 @@
 "use client";
 
+// ⚠️ NO SE MONTA. Salió del lienzo en `Simulacion.tsx` (P2) junto con su
+// `CurvaBrecha`, y hoy no lo importa nadie. Las cifras que importan pasaron a
+// `Hero` (mudas, con la etiqueta al pasar el mouse) y las gráficas al reporte.
+// Se conserva porque es el único lugar donde la aritmética de masa salarial y
+// bajo-el-mínimo está cableada a la pantalla; si esas dos vuelven, vuelven por
+// acá. Es también el único importador vivo de `CurvaBrecha`, así que esa
+// gráfica está huérfana por transitividad.
+
 // Las tasas generales, pocas y en tiempo real. Solo campos que el motor emite
 // o que son aritmética declarada sobre ellos (masa salarial y bajo-el-mínimo
 // llegan calculados del servidor, con su # SUPUESTO documentado en api/).

@@ -1,5 +1,15 @@
 "use client";
 
+// ⚠️ NO SE MONTA. Este componente salió del lienzo en `Simulacion.tsx` (P2) y
+// hoy no lo importa nadie: `grep -rn "Relato" web/enjambre` solo devuelve este
+// archivo. Se conserva, no se borra, porque el feed de decisiones puede volver
+// si aparece una superficie donde quepa leerlo — pero mientras tanto, nada de
+// lo que diga acá llega a una pantalla.
+//
+// Su contenido vive ordenado en `/reporte`, que es donde tiene tamaño para
+// leerse. Si vuelve al lienzo, hay que rehacer el reparto de espacio del borde
+// izquierdo: hoy esos 330 px son de `ColumnaIzquierda`.
+
 // El reporte que se escribe solo: un feed sobrio con efecto de tecleo que
 // narra decisiones (las de más peso) y cierres de ronda, todo desde el flujo
 // real. Si las decisiones llegan en ráfaga (modo reglas) la cola se poda para

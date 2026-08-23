@@ -1,5 +1,11 @@
 "use client";
 
+// ⚠️ NO SE MONTA. Su único importador es `Metricas.tsx`, que tampoco se monta:
+// las dos salieron del lienzo en `Simulacion.tsx` (P2). La versión que sí se
+// ve es `GraficaBrecha` en `componentes/reporte/Graficas.tsx`, que dibuja lo
+// mismo con el tamaño del reporte. Esta se conserva como la variante compacta
+// para el lienzo, por si la brecha vuelve a pantalla.
+
 // La gráfica imprescindible: la proyección oficial (plana, la ronda 0 asumida
 // para siempre) contra la cascada real, ronda a ronda, con la banda cuando
 // existe. Es el producto del proyecto en 320×96 píxeles.
