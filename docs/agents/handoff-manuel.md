@@ -9,6 +9,34 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 23:00 (sesión del vet) — el vet completo de `main`, y el reparto en 5 tracks. Mergeado en PR #17.**
+  - **Lo que hice:** tres auditorías de solo lectura sobre `c63343f` (conductual, pantalla, datos+validación),
+    reverificadas contra `b180d51`. Once componentes decididos uno por uno. Todo quedó en
+    [`docs/vet/`](../vet/), que es ahora **lo más reciente del repo** y está enlazado desde `AGENTS.md` y
+    `docs/README.md`.
+  - **Lo tuyo (R2), en orden:** `rondas_totales` con fuente única (`api/serializar.py:74` literal vs el
+    default de `behavior/rondas.py:181`, cuadran hoy por casualidad) · la perilla del `seed`, que es
+    **decorativa** y está medida (seed 42 y 99 dan trayectorias idénticas): se quita o se rotula ·
+    después S1-7, la banda entre trayectorias, que es la honesta y **no existe en el camino del
+    producto** porque la API corre una sola · y S2-8, mover la conversión a pesos fuera del navegador.
+    El detalle está en [`docs/vet/03-arranque-por-track.md`](../vet/03-arranque-por-track.md).
+  - **Tu revisor es Juanda. Tú revisas a Juanda.** Tu verificador: el prompt 16 re-apuntado + `juez-hackathon`.
+  - **🔴 Lo que NO puede pasar desapercibido:**
+    (1) `behavior/rondas.py:120` hace `round()` sobre `banda.tipo`, que es un string: **cualquier corrida
+        con `n_parafrasis>=2` revienta.** Es de Nico y desbloquea a Dani.
+    (2) `VALIDATION.md:159` afirma "fuera de muestra de verdad" y el código lo contradice.
+    (3) **El pre-registro se sostiene pero NO fue ciego** (`2d4aa7e` ya traía "apunta a la rama B").
+        Se dice en el pitch de frente.
+    (4) **V-1, el cambio silencioso de la noche:** `13c5a5b` pasó el modelo a Sonnet 5 y la clave de
+        caché incluye el modelo, así que **toda la caché quedó fría**. Cada corrida vuelve a costar y a
+        tardar. Con `parafrasis=5` puede no caber en `tope_usd=3.0` (`api/servidor.py:89`), **que es tuyo**.
+        Espera la medición de Nico antes de subirlo.
+  - **Lo que corregí de mi propia lectura:** las industrias **no** están rotas (9 sectores con prefijos
+    únicos y `desde_empresas` no trunca; los 4 hardcodeados son andamio), y la clave de caché **sí**
+    incluye la política, o sea que mover la perilla sí mueve la corrida.
+  - **Pendiente que no alcancé:** los tickets de `docs/tasks/`. `03-arranque-por-track.md` cubre casi todo
+    para lo que servían.
+
 - **2026-08-22 — `engine/` existe. Los tres archivos, escritos y verdes.**
 
   `engine/` pasó de 0 líneas de código a **3 de 3 archivos**, en el orden que
