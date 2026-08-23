@@ -94,6 +94,15 @@ export interface EventoFin {
   cache_fallos?: number;
 }
 
+export interface EventoInicio {
+  aumento_pct: number;
+  seed: number;
+  modo: string;
+  cobertura: number;
+  parafrasis: number;
+  n_arquetipos: number;
+}
+
 export type Fase = "carga" | "menu" | "politica" | "simulacion";
 export type Conexion = "inactiva" | "conectando" | "corriendo" | "terminada" | "error";
 
@@ -111,8 +120,37 @@ interface Almacen {
   avance: { ronda: number; decididos: number; total: number };
   fin: EventoFin | null;
   hover: string | null;
+  // P6: QUÉ del enjambre está bajo el cursor. El disco de la empresa y la
+  // nube de abejas que la orbita son dos cosas distintas y responden
+  // preguntas distintas, así que el globo muestra una u otra.
+  hoverTipo: "empresa" | "personas" | null;
   // personas por punto del nivel de zoom actual (LOD)
   personasPorPunto: number;
+  // con qué corrió esta corrida: "llm" (producto) o "reglas" (ablación
+  // determinista, $0, sin key). Viene del evento `inicio` — S2-1.
+  modo: string | null;
+  // los parámetros con los que arrancó la corrida, tal como los declaró el
+  // servidor. Se guardan enteros porque el reporte y el laboratorio tienen
+  // que poder decir con qué se corrió, no solo qué salió.
+  inicio: EventoInicio | null;
+  // S2-5: la ronda que el enjambre está mostrando/animando ahora mismo, NO la
+  // última que llegó por SSE. `rondas` puede recibir varias de golpe (caché
+  // caliente); MotorVisual las consume una por una y publica acá cuál es la
+  // que corresponde a lo que se ve en pantalla. Los paneles de texto leen
+  // esto, nunca `rondas[rondas.length-1]`, o vuelven a saltar por delante
+  // del enjambre.
+  rondaMostrada: EventoRonda | null;
+  // P1: la corrida no avanza sola. Al terminar de animarse una ronda el motor
+  // visual pone esto en true y no toma la siguiente hasta que el usuario la
+  // pide. La API no puede pausar (su hilo empuja eventos a una cola sin
+  // esperar a nadie), así que la pausa es del lado del cliente: el buffer ya
+  // tiene la corrida entera y acá se decide a qué ritmo se reproduce.
+  pausado: boolean;
+  // P4.1: cuántas celdas lleva MOSTRADAS el reproductor en la ronda en curso.
+  // No es `avance.decididos`, que es cuántas lleva CALCULADAS el motor: con
+  // caché caliente el motor termina la ronda entera antes de que el enjambre
+  // haya dibujado la primera decisión. La interfaz cuenta lo que se ve.
+  decididasMostradas: number;
 
   setFase: (f: Fase) => void;
   setAumentoPct: (v: number) => void;
@@ -121,8 +159,12 @@ interface Almacen {
   agregarRonda: (r: EventoRonda) => void;
   agregarDecision: (d: EventoDecision) => void;
   setFin: (f: EventoFin) => void;
-  setHover: (id: string | null) => void;
+  setHover: (id: string | null, tipo?: "empresa" | "personas" | null) => void;
   setPersonasPorPunto: (n: number) => void;
+  setModo: (i: EventoInicio) => void;
+  setRondaMostrada: (r: EventoRonda) => void;
+  setPausado: (b: boolean) => void;
+  setDecididasMostradas: (n: number) => void;
   reiniciarCorrida: () => void;
 }
 
@@ -138,7 +180,16 @@ export const usarAlmacen = create<Almacen>((set) => ({
   avance: { ronda: 0, decididos: 0, total: 0 },
   fin: null,
   hover: null,
-  personasPorPunto: 8000,
+  hoverTipo: null,
+  // SUPUESTO: 3.000 personas por punto es el LOD inicial por defecto, elegido
+  // por legibilidad al primer render — no viene del motor. Debe coincidir con
+  // el primer nivel de NIVELES_LOD (lib/disposicion.ts).
+  personasPorPunto: 3000,
+  modo: null,
+  inicio: null,
+  rondaMostrada: null,
+  pausado: false,
+  decididasMostradas: 0,
 
   setFase: (fase) => set({ fase }),
   setAumentoPct: (aumentoPct) => set({ aumentoPct }),
@@ -152,8 +203,12 @@ export const usarAlmacen = create<Almacen>((set) => ({
       avance: { ronda: d.ronda, decididos: d.avance.decididos, total: d.avance.total },
     })),
   setFin: (fin) => set({ fin, conexion: "terminada" }),
-  setHover: (hover) => set({ hover }),
+  setHover: (hover, hoverTipo = null) => set({ hover, hoverTipo }),
   setPersonasPorPunto: (personasPorPunto) => set({ personasPorPunto }),
+  setModo: (inicio) => set({ inicio, modo: inicio.modo }),
+  setRondaMostrada: (rondaMostrada) => set({ rondaMostrada }),
+  setPausado: (pausado) => set({ pausado }),
+  setDecididasMostradas: (decididasMostradas) => set({ decididasMostradas }),
   reiniciarCorrida: () =>
     set({
       conexion: "inactiva",
@@ -164,8 +219,32 @@ export const usarAlmacen = create<Almacen>((set) => ({
       avance: { ronda: 0, decididos: 0, total: 0 },
       fin: null,
       hover: null,
+      hoverTipo: null,
+      modo: null,
+      inicio: null,
+      rondaMostrada: null,
+      pausado: false,
+      decididasMostradas: 0,
     }),
 }));
+
+// Las rondas que el enjambre YA mostró, en orden. Es el prefijo de `rondas`
+// que termina en `rondaMostrada`.
+//
+// Existe porque `rondas` es lo que LLEGÓ por el cable y `rondaMostrada` es lo
+// que se está VIENDO, y con caché caliente las dos cosas se separan: pueden
+// llegar tres rondas en la misma ráfaga mientras el enjambre todavía anima la
+// primera. Todo lo que narra o grafica la corrida (la curva, el titular, el
+// protagonista, el relato) tiene que leer de acá, o media pantalla cuenta una
+// ronda y la otra media cuenta otra.
+export function rondasVisibles(s: {
+  rondas: EventoRonda[];
+  rondaMostrada: EventoRonda | null;
+}): EventoRonda[] {
+  if (!s.rondaMostrada) return [];
+  const i = s.rondas.indexOf(s.rondaMostrada);
+  return i < 0 ? s.rondas : s.rondas.slice(0, i + 1);
+}
 
 // La última ronda cerrada (o null antes de la ronda 0).
 export function ultimaRonda(s: { rondas: EventoRonda[] }): EventoRonda | null {

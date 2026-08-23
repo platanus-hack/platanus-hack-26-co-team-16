@@ -1,14 +1,15 @@
 "use client";
 
-// Cómo leer el enjambre. Incluye el nivel de LOD vivo: cuántas personas
-// representa un punto en el zoom actual.
+// Cómo leer el enjambre, en una línea de fichas. Nada de párrafos: las
+// aclaraciones largas (qué es una celda, qué queda fuera de la grilla, qué
+// mide la onda) viven en el reporte, no encima del lienzo.
 
 import { miles } from "@/lib/formato";
 import { usarAlmacen } from "@/estado/simulacion";
 
 function Ficha({ color, hueco, texto }: { color: string; hueco?: boolean; texto: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <span
         style={{
           width: 8,
@@ -20,7 +21,7 @@ function Ficha({ color, hueco, texto }: { color: string; hueco?: boolean; texto:
           flexShrink: 0,
         }}
       />
-      <span style={{ fontSize: 12, color: "var(--tinta-suave)" }}>{texto}</span>
+      <span style={{ fontSize: 11.5, color: "var(--tinta-suave)" }}>{texto}</span>
     </div>
   );
 }
@@ -29,18 +30,15 @@ export default function Leyenda() {
   const ppp = usarAlmacen((s) => s.personasPorPunto);
 
   return (
-    <div className="panel" style={{ left: 36, bottom: 30, width: 360, display: "flex", flexDirection: "column", gap: 8 }}>
-      <div className="kicker">cómo leer el enjambre</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px" }}>
-        <Ficha color="#dfe3ea" texto="celda empleadora · área = empleo vivo" />
-        <Ficha color="#5b9dff" texto="informal (celda o persona)" />
-        <Ficha color="#3ecf8e" texto="empleo formal" />
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 16px" }}>
+        <Ficha color="#3ecf8e" texto="formal" />
+        <Ficha color="#5b9dff" texto="informal" />
         <Ficha color="#e8a33d" texto="jornada recortada" />
-        <Ficha color="#99a2b1" hueco texto="expulsado del empleo" />
+        <Ficha color="#99a2b1" hueco texto="sin empleo" />
       </div>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--tinta-tenue)" }}>
-        1 punto ≈ {miles(ppp)} personas (zoom para subdividir) · celda = grupo sector×tamaño GEIH, no una
-        empresa individual · cuenta propia fuera de la grilla
+      <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--tinta-tenue)" }}>
+        1 punto ≈ {miles(ppp)} personas · zoom para subdividir
       </div>
     </div>
   );

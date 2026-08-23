@@ -19,7 +19,19 @@ export interface Protagonista {
   ronda: number;
 }
 
-/** La celda que más movió la informalidad (ponderada) en la última ronda. */
+/**
+ * La celda con MAYOR IMPACTO en la ronda: cuánta gente cambió de situación.
+ *
+ * Antes esto multiplicaba el puntaje por 4 si la celda tenía una
+ * `justificacion` que citar — un sesgo editorial que hacía que el aro rojo y
+ * el titular señalaran a la celda más *citable*, no a la más afectada. Se
+ * quitó: el criterio ahora es solo población afectada, y si la ganadora no
+ * tiene frase, el titular sale sin cita.
+ *
+ * El puntaje es `peso × (Δinformalidad + Δdesempleo)`, o sea trabajadores que
+ * pasaron a la informalidad más trabajadores que perdieron el empleo. Las dos
+ * cosas cuentan igual porque las dos son gente a la que le cambió la vida.
+ */
 export function protagonista(rondas: EventoRonda[]): Protagonista | null {
   if (rondas.length < 2) return null;
   const poblacion = usarAlmacen.getState().poblacion;
@@ -36,8 +48,8 @@ export function protagonista(rondas: EventoRonda[]): Protagonista | null {
     const res = ult.por_arquetipo[a.id];
     const dInf = Math.max(0, e1.fraccion_informal - e0.fraccion_informal);
     const dEmp = Math.max(0, e0.fraccion_empleada - e1.fraccion_empleada);
-    // se prefiere quien tenga una justificación que citar
-    const puntaje = a.peso * (dInf + dEmp * 0.8) * (res?.justificacion ? 1 : 0.25);
+    // trabajadores a los que les cambió la situación en esta ronda
+    const puntaje = a.peso * (dInf + dEmp);
     if (puntaje > mejorPuntaje) {
       mejorPuntaje = puntaje;
       mejor = {
@@ -78,7 +90,13 @@ export function titular(rondas: EventoRonda[]): Titular | null {
   } else if (ult.fraccion_jornada_recortada > 0.08) {
     titulo = `Menos horas para no cerrar: ${pct(ult.fraccion_jornada_recortada)} conserva el puesto con jornada recortada`;
   } else if (brecha > 1) {
-    titulo = `La proyección oficial se queda corta: ${pp(brecha)} de informalidad que el modelo no vio`;
+    // Decía «La proyección oficial se queda corta: … que el modelo no vio», o
+    // sea afirmaba que el equivocado es el dato oficial. `VALIDATION.md` dice
+    // lo contrario —el backtest falsa esta proyección por 37,37 pp y con el
+    // signo al revés— y la burbuja no alcanza a mostrar el kicker «medio
+    // ficticio», así que el titular se leía como una afirmación del proyecto.
+    // Ahora dice de quién es la proyección y contra qué se mide.
+    titulo = `La simulación proyecta ${pp(brecha)} más de informalidad que el escenario de cumplimiento total`;
   } else if ((1 - c.empleo_relativo) > 0.02) {
     titulo = `El costo se paga en puestos: ${pct(1 - c.empleo_relativo)} del empleo ya no está`;
   } else {

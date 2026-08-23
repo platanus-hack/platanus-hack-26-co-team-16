@@ -187,6 +187,23 @@ input[type="range"].deslizador::-moz-range-thumb {
   animation: latido 1.6s ease-in-out infinite;
 }
 
+/* S2-11: antes la barra de Carga.tsx trepaba sola hasta 82% con un número
+   inventado mientras esperaba la red. Un barrido indeterminado no afirma un
+   progreso que no se mide; la barra solo llega a 100% cuando /api/poblacion
+   responde de verdad. */
+@keyframes barrido {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+.barra-indeterminada {
+  animation: barrido 1.1s ease-in-out infinite;
+}
+
 @keyframes cursor-tecleo {
   0%,
   49% {
@@ -196,4 +213,168 @@ input[type="range"].deslizador::-moz-range-thumb {
   100% {
     opacity: 0;
   }
+}
+
+/* ---- el reporte imprimible (P3) ---- */
+
+.reporte {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 40px 80px;
+}
+
+.reporte__acciones {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-bottom: 26px;
+}
+
+/* la app fija `overflow: hidden` en html/body para el lienzo; el reporte es un
+   documento y sí tiene que poder desplazarse */
+html:has(.reporte),
+body:has(.reporte) {
+  overflow: auto;
+}
+
+@media print {
+  /* fondo oscuro en papel es tinta desperdiciada y texto ilegible: el reporte
+     se imprime en negro sobre blanco, y los tokens se reasignan una sola vez */
+  :root {
+    --fondo: #ffffff;
+    --panel: #ffffff;
+    --tinta: #14171c;
+    --tinta-suave: #3c4350;
+    --tinta-tenue: #6b7280;
+    --linea: rgba(20, 23, 28, 0.16);
+    --azul-vivo: #1c4fd8;
+    --rojo: #b3261e;
+  }
+  body {
+    background: #fff;
+    color: var(--tinta);
+  }
+  .no-imprimir {
+    display: none !important;
+  }
+  .reporte {
+    max-width: none;
+    padding: 0;
+  }
+  @page {
+    margin: 16mm;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  h2 {
+    page-break-after: avoid;
+  }
+}
+
+/* ---- burbujas de noticia (iteración 3) ---- */
+
+@keyframes burbuja-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.burbuja {
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  padding: 10px 12px 11px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: burbuja-entra 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  /* el ancho ya no cambia al abrir (ver `Noticias.tsx`): la burbuja crece hacia abajo */
+  transition: border-color 0.2s;
+}
+
+.burbuja:hover {
+  border-color: rgba(233, 236, 242, 0.3);
+}
+
+.burbuja__ronda {
+  font-family: var(--mono);
+  font-size: 9;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rojo);
+}
+
+.burbuja__titulo {
+  font-family: var(--serif);
+  font-size: 13.5;
+  line-height: 1.3;
+  color: var(--tinta);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.burbuja__cita {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5;
+  line-height: 1.4;
+  color: var(--tinta-suave);
+  border-left: 2px solid var(--linea);
+  padding-left: 9px;
+}
+
+.burbuja__pie {
+  font-family: var(--mono);
+  font-size: 9.5;
+  line-height: 1.5;
+  color: var(--tinta-tenue);
+}
+
+.burbuja__mas {
+  font-family: var(--mono);
+  font-size: 9;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta-tenue);
+}
+
+/* ---- cifras con etiqueta al pasar el mouse (iteración 3) ---- */
+
+.cifra-muda {
+  position: relative;
+  cursor: default;
+}
+
+.cifra-muda__etiqueta {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 10;
+  letter-spacing: 0.06em;
+  color: var(--tinta-tenue);
+  opacity: 0;
+  transition: opacity 0.18s;
+  pointer-events: none;
+}
+
+.cifra-muda:hover .cifra-muda__etiqueta,
+.cifra-muda:focus-within .cifra-muda__etiqueta,
+.cifra-muda--fija .cifra-muda__etiqueta {
+  opacity: 1;
 }
