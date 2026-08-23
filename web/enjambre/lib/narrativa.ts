@@ -90,7 +90,13 @@ export function titular(rondas: EventoRonda[]): Titular | null {
   } else if (ult.fraccion_jornada_recortada > 0.08) {
     titulo = `Menos horas para no cerrar: ${pct(ult.fraccion_jornada_recortada)} conserva el puesto con jornada recortada`;
   } else if (brecha > 1) {
-    titulo = `La proyección oficial se queda corta: ${pp(brecha)} de informalidad que el modelo no vio`;
+    // Decía «La proyección oficial se queda corta: … que el modelo no vio», o
+    // sea afirmaba que el equivocado es el dato oficial. `VALIDATION.md` dice
+    // lo contrario —el backtest falsa esta proyección por 37,37 pp y con el
+    // signo al revés— y la burbuja no alcanza a mostrar el kicker «medio
+    // ficticio», así que el titular se leía como una afirmación del proyecto.
+    // Ahora dice de quién es la proyección y contra qué se mide.
+    titulo = `La simulación proyecta ${pp(brecha)} más de informalidad que el escenario de cumplimiento total`;
   } else if ((1 - c.empleo_relativo) > 0.02) {
     titulo = `El costo se paga en puestos: ${pct(1 - c.empleo_relativo)} del empleo ya no está`;
   } else {

@@ -153,10 +153,15 @@ export function GraficaBrecha({ rondas }: { rondas: RondaRegistrada[] }) {
 /* ------------------------------------------------------------- la cascada */
 
 /**
- * El mecanismo del proyecto, en una figura: la capacidad de fiscalización es
+ * El MECANISMO del proyecto, en una figura: la capacidad de fiscalización es
  * fija, así que cuantos más evasores hay, menos probable es que a cada uno le
  * caiga la sanción — y eso induce más evasión. Si la línea de p(sanción) baja
- * mientras la de informalidad sube, la cascada está operando.
+ * mientras la de informalidad sube, la cascada está operando DENTRO del modelo.
+ *
+ * Ojo con el verbo: la cascada agregada es el mecanismo que el motor simula, no
+ * un hallazgo del proyecto. `VALIDATION.md` la declara falsada contra el dato
+ * observado (37,37 pp de error, signo contrario). La figura describe cómo se
+ * mueve el modelo; no afirma que el mundo se mueva así.
  */
 export function GraficaCascada({ rondas }: { rondas: RondaRegistrada[] }) {
   const alto = 220;
@@ -176,11 +181,11 @@ export function GraficaCascada({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="la cascada · más evasores, menos riesgo para cada uno"
+      titulo="la cascada · el mecanismo: más evasores, menos riesgo para cada uno"
       alto={alto}
       lee={`La capacidad de inspección es fija, así que la probabilidad de sanción es capacidad ÷ evasores. ${
         dSan < -0.001
-          ? `Acá bajó ${Math.abs(dSan).toFixed(3).replace(".", ",")} pp mientras la informalidad subía: eso es la retroalimentación operando, y es lo que el modelo oficial no ve.`
+          ? `Acá bajó ${Math.abs(dSan).toFixed(3).replace(".", ",")} pp mientras la informalidad subía: es la retroalimentación del modelo operando. Es el mecanismo que el motor simula, no un hallazgo verificado — contra el dato observado el backtest lo falsa (ver «dónde no hay que creerle»).`
           : "En esta corrida no se movió lo suficiente como para hablar de cascada, y así se reporta."
       }`}
     >

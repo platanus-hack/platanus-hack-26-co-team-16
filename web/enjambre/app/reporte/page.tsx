@@ -22,6 +22,7 @@ import {
   GraficaEstrategias,
   GraficaVeto,
 } from "@/componentes/reporte/Graficas";
+import Procedencia from "@/componentes/Paneles/Procedencia";
 import { registrarCorrida } from "@/lib/corrida";
 import { miles, nombreEstrategia, pct, pp } from "@/lib/formato";
 import { usarAlmacen } from "@/estado/simulacion";
@@ -64,15 +65,19 @@ export default function Reporte() {
     const gente = Math.round(poblacion.peso_total * (ult.tasa_informalidad - r0.tasa_informalidad));
     if (Math.abs(gente) >= 1000) {
       out.push(
-        `La proyección oficial se equivoca por ${miles(Math.abs(gente))} personas: es la gente que ` +
-          `${gente > 0 ? "queda fuera de regla" : "vuelve a la regla"} y que un modelo de cumplimiento total no cuenta.`
+        `El modelo proyecta ${miles(Math.abs(gente))} personas que ` +
+          `${gente > 0 ? "quedan fuera de regla" : "vuelven a la regla"} y que un supuesto de cumplimiento ` +
+          `total no contaría. Es la brecha de ESTE modelo contra ese supuesto, no una corrección al dato ` +
+          `oficial: contra lo observado el backtest la falsa (ver «dónde no hay que creerle»).`
       );
     }
     const dSan = (ult.prob_fiscalizacion - r0.prob_fiscalizacion) * 100;
     if (dSan < -0.001) {
       out.push(
         `El riesgo de sanción cayó ${Math.abs(dSan).toFixed(3).replace(".", ",")} pp sin que nadie ` +
-          `tocara el presupuesto de inspección: más evasores repartidos sobre la misma capacidad. Esa es la cascada.`
+          `tocara el presupuesto de inspección: más evasores repartidos sobre la misma capacidad. Así opera ` +
+          `la cascada DENTRO del modelo — es el mecanismo que el motor simula, no un hallazgo verificado: ` +
+          `contra el dato observado el backtest la falsa (ver «dónde no hay que creerle»).`
       );
     }
     const vetos = rs.reduce((s, r) => s + r.vetadas, 0);
@@ -216,7 +221,16 @@ export default function Reporte() {
         <GraficaVeto rondas={registro.rondas} />
       </section>
 
-      <section style={{ marginTop: 10, breakInside: "avoid" }}>
+      {/* P9 · procedencia. Salió del lienzo en `Simulacion.tsx` porque abierta
+          tapaba el centro del enjambre, y su destino declarado era este: aquí
+          se lee entera, y con `forzarAbierto` no es un panel flotante sino una
+          sección más del documento. Sin ella el reporte afirma cifras sin decir
+          de dónde salen, que es justo lo que el entregable P9 vino a cerrar. */}
+      <section style={{ marginTop: 34, breakInside: "avoid" }}>
+        <Procedencia forzarAbierto />
+      </section>
+
+      <section style={{ marginTop: 34, breakInside: "avoid" }}>
         <h2
           className="kicker"
           style={{ borderBottom: "1px solid var(--linea)", paddingBottom: 6, marginBottom: 12 }}
@@ -251,7 +265,18 @@ export default function Reporte() {
               no un rango. Con <code>parafrasis ≥ 2</code> el rango aparece.
             </li>
           )}
-          <li>No entrega el futuro, entrega el rango, con el error del backtest publicado.</li>
+          {/* El número sale de `VALIDATION.md` §«EL número» (corrida 2026-08-22,
+              después del pre-registro). Va como literal a propósito: es un
+              resultado publicado del proyecto, no algo que esta página calcule.
+              Si `make validate` lo mueve, se actualiza aquí en el mismo PR. */}
+          <li>
+            No entrega el futuro, entrega el rango — y el error del backtest va publicado:{" "}
+            <strong>37,37 pp, con el signo al revés</strong>. El modelo predijo +33,3 pp de
+            informalidad para Bogotá 2025→2026 y lo observado fue −4,07 pp; predecir «2026 = 2025»
+            le gana ocho veces. La <strong>cascada agregada está falsada</strong> como resultado: se
+            conserva como el mecanismo que el motor simula, no como una conclusión de este proyecto.
+            El detalle, en <code>VALIDATION.md</code>.
+          </li>
         </ul>
       </section>
 

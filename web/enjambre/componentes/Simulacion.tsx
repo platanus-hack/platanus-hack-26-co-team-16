@@ -63,9 +63,10 @@ export default function Simulacion() {
       <Titulo />
       {/* `Procedencia` sale del lienzo: abierto tapaba el centro del enjambre
           con z-index 20, que es justo donde viven las celdas más pesadas. Su
-          tabla DATO/NORMA/CALCULADO/SUPUESTO se muda al reporte (P3), donde se
-          lee entera en vez de flotando sobre la simulación. El componente se
-          conserva para reusarlo allá. */}
+          tabla DATO/NORMA/CALCULADO/SUPUESTO se mudó al reporte (P3), donde se
+          lee entera en vez de flotando sobre la simulación: se monta en
+          `app/reporte/page.tsx` con `forzarAbierto`, entre las gráficas y los
+          límites. No es un huérfano — es el mismo componente en otra sala. */}
       <Hero />
       <Noticias />
       <ColumnaIzquierda />
