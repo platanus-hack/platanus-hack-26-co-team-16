@@ -58,8 +58,14 @@ def arquetipo_a_dict(a: Arquetipo) -> dict[str, Any]:
 
 
 def evento_poblacion(
-    arquetipos: list[Arquetipo], cuenta_propia: dict[str, float]
+    arquetipos: list[Arquetipo],
+    cuenta_propia: dict[str, float],
+    *,
+    rondas_totales: int,
 ) -> dict[str, Any]:
+    """Los datos estáticos de la corrida. `rondas_totales` entra por parámetro
+    a propósito: esta capa traduce, no decide. Quien lo declara es
+    `api.servidor.RONDAS_TOTALES`, que es el mismo valor que recibe `correr()`."""
     m = momentos()
     return {
         "arquetipos": [arquetipo_a_dict(a) for a in arquetipos],
@@ -71,7 +77,7 @@ def evento_poblacion(
         # como la ciudad entera.
         "cuenta_propia": cuenta_propia,
         "piso_salarial_anterior": piso_salarial_anterior(),
-        "rondas_totales": 4,
+        "rondas_totales": rondas_totales,
         "meses_por_ronda": 3,
     }
 

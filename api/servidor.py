@@ -9,7 +9,7 @@ produce, por las dos costuras que `behavior/` expone para eso
 (`al_terminar_ronda` y `al_decidir_arquetipo`).
 
 Eventos del flujo, en orden:
-  inicio    → parámetros de la corrida
+  inicio    → parámetros de la corrida (con el rótulo de qué gobierna el seed)
   decision  → una celda decidió (progreso intra-ronda, orden de terminación real)
   ronda     → agregado de la ronda cerrada (contracts/ronda.json intacto + extras)
   fin       → la corrida terminó (con el informe de gasto si hubo LLM)
@@ -48,6 +48,32 @@ from behavior.rondas import correr
 
 _RAIZ = Path(__file__).resolve().parent.parent
 
+# El calendario de la corrida, declarado UNA vez y en un solo lado. Alimenta los
+# dos puntos que TIENEN que coincidir: `correr()`, que decide cuántas rondas
+# ejecuta el motor, y el evento `poblacion`, que le dice a la pantalla cuántas
+# dibujar. Antes eran dos literales sueltos —el default de `behavior.rondas.correr`
+# y un `4` a mano en `serializar.evento_poblacion`— que cuadraban por casualidad;
+# el día que uno cambiara, la barra de tiempo mentía sin que nada fallara.
+# Ronda 0 = la reacción ingenua, sin LLM; las rondas 1..3 son mejor respuesta.
+# O sea 3 rondas de LLM, no 4 (ADR 0005, y el docstring de `correr()`).
+RONDAS_TOTALES = 4
+
+# Qué gobierna la perilla `seed` de esta API. Hoy: nada más que su propia
+# etiqueta, y eso se declara en vez de disimularse.
+# Medido, no supuesto: `modo=reglas`, seed 42 contra seed 99, las 4 rondas
+# comparadas campo por campo quitando la etiqueta -> trayectorias IDÉNTICAS
+# (informalidad final 31,01% en ambas). En el camino del LLM no puede ser de
+# otra forma: `capa.renderizar()` no recibe seed, así que el prompt no lo lleva,
+# y `cache.clave()` hashea el prompt, así que dos semillas son dos aciertos de
+# caché iguales. `engine/seed.py` tiene los streams buenos y hoy no lo importa
+# nadie fuera de su propio test; él mismo lo dice en su encabezado.
+# No se quita la perilla: el front ya la manda y `web/` no es de este rol. Se
+# rotula, que es lo que evita que alguien la mueva, no vea nada, y concluya que
+# el modelo es sordo a su propia semilla.
+# El día que el seed elija las N paráfrasis de `banda_entre_trayectorias()`,
+# esto pasa a "trayectoria" y es la única línea que cambia.
+SEED_EFECTO = "etiqueta"  # "etiqueta" | "trayectoria"
+
 app = FastAPI(title="enjambre-api", docs_url=None, redoc_url=None)
 app.add_middleware(
     CORSMiddleware,
@@ -73,7 +99,9 @@ def _cuenta_propia():
 @app.get("/poblacion")
 def poblacion() -> dict[str, Any]:
     """La grilla estática de celdas empleadoras GEIH, para dibujar el enjambre."""
-    return serializar.evento_poblacion(_grilla(), _cuenta_propia())
+    return serializar.evento_poblacion(
+        _grilla(), _cuenta_propia(), rondas_totales=RONDAS_TOTALES
+    )
 
 
 def _sse(evento: str, datos: dict[str, Any]) -> str:
@@ -83,7 +111,13 @@ def _sse(evento: str, datos: dict[str, Any]) -> str:
 @app.get("/simulaciones/flujo")
 def flujo(
     aumento_pct: float = Query(23.0, ge=0.0, le=50.0),
-    seed: int = Query(42),
+    seed: int = Query(
+        42,
+        description=(
+            "Rotula la corrida y viaja en el contrato. HOY NO CAMBIA NINGUNA "
+            "DECISIÓN: nada del bucle de rondas sortea. Ver `SEED_EFECTO`."
+        ),
+    ),
     cobertura: float = Query(0.8, gt=0.0, le=1.0),
     parafrasis: int = Query(1, ge=1, le=9),
     tope_usd: float = Query(3.0, gt=0.0, le=10.0),
@@ -170,6 +204,7 @@ def _generar(
                 arquetipos,
                 cliente,
                 aumento_pct=aumento_pct,
+                rondas_totales=RONDAS_TOTALES,
                 seed=seed,
                 simulacion_id=f"enjambre-{seed}-{aumento_pct:g}",
                 veto=None,
@@ -200,7 +235,8 @@ def _generar(
     hilo = threading.Thread(target=trabajar, daemon=True)
     hilo.start()
     print(
-        f"\n=== corrida: aumento {aumento_pct:g}% · seed {seed} · modo {modo} · "
+        f"\n=== corrida: aumento {aumento_pct:g}% · seed {seed} ({SEED_EFECTO}) · "
+        f"modo {modo} · "
         f"cobertura {cobertura:g} · {parafrasis} paráfrasis · {total} arquetipos ==="
     )
     try:
@@ -209,6 +245,9 @@ def _generar(
             {
                 "aumento_pct": aumento_pct,
                 "seed": seed,
+                # El rótulo viaja con la corrida: la pantalla tiene con qué
+                # decir qué hace la perilla sin que nadie lo adivine.
+                "seed_efecto": SEED_EFECTO,
                 "modo": modo,
                 "cobertura": cobertura,
                 "parafrasis": parafrasis,
