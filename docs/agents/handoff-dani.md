@@ -9,6 +9,91 @@
 
 _Lo más reciente arriba. Qué existe, qué acabas de hacer, qué necesita saber tu próxima sesión para no arrancar de cero. Corto: enlaza a commits y ADRs en vez de copiarlos._
 
+### 2026-08-23 08:52 — **Realismo del empleador: los prompts dejan de congelar el mundo.** ⚠️ fuera de `web/`
+
+Está en `main`, dentro del commit **`3f5d3d9 final`**. Archivo nuevo: **`behavior/contexto.py`** (445
+líneas). Tocados: `behavior/prompts/{sistema,arquetipo}.md`, `parafrasis/p3.md`, `p5.md`,
+`behavior/{capa,rondas}.py`, `api/{servidor,trayectorias}.py`.
+
+> **⚠️ ESTO NO ES MI CARPETA.** `behavior/` es de Nico (R3) y `api/` de Manuel (R2). Lo hice porque
+> se me pidió de frente, no por descuido, y lo declaro acá para que nadie lo descubra por un
+> conflicto de merge. **Si Nico o Manuel abren sesión, este es el primer párrafo que tienen que
+> leer.** Sale de mi propio hallazgo de la sesión anterior
+> ([`hallazgos-dani-cache-decisiones.md`](hallazgos-dani-cache-decisiones.md)) y del encargo de
+> [`docs/ultimo-momento/revision-prompts-empleadores.md`](../ultimo-momento/revision-prompts-empleadores.md)
+> — que, ojo, decía **«NO APLICAS NINGÚN CAMBIO»**. Se aplicaron igual, por decisión de Dani.
+
+**El problema, medido en la sesión anterior:** 1 despido en 518 decisiones ante un alza del 23%.
+No era criterio del modelo, era aritmética: *«Nada más cambia: tus ingresos, tus clientes y tu
+capacidad de producción son los mismos»* congelaba la demanda, y con ingreso fijo **no existía
+estado del mundo en el que despedir fuera la mejor respuesta**. Y `subir_precios` era *«trasladas
+el costo a tus clientes»* en un mundo donde los clientes no se pueden ir: 27% salió por ahí.
+
+**La restricción que mandó en todo el diseño.** `engine/veto.py` costea `despedir`/`cumplir`/
+`absorber`/`bajar_horas` contra `flujo_caja × 3` y **nunca costea `subir_precios`**. El repo ya se
+quemó con esto una vez (defecto A3: el agente calculaba con caja mensual y el veto con trimestral —
+*«estaban mirando billeteras distintas»*). Por eso la regla que seguí: **nada de lo que agregué es
+un número que el motor también calcule.** Todo es cualitativo — ordena preferencias, no entra a la
+aritmética. Caja, indemnización y sanción siguen siendo las únicas cifras del prompt y siguen
+siendo exactamente las del motor.
+
+**Los cinco mecanismos, cada uno con su porqué:**
+
+1. **La demanda se descongela, y la justificación es específica del choque.** El alza del piso
+   laboral mueve los DOS lados del mostrador: quien le vende a hogares que viven de ese piso puede
+   ver la venta sostenerse o subir; quien vende contra un precio cerrado antes del alza tiene el
+   valor de su venta congelado y solo le subió el costo. Mismo choque, signo contrario, por sector.
+   **Eso es lo que vuelve el despido una opción viva sin tocar un solo número del motor.**
+2. **El traslado a precios tiene techo, y el techo es la tasa de informalidad.** Tu competidor de
+   precio está fuera de regla con probabilidad ≈ la proporción de unidades fuera de regla, que el
+   agente ya ve en el prompt. **Es un segundo canal de la cascada** y empuja en la misma dirección
+   que el primero: más evasión no solo baja p(inspección), también le quita capacidad de traslado a
+   quien se quedó adentro. Verificado: 0% de informalidad → 0 firmas con rival fuera de regla;
+   100% → 86 de 101.
+3. **Estar fuera de regla cuesta sin inspector**: el trabajador que se va molesto reclama, los
+   compradores grandes piden soporte de aportes, el trabajador entrenado se va con quien se los
+   pague. Ataca el hallazgo §3.3 (los que veían 0,3% informalizaban con limpieza mecánica) **sin
+   tocar p**, así que la cascada sigue intacta.
+4. **El margen tiene piso porque es el ingreso del hogar del dueño.** En la caché había
+   `reduccion_margen_pct: 100` — el dueño trabajando gratis. Nadie hace eso, cierra antes.
+5. **Aleatoriedad como heterogeneidad, no como ruido.** Los **rasgos** (quién te compra, competidor,
+   planta, margen, experiencia de inspección, compromisos) se sortean SIN la ronda: la firma es la
+   misma en el periodo 1 y en el 3. Los **choques** (cómo viene la venta, cliente perdido, pagador
+   tarde) se sortean CON la ronda. Todo determinista en el seed.
+
+**Efecto colateral que importa: la perilla `seed` de la API por fin hace algo.** Estaba rotulada
+`SEED_EFECTO = "etiqueta"` justamente porque `capa.renderizar()` no recibía seed, así que dos
+semillas hasheaban el mismo prompt y pegaban en la misma entrada del caché. Ahora el seed elige el
+contexto de cada firma → **`SEED_EFECTO = "trayectoria"`** (`api/servidor.py:85`). Actualicé esa
+línea y los otros tres sitios que afirmaban lo contrario (`api/servidor.py` `description` del
+Query, `api/trayectorias.py:19`). **En el camino de reglas fijas sigue siendo una etiqueta y está
+bien así: la ablación no lee el prompt, y esa es justo la comparación que la hace útil.**
+
+**Verificado, no afirmado:**
+
+| Qué | Resultado |
+|---|---|
+| 1.818 prompts renderizados (3 seeds × 101 arquetipos × 3 rondas × re-skin on/off) | **0 contaminados** |
+| `python3 -m behavior.higiene` | `7/7 prompts limpios` |
+| `make test` · `pytest tests/` · `python3 -m behavior.pruebas` | 88 · 11 · todas pasan |
+| `python3 -m behavior.demo` (ablación, $0) | corre de punta a punta |
+| Determinismo, persistencia de rasgos, varianza de choques | verificados uno por uno |
+
+**LO QUE NO SE MIDIÓ, Y HAY QUE DECIRLO:** no hay `ANTHROPIC_API_KEY` en el entorno, así que
+**ninguna decisión nueva se ha visto**. No sé si los despidos subieron. El mecanismo está puesto y
+el razonamiento está escrito, pero el reparto 40,7 / 27,0 / 23,9 **sigue sin probarse contra estos
+prompts**. Cualquiera que diga lo contrario está afirmando sin evidencia.
+
+**Costo si se vuelve a correr:** el prompt pasó de ~943 a ~2.026 tokens de entrada (+1.083 por
+llamada). Sobre 518 llamadas son **~$1,68 encima de los ~$7,87** de recomprar el caché que este
+cambio invalidó (`cache.clave()` hashea el prompt). Y mientras no se pague, `scripts/reproduce.py`
+cae al nivel 2 de la [ADR 0009](../adr/0009-reproducibilidad.md) (ablación de reglas fijas).
+
+**Lo que deliberadamente NO hice.** La vía real por la que una PYME reduce planta sin indemnizar es
+**no renovar un contrato a término fijo**. No se la conté al agente: el veto cobra `costo_despido`
+por cualquier `empleados_a_despedir`, así que habría recreado el defecto A3 exacto. Hacerlo bien
+exige una fracción de planta a término fijo en `engine/` — carpeta de Manuel, y es la opción cara.
+
 ### 2026-08-23 07:30 — **PR #25 mergeado (`357c5e2`). El frontend entero está en `main`.**
 
 37 archivos, **+3.055 / −304** en `web/`, 14 commits míos entre las 00:59 y las 01:48.
@@ -102,6 +187,13 @@ de verificación siguen fallando todos. El informe completo del que salen C1/C2/
       `PARAFRASIS_EFECTO = "ninguno"`: cambiar a *«dispersión entre 5 trayectorias (una paráfrasis
       cada una), sin calibrar — NO es un intervalo de confianza»*.
       **Verificación:** grep de «intervalo» y «confianza» en 0.
+      **Estado medido 08:52:** la mitad de texto **ya está hecha** — el grep de «intervalo\|confianza»
+      da 2 y las dos son `Procedencia.tsx:46-47`, o sea el comentario que explica la retractación y
+      una frase que **niega** correctamente (*«NO es un intervalo de confianza ni un p10/p90
+      calibrado»*). Lo que queda de C2 es el contador de trayectoria en `Titulo.tsx`.
+      ⚠️ **Y la premisa cambió:** `PARAFRASIS_EFECTO` sigue en `"ninguno"`, pero `SEED_EFECTO` pasó
+      a `"trayectoria"` (entrada del 08:52). Si algún texto de `web/` dice que el seed no cambia
+      nada, ahora es falso.
 - [ ] **C3 · Subir el error del backtest a la primera pantalla** (15 min). Los 37,37 pp viven en la
       **última viñeta** de `/reporte`, después de seis gráficas. Una línea fija bajo el logo en
       `Carga.tsx:80` y en `Menu.tsx:25`. **Verificación:** se lee en `/` sin un solo clic.
@@ -111,6 +203,14 @@ de verificación siguen fallando todos. El informe completo del que salen C1/C2/
       que el rótulo nuevo existe, no solo que el viejo se fue)*.
 - [ ] **B3 · Quitar «cobertura» del número** (15 min, con Juanda). Vive en `scripts/validate.py:206`,
       que **no es mi carpeta**: lo mío es que ningún texto de `web/` lo repita.
+- [ ] **D1 · El seed está clavado en 42 en el cliente** (10 min). **Esto lo creé yo hoy.**
+      `estado/flujo.ts:38` arma el query con `seed: "42"` literal. Mientras el seed era una etiqueta
+      daba igual; desde la entrada del 08:52 el seed **elige el contexto de cada firma**, así que
+      con el 42 clavado la pantalla nunca puede mostrar otra población sobre los mismos arquetipos.
+      Es la perilla más barata que tenemos para enseñar variabilidad en vivo.
+      **Verificación:** `grep -n 'seed: "42"' web/enjambre/estado/flujo.ts` = 0.
+      *(Revisado también: ningún texto de `web/` afirma que el seed no cambia nada, así que no hay
+      nada que retractar — solo que cablear.)*
 
 ## Bloqueado / esperando a alguien
 
@@ -121,11 +221,21 @@ de verificación siguen fallando todos. El informe completo del que salen C1/C2/
 - **Juanda (R5) · el deploy no es `main`.** La rama desplegada es un ancestro estricto: le faltan
   15 commits, **incluido `024340b`**. Cualquier cosa que yo mergee antes de que él arregle eso, el
   juez no la va a ver. Es el arreglo que desbloquea a otros cinco.
+- **NO HAY `ANTHROPIC_API_KEY` EN EL ENTORNO.** Es lo que bloquea la única pregunta abierta del
+  cambio de prompts del 08:52: **¿los despidos subieron?** Sin key no se ha visto ni una decisión
+  nueva. Una sonda de ~30 llamadas cuesta **~$0,50** y contestaría; una corrida completa de 518
+  cuesta **~$9,55** (los ~$7,87 del caché quemado + ~$1,68 del prompt más largo) y además devuelve
+  `scripts/reproduce.py` al nivel 1. **Es una decisión de plata, no técnica.**
 - **Nico (R3) · el modo reglas está saturado.** Medido con llamadas directas a la API a 5 / 13,5 /
   23 / 40%: informalidad **31,010% en los cuatro**, empleo 94,890% en los tres primeros. La causa
   está en `behavior/ablacion.py`: `costo_informal = ingreso + p·multa ≈ 1,20·ingreso` contra
   `costo_formal = ingreso·factor·(1+alza)`, que ya lo supera al 5%. **Consecuencia para mí: el
   camino de demo de $0 (`?modo=reglas`) es insensible al slider.** No es mío arreglarlo.
+  ⚠️ **El cambio de prompts del 08:52 NO arregla esto, y no podía**: la ablación no lee el prompt
+  —esa es justamente su razón de ser como contrafactual—, así que `?modo=reglas` sigue igual de
+  saturado. Verificado: `python3 -m behavior.demo` da el mismo 50,0% de siempre. Si alguien asume
+  que los prompts nuevos destaparon el slider de la demo de $0, **se va a llevar la sorpresa en
+  vivo**.
 - **Manuel (R2) + Alejo (R1) · datos que se calculan y se tiran** (`docs/VARIABLES-PENDIENTES.md`):
   `fraccion_firmas_fuera_de_regla` se calcula en `behavior/rondas.py:295-310` y se descarta;
   `vetadas` se publica por arquetipo y nunca se suma por ronda (lo sumo yo en
@@ -137,6 +247,27 @@ de verificación siguen fallando todos. El informe completo del que salen C1/C2/
 ## Supuestos que tomé
 
 _Todo lo que decidiste sin dato duro. Además del `# SUPUESTO:` en el código, anótalo acá para que R5 lo recoja en `VALIDATION.md`._
+
+### Los 10 de `behavior/contexto.py` (nuevos, 23-ago 08:52) — **para `VALIDATION.md`**
+
+`grep -n "SUPUESTO:" behavior/contexto.py` = **10**. Son repartos de probabilidad, y **ninguno
+entra a la aritmética del motor**: solo ordenan preferencias del agente (esa fue la regla de diseño,
+ver la entrada del 08:52). Aun así son supuestos y R5 tiene que recogerlos:
+
+| Dónde | Qué se supone | Cómo defenderlo |
+|---|---|---|
+| `:115` | El reparto sector → régimen de precio (mostrador / pactado / tomador) | No sale de una fuente: sale de **cómo se cobra en cada actividad**. Quien vende al menudeo mueve el precio mañana; quien firmó por término o cotizó una obra a precio cerrado no. **La dirección es el modelo; los decimales son andamio.** |
+| `:140` | Reparto de respaldo para un sector fuera de la tabla | Mitad y mitad — el reparto que menos supone |
+| `:177` | Los tres repartos de perspectiva de venta | La **dirección** está justificada (el alza mueve los dos lados del mostrador); las magnitudes van al barrido |
+| `:203` | El choque idiosincrático del periodo, con 55% de «nada fuera de lo normal» | La mayoría de los periodos no pasa nada. Es la heterogeneidad que la celda de la encuesta promedia y borra |
+| `:235` | 15% sin competencia cercana | Una unidad de barrio cuyos clientes no tienen a quién más comprarle sí tiene traslado que las demás no |
+| `:265`, `:336` | Cortes de tamaño para composición de planta y tope de margen | Dirección: entre más chica la unidad, más atada su planta y menos margen puede ceder, **porque el margen es lo que come su casa** |
+| `:309` | Reparto de experiencia de inspección | La mayoría de los pequeños empleadores nunca ha visto una visita, y por eso la cifra del papel les dice poco |
+| `:374` | Que la mayoría de unidades pequeñas tenga arriendo y una cuota corriendo | Redactado **al revés a propósito**: declara que la caja del prompt ya viene neta, para no crear una segunda billetera (defecto A3) |
+
+**Todos son de dirección conocida y todos van al barrido de sensibilidad de R5.**
+
+### Los 11 de `web/enjambre/`
 
 **11 marcadores `SUPUESTO:` en `web/enjambre/`**, todos grepeables con
 `grep -rn "SUPUESTO:" web/enjambre`. Ninguno afecta al motor: son escala visual y pisos de
