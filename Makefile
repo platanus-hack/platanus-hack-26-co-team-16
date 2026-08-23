@@ -31,6 +31,13 @@ help:
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
 
+# `scripts/run_simulacion.py` YA EXISTE desde este merge, asi que este target vuelve a
+# apuntar ahi en vez de a `reproduce.py`. La diferencia importa: `run_simulacion.py`
+# emite un ARTEFACTO CANONICO sin fecha, y es lo que permite comprobar el determinismo
+# comparando bytes (`make run && make run` dice IDENTICO) y lo que hace que el candado
+# G1 pueda pasar. `reproduce.py` sigue siendo el comando de "reproduce el resultado
+# publicado en una maquina limpia", que es otra cosa y tiene su propio target.
+#
 # Corre por defecto en modo `reglas`: determinista, sin API key y USD 0,00, que es lo
 # que puede correr alguien que acaba de clonar. `make run MODO=llm` usa la capa real.
 MODO ?= reglas
@@ -50,12 +57,12 @@ run:
 # corria: `test_guardian_corrida`, `test_serializar` y `test_trayectorias`. Un test
 # que no corre en el comando que la gente usa es un test que no existe.
 test:
-	@if ! command -v pytest >/dev/null 2>&1; then \
+	@if ! $(PY) -c "import pytest" >/dev/null 2>&1; then \
 		echo "make test NO CORRIO — pytest no esta instalado."; \
 		echo "  pip install -r requirements.txt"; \
 		exit 1; \
 	else \
-		pytest engine/ api/ tests/ -q; \
+		$(PY) -m pytest engine/ api/ tests/ -q; \
 		echo ""; \
 		echo "  regresiones de behavior/ (no son pytest, corren solas):"; \
 		$(PY) -m behavior.pruebas | tail -3; \

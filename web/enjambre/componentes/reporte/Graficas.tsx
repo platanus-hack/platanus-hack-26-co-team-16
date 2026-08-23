@@ -112,11 +112,11 @@ export function GraficaBrecha({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="la brecha · escenario sin adaptación contra lo que pasa"
+      titulo="lo que la política da por hecho, y lo que pasa cuando cada empresa decide"
       alto={alto}
-      lee={`La línea punteada es la ronda 0 de este modelo: el escenario en que nadie se adapta y todo el mundo cumple, para siempre. No es una proyección del gobierno, es nuestro punto de partida. La línea llena es lo que resulta de dejar decidir a cada empresa con su propia caja. El área entre las dos es la brecha — ${brechaPp
+      lee={`La línea punteada es el supuesto que toda proyección da por hecho: que el alza se aplica y todo el mundo la cumple. La línea llena es lo que sale cuando cada empresa decide con la plata que tiene. Todo lo que hay entre las dos es informalidad que nadie contó: ${brechaPp
         .toFixed(2)
-        .replace(".", ",")} pp al cierre del horizonte.`}
+        .replace(".", ",")} pp al final.`}
     >
       {[hi, (hi + lo) / 2, lo].map((v, i) => (
         <g key={i}>
@@ -181,12 +181,12 @@ export function GraficaCascada({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="la cascada · el mecanismo: más evasores, menos riesgo para cada uno"
+      titulo="entre más empresas caen en la informalidad, menos probable es que inspeccionen a cada una"
       alto={alto}
-      lee={`La capacidad de inspección es fija, así que la probabilidad de sanción es capacidad ÷ evasores. ${
+      lee={`Los inspectores son los mismos de siempre, pase lo que pase con el salario mínimo. Así que cada empresa que se sale de la regla diluye la vigilancia que le toca a las demás. ${
         dSan < -0.001
-          ? `Acá bajó ${Math.abs(dSan).toFixed(3).replace(".", ",")} pp mientras la informalidad subía: es la retroalimentación del modelo operando. Es el mecanismo que el motor simula, no un hallazgo verificado — contra el dato observado el backtest lo falsa (ver «dónde no hay que creerle»).`
-          : "En esta corrida no se movió lo suficiente como para hablar de cascada, y así se reporta."
+          ? `Acá el riesgo de que te inspeccionen bajó ${Math.abs(dSan).toFixed(3).replace(".", ",")} pp mientras la informalidad subía: informalizarse le sale más barato a cada empresa justamente porque otras ya lo hicieron. Este efecto en cadena es lo que la simulación existe para mostrar; la magnitud exacta, no.`
+          : "En esta corrida el riesgo casi no se movió, así que no hay efecto en cadena que reportar, y así se dice."
       }`}
     >
       <path
@@ -212,7 +212,7 @@ export function GraficaCascada({ rondas }: { rondas: RondaRegistrada[] }) {
         informalidad {pct(inf[0])} → {pct(inf[inf.length - 1])}
       </Etiqueta>
       <Etiqueta x={x(0) + 6} y={yS(san[0]) + 18} anchor="start">
-        p(sanción) {pct(san[0], 2)} → {pct(san[san.length - 1], 2)}
+        riesgo de inspección {pct(san[0], 2)} → {pct(san[san.length - 1], 2)}
       </Etiqueta>
       {rondas.map((r, i) => (
         <Etiqueta key={i} x={x(i)} y={alto - M.b + 16} anchor="middle">
@@ -280,9 +280,9 @@ export function GraficaDistributiva({
     <Figura
       titulo="a quién le cae encima · cambio de informalidad por sector"
       alto={alto}
-      lee={`El alza no cae parejo. ${nombreSector(peor.sector)} se lleva el golpe más fuerte: ${peor.delta
+      lee={`El alza no cae parejo. ${nombreSector(peor.sector)} se lleva el golpe más fuerte: la informalidad sube ${peor.delta
         .toFixed(2)
-        .replace(".", ",")} pp sobre ${miles(peor.peso)} trabajadores. Un promedio de ciudad esconde exactamente esto. — De qué está hecha esta diferencia: es un ranking de CARGA LEGAL ESTATUTARIA (sobrecosto prestacional + costo de despido del CST), no un mapa de capacidad de pago. El margen sobre nómina es uniforme (0,18) para las 81 celdas y no está observado en la GEIH (data/construir_empresas.py:70), y en el veto el salario y el tamaño se cancelan algebraicamente. Lo que sí tiene fuente legal real detrás —y es lo que ordena estas barras— es el costo de despido del CST.`}
+        .replace(".", ",")} pp sobre ${miles(peor.peso)} trabajadores. Un promedio de ciudad esconde exactamente esto — y esconder esto es la diferencia entre una política que funciona y una que le cae encima a un sector entero. Lo que ordena estas barras es cuánto le cuesta legalmente a cada sector tener un trabajador formal, sobre todo la indemnización por despido, que es plata real y está en la ley. No mide qué tan rentable es cada sector: eso la encuesta no lo observa.`}
     >
       {filas.map((f, i) => {
         const y = 16 + i * 26;
@@ -335,11 +335,11 @@ export function GraficaEstrategias({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="cómo reaccionan · reparto de población por estrategia"
+      titulo="qué hicieron las empresas para aguantar el alza"
       alto={alto}
-      lee={`Cada franja es la fracción de trabajadores cuya empresa eligió esa salida. Al cierre domina ${nombreEstrategia(
+      lee={`Cada franja es cuántos trabajadores están en una empresa que eligió esa salida. Al final gana ${nombreEstrategia(
         dom[0]
-      )} con ${pct(dom[1])} de la población. Ojo: por CONTEO de empresas el orden suele ser otro — muchas celdas chicas cumpliendo pesan poco en gente.`}
+      )}, con ${pct(dom[1])} de la gente. Dos advertencias para leerlo bien: esto cuenta personas, no empresas —muchas empresas chicas cumpliendo pesan poco acá—, y subir precios solo mueve el mundo si los clientes se quedan, cosa que esta simulación da por hecha y no verifica.`}
     >
       {conDatos.map((r, i) => {
         const y = 14 + i * 46;
@@ -398,9 +398,9 @@ export function GraficaVeto({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="el veto de factibilidad · propuestas que la aritmética rechazó"
+      titulo="lo que las empresas quisieron hacer y no les alcanzó la caja"
       alto={alto}
-      lee={`${total} propuestas rechazadas en toda la corrida. Es la mitad del argumento del proyecto hecha número: la capa de decisión propone —incluso cosas que un economista no enumeraría— y el motor determinista mata lo que la caja de la empresa no permite. Sin este filtro, el resultado sería lo que el modelo imagine.`}
+      lee={`${total} veces una empresa propuso algo que no podía pagar, y la simulación se lo bloqueó. Acá está la diferencia entre esto y una historia bien contada: las empresas proponen libremente —incluso salidas que un economista no habría puesto en la lista— pero solo sobrevive lo que cabe en su caja. Sin ese filtro, el resultado sería lo que suene convincente, no lo que se pueda pagar.`}
     >
       {[maxV, maxV / 2, 0].map((v, i) => (
         <g key={i}>
@@ -447,13 +447,13 @@ export function GraficaEmpleo({ rondas }: { rondas: RondaRegistrada[] }) {
 
   return (
     <Figura
-      titulo="lo que se paga en trabajo · empleo y masa laboral"
+      titulo="el empleo casi no cae; las horas sí"
       alto={alto}
-      lee={`Dos formas distintas de perder. El empleo cae ${perdidaEmp
+      lee={`Hay dos formas de perder y solo una se ve en las noticias. Los puestos de trabajo caen ${perdidaEmp
         .toFixed(2)
-        .replace(".", ",")}%, pero la masa laboral —empleo × jornada— cae ${perdidaIng
+        .replace(".", ",")}%, pero las horas efectivamente trabajadas caen ${perdidaIng
         .toFixed(2)
-        .replace(".", ",")}%. La diferencia es gente que conserva el puesto con menos horas: el escenario sin adaptación no ve esa pérdida porque no mira la jornada.`}
+        .replace(".", ",")}%. Esa diferencia es gente que conserva el puesto y pierde jornada: sigue empleada, gana menos. Una cifra de empleo sola no muestra esa pérdida.`}
     >
       {[hi, (hi + lo) / 2, lo].map((v, i) => (
         <g key={i}>
@@ -469,7 +469,7 @@ export function GraficaEmpleo({ rondas }: { rondas: RondaRegistrada[] }) {
         empleo
       </Etiqueta>
       <Etiqueta x={x(rondas.length - 1)} y={y(ing[ing.length - 1]) + 17}>
-        masa laboral
+        horas trabajadas
       </Etiqueta>
       {rondas.map((r, i) => (
         <Etiqueta key={i} x={x(i)} y={alto - M.b + 16} anchor="middle">

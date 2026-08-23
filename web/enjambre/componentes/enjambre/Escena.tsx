@@ -6,7 +6,6 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import Empresas from "./Empresas";
-import Onda from "./Onda";
 import Personas from "./Personas";
 import { MotorVisual } from "./motorVisual";
 import { nivelPorZoom, NIVELES_LOD } from "@/lib/disposicion";
@@ -73,7 +72,9 @@ export default function Escena() {
         <meshBasicMaterial visible={false} />
       </mesh>
 
-      <Onda motor={motor} />
+      {/* La onda azul gigante se desmontó: tapaba las celdas justo cuando
+          empiezan a decidir, que es lo único que hay que mirar. El componente
+          se conserva en ./Onda.tsx por si se quiere volver a montar. */}
       <Personas motor={motor} />
       <Empresas motor={motor} />
     </group>

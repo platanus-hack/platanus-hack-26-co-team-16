@@ -1,9 +1,13 @@
 "use client";
 
-// Pantalla 1: el logo (placeholder tipográfico — el logo aún no existe) y una
-// barra de carga. Espera el GET /poblacion, que es lo único que la
-// simulación necesita precargar. Sin porcentaje inventado (S2-11): barrido
-// indeterminado mientras espera, 100% real solo cuando la respuesta llegó.
+// Pantalla 1: una barra de carga y nada más. Espera el GET /poblacion, que es
+// lo único que la simulación necesita precargar. Sin porcentaje inventado
+// (S2-11): barrido indeterminado mientras espera, 100% real solo cuando la
+// respuesta llegó.
+//
+// El logo se fue de acá al menú (`Menu.tsx`): esta pantalla dura lo que tarda
+// un fetch, y la marca alcanzaba a aparecer y desaparecer sin que nadie la
+// registrara.
 
 import { useEffect, useState } from "react";
 import { cargarPoblacion } from "@/estado/flujo";
@@ -16,7 +20,6 @@ export default function Carga() {
   // un barrido indeterminado (no afirma "vamos en 82%" sin medirlo) y la
   // barra solo llega a 100% cuando la respuesta real llegó.
   const [listo, setListo] = useState(false);
-  const [falloLogo, setFalloLogo] = useState(false);
   const [falla, setFalla] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,37 +49,6 @@ export default function Carga() {
       }}
     >
       <div className="aparecer" style={{ textAlign: "center" }}>
-        {/* P5.1 · el logo. El PNG viene con fondo negro opaco (sin alfa), así
-            que `mix-blend-mode: screen` lo funde con el fondo de la app en vez
-            de dejar un rectángulo. Si el archivo faltara, `onError` cae al
-            texto y la pantalla sigue funcionando. */}
-        {!falloLogo ? (
-          <img
-            src="/hive-logo.png"
-            alt="HIVE"
-            onError={() => setFalloLogo(true)}
-            style={{
-              width: 260,
-              height: "auto",
-              mixBlendMode: "screen",
-              display: "block",
-              margin: "0 auto",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 15,
-              letterSpacing: "0.55em",
-              textTransform: "uppercase",
-              color: "var(--tinta)",
-              marginLeft: "0.55em",
-            }}
-          >
-            HIVE
-          </div>
-        )}
         <div className="kicker" style={{ marginTop: 6 }}>
           quién cumple una política, y a quién le cae encima
         </div>
