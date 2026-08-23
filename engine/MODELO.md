@@ -29,14 +29,15 @@ número que ya salió.
 | ✅ `seed.py` | Hoy el `seed` de `behavior/` es **decorativo**: seed 42 y seed 99 dan salida idéntica salvo la etiqueta. Nada en el bucle es estocástico | Nada. Es nuevo |
 | ✅ `fiscalizacion.py` | `p(E) = 1 − exp(−C/max(E,1))` con `C` anclado en la cifra de la OIT. Es la cascada, y es lo único que no se resuelve prompteando | La forma abreviada `p ≈ C/E` de `behavior/rondas.py` |
 | ✅ `veto.py` | El veto es la interfaz entera con R3, y hoy corre contra **dos dobles de prueba** (`veto_permisivo` y `veto_doble_prueba`) | Los dos dobles de prueba |
+| ✅ `arquetipos.py` | Instancia estrategias individuales desde la distribución conductual sin meter al LLM en el bucle caliente. Es la primitiva que requiere el mapa A3; falta cablearla | El muestreo privado de referencia en `behavior/arquetipos.py` |
 
-**Los siete que no se escriben** (`mundo.py`, `costos.py`, `trabajador.py`, `arquetipos.py`,
-`agregado.py`, `rondas.py`, `barrido.py`) se declaran como límite en `VALIDATION.md`, no se
+**Los seis que no se escriben** (`mundo.py`, `costos.py`, `trabajador.py`, `agregado.py`,
+`rondas.py`, `barrido.py`) se declaran como límite en `VALIDATION.md`, no se
 dejan como `TODO`. La regla *"cero `TODO: implementar` dentro de `engine/`"* sigue en pie.
 
-> **Excepción:** `arquetipos.py` puede entrar cuarto si sobra tiempo, porque sin `muestrear()`
-> **el mapa distributivo (dato A3) no se puede dibujar** y Dani se queda sin una de las cuatro
-> piezas de la pantalla.
+> **La excepción entró:** `arquetipos.py` es el cuarto archivo porque sin `muestrear()` el mapa
+> distributivo (dato A3) no se puede dibujar. El motor ya ofrece la primitiva para instanciarlas;
+> cablearla al bucle, exponerla por la API y pintarla sigue abierto fuera de este cambio.
 
 ### Una restricción del veto que no era obvia
 
@@ -62,7 +63,7 @@ Es un compromiso público en el review del PR #4, no una preferencia.
 | **Capacidad de inspección** | [OIT 2023-24](https://www.ilo.org/es/projects-and-partnerships/projects/mayor-capacidad-de-la-inspeccion-del-trabajo-en-colombia): 1.300 inspectores | ✅ **`fiscalizacion.py`** (no `mundo.py`: sin `mundo.py` escrito, `EstadoFiscalizacion` va donde vive su fórmula) | `EstadoFiscalizacion.capacidad()` · `.evasores(fracción)` · `.con(...)` para el barrido | ✅ El barrido mueve `p` en la dirección esperada y no muta el estado; la clase es inmutable, o sea no es una perilla (ADR 0006) | S10: fracción de la planta nacional dirigida al universo del modelo |
 | **Veto de factibilidad** | [ADR 0003](../docs/adr/0003-veto-de-factibilidad.md) | ✅ **`veto.py`** | `vetar(decision, firma, estado)` → `{factible, razon}` · `veto_del_motor(estado)` · `EstadoVivo` | ✅ `engine/test_veto.py`, 17 casos. Incluye el compromiso público: **todas** las razones pasan `higiene.revisar()` limpias | S8 (la caja del trimestre) y S9 (redondeo de la planta) |
 | **Decisión del trabajador** | 🔶 [ADR 0008](../docs/adr/0008-asimetria-firma-trabajador.md) | `trabajador.py` | `acepta_informal(neto_f, neto_i, prima)` | Con prima 0 acepta siempre que el neto informal sea mayor | ⚠️ **prima de protección**: cuánto vale pensión + salud + cesantías para el trabajador. Sensibilidad obligatoria |
-| **Arquetipos** | [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md) (idea de AgentTorch) | `arquetipos.py` | `construir_arquetipos()` · `muestrear(arq, n, rng)` | El muestreo con el mismo seed es idéntico; las proporciones respetan la distribución del arquetipo | Los agentes dentro de un arquetipo son **intercambiables en su conducta** |
+| **Arquetipos** | [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md) (idea de AgentTorch) | ✅ **`arquetipos.py`** | `muestrear(arq, n, rng)` | ✅ `engine/test_arquetipos.py`: productor real; mismo seed; orden y escala estables; streams por nombre; proporciones acordes y entradas inválidas rechazadas | ⚠️ Las frecuencias de decisiones se interpretan como probabilidades; condicionalmente, los agentes son iid. `n` no elimina la incertidumbre de pocas paráfrasis |
 | **Agregado** | Patrón de OASIS | `agregado.py` | `Agregado.de_ronda(estado)` | El agregado que ven los arquetipos es el de la ronda **anterior**, no el de la actual | — |
 | **Métricas** | — | `agregado.py` | `tasa_informalidad()` · `empleo_relativo()` · `banda()` · `brecha()` | Salida valida contra `contracts/ronda.json`; la informalidad está **ponderada** por factor de expansión | La línea base de `empleo_relativo` es el mundo sin política |
 | **Scheduler de rondas** | ODD elemento 3 · [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md) | **`rondas.py`** | `correr(mundo, politica, seed)` → 4 rondas | Ronda 0 es la proyección ingenua; el orden dentro de la ronda es fijo | Mejor respuesta **con rezago**, no punto fijo simultáneo |
@@ -74,8 +75,16 @@ Es un compromiso público en el review del PR #4, no una preferencia.
 > sembró primero. La firma real lleva el seed explícito: `stream_de_ronda(seed, ronda)`.
 > Sin estado global no hay carrera que descubrir a las 4am.
 
-**Si solo lees un archivo, lee `rondas.py`.** Es donde vive la tesis: el bucle de mejor
-respuesta y el punto exacto donde la fiscalización se recalcula.
+**Si solo lees un archivo, lee [`behavior/rondas.py`](../behavior/rondas.py)** — el bucle de
+mejor respuesta — **y [`engine/veto.py`](veto.py)**, el veto determinista. Entre los dos vive la
+tesis: el modelo propone y la aritmética manda.
+
+> ⚠️ Esta línea decía `rondas.py` a secas, dentro del mapa de `engine/`, catorce líneas después
+> de declarar ese archivo como uno de **los seis que no se escriben**. El bucle vive en
+> `behavior/`, que es de R3. `AGENTS.md` se corrigió por este mismo defecto el 22-ago 23:00 y su
+> gemelo de acá se quedó atrás; lo encontró el verificador del track de backend el 23-ago.
+> **Las filas sin ✅ de la tabla de abajo son el plan, no el inventario:** los módulos que existen
+> hoy en `engine/` son `seed.py`, `fiscalizacion.py`, `veto.py` y `arquetipos.py`, y solo esos.
 
 ---
 
@@ -106,7 +115,7 @@ Los `# SUPUESTO:` que el motor **va a** tomar. Escribirlos antes evita reconstru
 | S3 | **Prima de protección del trabajador** | Medio: mueve cuánta informalización se realiza | Sensibilidad; con prima 0 es el caso extremo y se reporta |
 | S4 | **Capacidad se reparte uniforme al azar entre evasores** | Medio: es el micro-fundamento de `p(E)` | Declarado en el docstring. La fiscalización dirigida daría otra forma, y se dice |
 | S5 | **Conversión de capacidad anual a trimestral** | Bajo-medio | La inspección no se reparte uniforme en el año; se declara |
-| S6 | **Agentes del mismo arquetipo son intercambiables en conducta** | Medio | Consecuencia de [ADR 0002](../docs/adr/0002-llm-por-arquetipo.md), ya declarada en `VALIDATION.md` |
+| S6 | **Las frecuencias de decisiones aceptadas se interpretan como probabilidades y, condicionalmente, los agentes del arquetipo son sorteos iid** | Medio-alto: con pocas paráfrasis, instanciar más agentes no reduce la incertidumbre lingüística; además se omite correlación residual dentro del arquetipo | Mantener separada la banda entre trayectorias; `n` no cuenta como evidencia nueva. Declarado donde `muestrear()` toma ambos supuestos |
 | S7 | **Costo informal ignora pérdida de crédito y de clientes formales** | Medio: subestima el costo de informalizar, o sea **sobreestima la cascada** | Sesgo de dirección **conocida**. Se declara: nuestra cascada es una cota superior por este canal |
 | S8 | **La caja de la ronda son 3 meses del `flujo_caja` de la firma**, y se puede destinar completa a un desembolso de una vez (sin reservas y sin crédito) | **Alto en el veto**: decide cuántos despidos son factibles. Con el doble de prueba (1 mes) la corrida de ablación producía **96 vetos**; con S8, **0**, y el empleo de la ronda 3 pasa de 100% a 85,7% | Dirección conocida: sin crédito el veto es **más estricto**, luego `n_vetos` y `n_fallback` son cota superior. Barrido sobre `MESES_POR_RONDA` |
 | S9 | **La planta viva se redondea al entero más cercano** | Bajo, salvo en plantas chicas — que con la GEIH son el caso común (mediana 3) | Declarado en `planta_viva()`. Se puede medir cuántos vetos cambian con piso vs techo |

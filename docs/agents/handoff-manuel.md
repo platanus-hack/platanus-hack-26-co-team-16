@@ -5,6 +5,46 @@
 > Tus carpetas: `engine/`, `api/` · Tu rama: `rol/backend`
 > Tu misión, entregables y prompt de arranque: [`docs/ROLES.md`](../ROLES.md)
 
+## Cómo retomar (actualizado 2026-08-23, sesión 3)
+
+> **Pega esto en una sesión nueva y arranca sin leer nada más.** Lo de abajo es el detalle.
+
+```
+Trabajas en engine/ y api/, y SOLO ahí. Rama: rol/backend, con 13 commits empujados.
+Lee primero docs/agents/handoff-manuel.md: la entrada del 2026-08-23 (sesión 3).
+
+ESTADO: PR #19 abierto, mergeable=CLEAN y BLOQUEADO por S1-1 de Nico. El arreglo existe en
+conductual/banda-s1-1, commit ed99d79, pero al cierre NO tiene PR y main sigue en 9f5d71e con
+el round() sobre banda.tipo. Los 5 puntos del track están CERRADOS: S2-9, S1-4, S1-7, S2-8
+y V-1. La primitiva opcional A3, engine/arquetipos.py::muestrear(), también está hecha en
+43d5664 y auditada por juez-cientifico. 89 tests verdes (python3 -m pytest api/ engine/ -q).
+
+LO PRIMERO, y solo cuando S1-1 esté en main:
+- Traer main a rol/backend, correr la suite completa y el smoke SSE en modo=reglas con
+  trayectorias=5. Hoy main todavía muere con "TypeError: type str doesn't define __round__".
+  Cuando termine en evento fin, quitar el prefijo BLOQUEADO del PR #19 y pedir review a Juanda.
+
+LO QUE ESTÁ ESPERANDO A MANI (no arranques sin su OK, cuesta plata):
+- El warmeo de auditoría: UNA trayectoria a 23% = USD 1,26. Audita la cadena entera
+  (credencial -> llamada real -> caché -> exportar -> preload al arrancar) antes de gastar
+  los ~$31 de las 5 posiciones. Requiere que Mani exporte ANTHROPIC_API_KEY: el .env del
+  repo dice ANTHROPIC_KEY y nada hace load_dotenv, así que hoy no llega al proceso.
+  NUNCA le pidas la key por chat.
+- Warmear en un DIRECTORIO APARTE (Cache(directorio=...)), no en behavior/.cache/: así el
+  cache-demo.json sale limpio y no se toca la caché de Nico.
+
+FRONTERA DE A3:
+- muestrear(arq, n, rng) ya existe y acepta el ResultadoArquetipo real. Falta cablearlo al
+  bucle/API y pintarlo; no decir que el mapa está entregado. Ese cableado NO bloquea PR #19.
+
+REGLAS: no tocar carpetas ajenas (si el arreglo las necesita, se avisa en Vibe Coders); todo
+supuesto marcado con # SUPUESTO: donde se toma; al LLM jamás se le nombra la política, solo la
+mecánica; git diff --stat antes de decir que algo se hizo; nadie pushea a main.
+```
+
+**Ya comunicado al equipo** (Vibe Coders, 2026-08-23): los 6 hallazgos de otras carpetas, el
+"Dani, no hagas S2-2" y el dato de p10/p90 para el pitch. No hay que repetirlo.
+
 ## Dónde quedé
 
 _Lo más reciente arriba._
@@ -41,6 +81,196 @@ _Lo más reciente arriba._
     *hallazgo* en `README.md:23`, `AGENTS.md:3`, `docs/PLAN.md` §1.1 y `docs/IDEA.md:145,154`. En
     los dos archivos que Juanda sí publicó ya está escrita como **mecanismo**. Y `$50` de crédito
     de Render ≈ 30 días: los servicios se suspenden cuando pase la votación.
+
+- **2026-08-23 (sesión 3) — `arquetipos.py` cerrado, PR #19 re-auditado y bloqueo S1-1
+  localizado en una rama concreta. Commit `43d5664`, empujado a `rol/backend`.**
+
+  **Estado remoto medido al cierre:** `origin/main = 9f5d71e`; PR #19 abierto,
+  `mergeStateStatus=CLEAN`, sin review ni checks publicados. S1-1 es de **Nico (R3)**. Su arreglo
+  está en `origin/conductual/banda-s1-1`, commit `ed99d79`, pero GitHub no reporta ningún PR para
+  esa rama. No se trajo ese commit directamente: el acuerdo dice esperar a que entre a `main`.
+
+  **El cuarto archivo de engine entró.** `engine/arquetipos.py::muestrear(arq, n, rng)` reparte
+  estrategias individuales desde la distribución de `behavior.capa.ResultadoArquetipo`, con
+  stream externo derivable por `stream_nombrado()`, orden estable y normalización resistente a
+  pesos extremos. `engine/test_arquetipos.py` agrega 18 pruebas. La suite completa queda en
+  **89 verdes** (`python3 -m pytest api/ engine/ -q`).
+
+  **La auditoría científica sí cambió el código.** El primer pase detectó que el protocolo decía
+  `id` mientras el productor real expone `arquetipo_id`; también detectó que el reporte decía
+  “A3 entregado” sin ningún consumidor. Se corrigió el contrato y se añadió una prueba contra el
+  `ResultadoArquetipo` real. El segundo pase exigió declarar dos supuestos más fuertes que
+  “intercambiabilidad”: (1) frecuencias de decisiones aceptadas → probabilidades conductuales y
+  (2) sorteos iid condicionales. Quedaron marcados con `# SUPUESTO:` y en S6 de `MODELO.md`.
+  Veredicto final: sin bloqueantes de código ni tests.
+
+  **Frontera honesta de A3:** la primitiva de muestreo está lista; nadie la llama todavía. Falta
+  cablearla al bucle, exponer los agentes por la API y pintarlos. No bloquea este PR y no se toca
+  `behavior/` ni `web/` desde este track.
+
+  **Lo único que falta para entregar PR #19 a Juanda:**
+  1. Nico abre y fusiona S1-1 desde `conductual/banda-s1-1` hacia `main`.
+  2. Manuel trae `main` a `rol/backend` sin resolver por encima de carpetas ajenas.
+  3. Corre `python3 -m pytest api/ engine/ -q` y el smoke SSE `modo=reglas`,
+     `trayectorias=5`; tiene que cerrar con evento `fin`, no `error`.
+  4. Quita `🔴 BLOQUEADO` del título del PR #19 y pide review a Juanda.
+
+  **No ejecutado:** ninguna llamada paga, ninguna credencial solicitada, ninguna caché tocada.
+  El warmeo de auditoría de USD 1,26 sigue esperando OK explícito de Mani y no es prerrequisito
+  para que Juanda revise PR #19.
+
+- **2026-08-23 (sesión 2) — el track del vet queda CERRADO: S2-8 y V-1 hechos, los dos
+  verificadores corridos, y un bug propio encontrado por ellos. Commits `5bdc2b6` … `def0db7`.**
+
+  **S2-8 · los pesos absolutos salen del servidor.** `Metricas.tsx:27,45` rearmaba la masa
+  salarial base desde `poblacion.arquetipos` y la multiplicaba por el índice relativo para
+  mostrar "$ 8,15 billones/mes · proxy de PIB laboral": la única cifra en pesos de la pantalla,
+  la más citable en un pitch, nacía **en el navegador**, fuera de la capa que declara "cero
+  números inventados" y sin `# SUPUESTO:`. Ahora viaja como `masa_salarial_cop` en el evento
+  `ronda`. Las dos cifras salen de UNA pasada (`_masa_salarial()`) para no reabrir el hueco de
+  S2-9. *Medido:* es el mismo número, diferencia **1,6e-05 relativo** (todo el `round(rel, 4)`
+  del alambre) y en pantalla el mismo texto a dos decimales de billón. 4 tests en
+  `api/test_serializar.py`. **El borrado en `web/` es de Dani y no está hecho:** hasta que
+  borre, la cifra tiene dos fuentes, que es literalmente el defecto S2-9.
+
+  **V-1 · el tope de gasto se deriva de la corrida que se pidió.** Primero lo derivé de la
+  medición ($1,26 × N × 1,25 = $7,88 fijo) y **eso estaba mal**: el costo no es constante,
+  depende de `cobertura`. Ahora `tope_derivado(cobertura, trayectorias)` cuenta las llamadas
+  exactas con `particionar_por_peso()`, la misma función que usa el motor. No es estimación.
+
+  | `cobertura` | Celdas | Llamadas (×5 tray.) | En frío | Tope |
+  |---|---|---|---|---|
+  | 0,50 | 9 | 135 | $1,81 | $2,26 |
+  | **0,80** (default) | **31** | **465** | **$6,23** | **$7,79** |
+  | 1,00 | 81 | 1.215 | $16,29 | $20,36 |
+
+  `TOPE_USD_MAXIMO = 25,00` es el techo y la única cifra que es juicio y no cuenta: deja pasar
+  la corrida de calidad máxima sin clipar y es el 11% de los ~$230 vivos del equipo. Si lo
+  pedido no cabe, **la corrida se rechaza antes de gastar un peso**, diciendo cuánto cuesta y
+  qué bajar. La tabla quedó en `api/README.md`, que es la respuesta a la pregunta de Q&A
+  "¿cuánto les cuesta mover el slider?".
+
+  **El bug que era MÍO y lo encontró el verificador.** `_parafrasis_fijada()` reemplaza
+  `behavior.capa.parafrasis` por una lambda que **ignora su `n`**, así que `behavior/capa.py:250`
+  da una sola vuelta pase lo que pase: **`parafrasis` quedó inerte en el camino de trayectorias**,
+  y lo rompí yo en el PR anterior. O sea que arreglé una perilla muerta (el seed) y creé otra en
+  el mismo PR, esta documentada como "multiplica el costo por su valor". No se arregla, se
+  declara (`PARAFRASIS_EFECTO = "ninguno"`, mismo patrón que `SEED_EFECTO`): una trayectoria
+  **está definida** por su paráfrasis, así que pedir N paráfrasis adentro de una no significa
+  nada. Y salió del cálculo del tope: con `parafrasis=9` autorizaba 9× lo que se iba a gastar.
+
+  **`engine/MODELO.md`**, carpeta propia: decía *"si solo lees un archivo, lee `rondas.py`"*
+  catorce líneas después de declarar ese archivo como uno de los siete que NO se escriben.
+  Mismo defecto que `AGENTS.md` ya se había corregido el 22-ago.
+
+  **La caché versionada.** `api/servidor.py` ahora levanta `behavior/cache-demo.json` al
+  arrancar, si existe. Es el eslabón que faltaba: la caché en disco vive en la MÁQUINA que corre
+  el motor, así que warmear un portátil **no calienta el deploy**. Hasta hoy solo la importaba
+  `scripts/reproduce.py`. El archivo no existe todavía (`DEFECTOS.md` 3.6, abierto).
+
+  **Lo verificado, en las dos direcciones, sobre esta rama:**
+
+  ```
+  trayectorias=1 -> el flujo cierra limpio (evento fin, banda_tipo "degenerada")
+  trayectorias=5 -> event: error · TypeError: type str doesn't define __round__ method
+  con S1-1 parchado EN MEMORIA -> 5 trayectorias efectivas · banda_tipo entre_trayectorias · fin limpio
+  ```
+
+  La frontera exacta es **trayectorias >= 2**, no `n_parafrasis >= 2`: con una sola trayectoria
+  válida `consolidar_trayectorias()` devuelve la corrida intacta y la banda nunca lleva `tipo`.
+  O sea que el bloqueo cae sobre **la configuración por defecto del endpoint**. Comunicado a
+  Nico en Vibe Coders el 23-ago junto con el cambio del tope.
+
+## Lo que quedó abierto y de quién es
+
+  **Mío, y bloqueado por plata (necesita el OK de Mani):**
+  - El warmeo de auditoría: **1 trayectoria a 23% = USD 1,26**. Audita credencial → llamada →
+    caché → `exportar()` → preload, antes de comprometer los ~$31 de las 5 posiciones
+    (23%, 0%, 10%, 17%, 30%). Decisión de Mani: precalentar en vez de bajar la calidad.
+  - Warmear en un **directorio aparte** (`Cache(directorio=...)`), no en `behavior/.cache/`:
+    deja el `cache-demo.json` limpio y no toca la caché de Nico (505 entradas de Haiku, ya
+    invisibles para Sonnet porque la clave incluye el modelo; **no las borres**).
+
+  **Mío, si sobra:** `engine/arquetipos.py` con `muestrear(arq, n, rng)`. Sin eso Dani no
+  dibuja el mapa distributivo (dato A3).
+
+  **La credencial, que es de Mani y NO se pide por chat:** el `.env` del repo tiene
+  `ANTHROPIC_KEY` y el SDK lee `ANTHROPIC_API_KEY` (`.env.example:36`), y **no hay `load_dotenv`
+  en ningún módulo de Python**. Hoy ese `.env` no llega al proceso. Se arranca con
+  `set -a && source .env && set +a && uvicorn api.servidor:app --port 8000`.
+
+  **De otros, comunicado y sin tocar:**
+  - **Nico (S1-1):** el `round()` de `behavior/rondas.py:119`. Bloquea PR #19 y a Dani.
+  - **Nico:** `behavior/cache-demo.json` hay que exportarlo y commitearlo; el archivo vive en
+    su carpeta. Sin eso el deploy arranca frío siempre.
+  - **Dani:** borrar `Metricas.tsx:24-31,45` cuando entre PR #19. Mientras tanto la cifra en
+    pesos tiene dos fuentes.
+  - **Juanda:** `VALIDATION.md:164` sigue diciendo "fuera de muestra de verdad" cuando la
+    decisión C1 fue retractarlo. `juez-hackathon` lo marca como lo primero que un juez encuentra.
+
+  **Riesgo de demo, decidido pero no resuelto:** el front manda solo `aumento_pct` y `seed`, así
+  que recibe `trayectorias=5`. Las 5 corren EN SERIE (un global de módulo lo obliga,
+  `api/trayectorias.py`) a 2m46s cada una: **~14 minutos en frío** y las rondas salen todas al
+  final por diseño. Un juez que mueve el slider a una posición nueva mira el enjambre 14 minutos
+  sin una sola ronda. La decisión de Mani fue **precalentar**, no bajar la calidad.
+
+
+- **2026-08-23 (sesión del track de backend) — los 3 puntos del track cerrados: `rondas_totales`,
+  la perilla del seed y la banda entre trayectorias. Rama `rol/backend`, commits `9167811` y `8b39b4d`.**
+
+  **S2-9 · `rondas_totales` con fuente única.** Había dos fuentes que cuadraban por casualidad
+  (el literal `4` de `serializar.evento_poblacion` y el default de `behavior.rondas.correr`, al que
+  la API nunca le pasaba nada) más un tercer default en el front (`?? 4`). Ahora `RONDAS_TOTALES`
+  se declara una vez en `api/servidor.py`, donde ya viven los demás parámetros de la corrida, y
+  alimenta los dos lados. `evento_poblacion` lo recibe **keyword-only**: el literal ya no puede
+  volver por construcción, no por disciplina.
+  *Verificado moviendo la constante y contando las rondas que el motor emite:* `=4` → el evento
+  dice 4 y el motor corre `[0,1,2,3]`; `=3` → dice 3 y corre `[0,1,2]`. Antes el evento decía 4
+  pasara lo que pasara. No le escribí test: un test que compara dos números que ahora salen del
+  mismo lugar no puede fallar nunca.
+
+  **S1-4 · la perilla del seed, rotulada y no quitada.** Medido antes de afirmar nada:
+  `modo=reglas`, seed 42 contra 99, las 4 rondas comparadas campo por campo quitando la etiqueta →
+  **trayectorias idénticas, 31,01% en las dos**. Y en el camino del LLM es estructural, más fuerte
+  que la medición: `capa.renderizar()` **no recibe seed** en su firma, así que el prompt no lo lleva,
+  y `cache.clave()` hashea el prompt, así que dos semillas son dos aciertos de caché iguales.
+  Hallazgo de paso: **`engine/seed.py` no lo importa nadie** fuera de su propio test — el módulo con
+  los streams derivados por clave existe y el producto no lo usa; el propio archivo lo confiesa en su
+  encabezado y nadie lo había cruzado con la perilla que la API expone.
+  No se quitó porque el front ya la manda y `web/` no es de este rol. Quedó rotulada en los tres
+  sitios donde alguien la mira: `SEED_EFECTO` en el servidor, el `description` del Query (sale en
+  `/openapi.json`, que sí está servido aunque la UI de docs esté apagada) y `seed_efecto` en el
+  evento `inicio`. **Mandé el enum, no la copia:** si la API manda prosa, la prosa y el hecho quedan
+  en dos lados que se desincronizan, que es justo el bug de S2-9. El día que el seed elija las N
+  paráfrasis, `SEED_EFECTO` pasa a `"trayectoria"` y es la única línea que cambia.
+
+  **S1-7 · la banda honesta, con un marco más fuerte que el del vet.** No es que a la API "le
+  faltara" la banda: **`contracts/ronda.json` YA declara `banda.tipo = "entre_trayectorias"`**, así
+  que la API estaba **fuera de su propio contrato**, publicando la intra-ronda (0,0 pp) donde el
+  contrato promete la de entre trayectorias (22,5 pp). `api/trayectorias.py` corre N trayectorias
+  completas, cada una casada con una paráfrasis distinta desde la ronda 1, y las consolida con
+  `behavior.rondas.consolidar_trayectorias()` — que ya existía y **no la llamaba nadie desde el
+  producto**. Sale la MEDIANA, no la media: la mediana es una trayectoria que de verdad ocurrió.
+  Por eso las rondas salen todas al final (cuál es la mediana no se sabe hasta que las N cierran).
+  Decisión de Mani entre tres formas de transmitir; quedó "mediana al final".
+  *Cuesta lo mismo que la alternativa mala:* 31 celdas × 3 rondas = 93 llamadas por trayectoria,
+  **465 con N=5, exactamente lo que costaría `n_parafrasis=5`** en una sola trayectoria para comprar
+  la banda angosta. El tope de gasto es UNO para toda la corrida; si corta, `trayectorias_efectivas`
+  lo declara en el evento `fin`.
+
+  **Lo que aprendí probando, que valió más que el código.** Dos fixtures fallaron antes de que uno
+  funcionara, y los dos fallos son hallazgos:
+  1. Forzar `informalizar_total` no abre la banda: el veto lo tumba y todas caen al mismo fallback.
+  2. Entrar por el factor prestacional tampoco: **entre 1,30 y 1,70 cambian 0 de 81 decisiones** de
+     la ablación (con p(sanción)=1,6% y multa=1e6). `costo_formal` y `costo_informal` están tan
+     separados que el factor nunca voltea la comparación.
+  El que funcionó es un cliente falso que decide según la redacción: 5 trayectorias distintas,
+  **banda de 8,99 pp**, mediana publicada = la trayectoria 2, una de las 5 que ocurrieron. Ese 8,99
+  **no es un resultado del proyecto** y así está declarado en el encabezado del test.
+  Quedó en `api/test_trayectorias.py`, 5 tests, $0 y sin red. El que importa es el de la paráfrasis:
+  **si el parche dejara de llegar hasta la decisión, nada reventaría** — las N darían el mismo
+  número, la banda saldría de ancho 0, y eso en pantalla se lee como "el modelo es muy preciso",
+  que es la conclusión contraria a la verdadera.
 
 - **2026-08-22 23:00 (sesión del vet) — el vet completo de `main`, y el reparto en 5 tracks. Mergeado en PR #17.**
   - **Lo que hice:** tres auditorías de solo lectura sobre `c63343f` (conductual, pantalla, datos+validación),
@@ -285,6 +515,15 @@ documentan como trabajo futuro con honestidad:
       (`capa.veto_permisivo` y `demo.veto_doble_prueba`) y enchufar `veto_del_motor`.
 - [ ] Si sobra tiempo, el cuarto archivo es `arquetipos.py`: sin `muestrear()` Dani no
       puede dibujar el mapa distributivo. La plomería de seed ya está.
+- [x] **Track del vet, los 3 puntos** (`rondas_totales`, seed, banda). Commits `9167811`, `8b39b4d`.
+- [ ] **PR de `rol/backend` a `main`, marcado BLOQUEADO por S1-1.** No se mergea antes que Nico.
+- [ ] **S2-8** — el "$X billones/mes · proxy de PIB laboral" se calcula en el navegador
+      (`Metricas.tsx:27,45`), fuera de la capa que declara "cero números inventados". Es la única
+      cifra en pesos absolutos de la pantalla y la más citable en un pitch. Va a `serializar.py`
+      con su `# SUPUESTO:`. Coordinar con Dani.
+- [ ] **V-1** — cuando Nico mida el costo real con caché fría, decidir si `tope_usd` (hoy 3.0,
+      `servidor.py`) alcanza para 465 llamadas. Con criterio, no a ojo.
+- [ ] Correr el verificador del track: prompt 16 re-apuntado + `juez-hackathon`.
 
 ## Cuatro compromisos que ya tomé por escrito, en público
 
@@ -298,7 +537,39 @@ los contradice, el que está mal es el motor.
 | 3 | **El muestreo vive en `engine/`** con la firma de `MODELO.md`: `muestrear(arq, n, rng)`. El de `behavior/arquetipos.py` se borra o se renombra, para que no haya dos con el mismo nombre y semillas distintas | `arquetipos.py` (mío) |
 | 4 | **`C`, `0.18` y `1.5` son míos.** `C` sale de la OIT (1.300 inspectores) vía el supuesto S2; los otros dos de V3. En `behavior/` quedan con `# SUPUESTO:` hasta que el motor los provea | `mundo.py`, `costos.py` |
 
+## Hallazgos de esta sesión que son de OTRA carpeta
+
+**Ninguno lo toqué.** Están medidos, con archivo y línea, listos para que su dueño decida.
+
+| # | Hallazgo | De quién | Por qué importa |
+|---|---|---|---|
+| 1 | 🔴 **S1-1 bloquea DOS tracks, no uno.** `Ronda.a_contrato()` (`behavior/rondas.py:119`) redondea todo lo no-booleano y la banda honesta lleva `tipo`, que es string. Hoy no revienta solo porque la banda degenerada omite `tipo` | Nico | Es **la única línea** entre el producto y su propio contrato. Verificado en los dos sentidos: con `trayectorias=5` la corrida muere con `TypeError: type str doesn't define __round__`; con el fix simulado en memoria el flujo cierra limpio (`inicio · 5 trayectoria · 1215 decision · 4 ronda · fin`) |
+| 2 | 🔴 **La banda solo cubre UNA de las cinco métricas publicadas.** `banda_entre_trayectorias()` calcula percentiles solo sobre `tasa_informalidad`. Medido entre 5 trayectorias: `ingreso_laboral_relativo` se mueve **10,23 pp** y sale a pantalla como número pelado — más que la banda que sí publicamos (8,99 pp) | Nico | Publicar banda sobre una métrica y las otras cuatro peladas es **peor que no publicar ninguna**: le enseña al lector que las que no la llevan son ciertas |
+| 3 | 🟠 **`p10`/`p90` son el mínimo y el máximo hasta N=8.** Verificado corriendo `_percentiles` con N=3,5,9,11,21: solo desde **N=9** se vuelven percentiles interiores | Juanda (pitch) y Dani (copy) | Con N=5 una sola trayectoria rara define todo el borde. Decir "p10-p90" en pantalla es mentir levemente; decir "rango entre las 5 corridas" es exacto |
+| 4 | 🟠 **`degenerada: False` en una banda de ancho cero.** `_percentiles` la marca no-degenerada en cuanto hay 2+ valores, aunque sean todos iguales | Nico | `degenerada` es justo la bandera con la que el front decidiría si dibujar la banda. En `modo=reglas` publica un ancho cero rotulado como real |
+| 5 | 🟠 **La ablación es insensible al factor prestacional.** Entre 1,30 y 1,70 cambian **0 de 81** decisiones (p(sanción)=1,6%, multa=1e6): `costo_formal` y `costo_informal` están tan separados que el factor nunca voltea la comparación | Nico / Juanda | `barrer_factor()` (`behavior/ablacion.py:153`) dice medir *"la sensibilidad del candado 4"*. **Pregunta abierta, no defecto afirmado:** no verifiqué con qué multa corre ese barrido. Si corre con estos parámetros, no está midiendo nada |
+| 6 | 🟢 **`engine/seed.py` no lo importa nadie** fuera de su propio test | mío, declarado | El módulo de determinismo existe y el producto no lo usa. Es coherente con que la perilla sea decorativa, pero conviene decirlo antes de que lo encuentre un juez |
+
+**Para Dani, tres cosas que le cambian el trabajo:**
+1. 🔴 **Que NO haga S2-2 (`parafrasis=5`).** Cuesta las mismas 465 llamadas y compra la banda
+   **angosta**. Con `trayectorias=5` compra la honesta. Mismo dinero, distinta verdad.
+2. Las rondas **ya no llegan en vivo**: llegan las 4 juntas al final, y son las de la mediana.
+   Mientras se calcula llegan `decision` (con campo `trayectoria`) y un evento nuevo `trayectoria`
+   `{indice, de}`. Su cola de rondas pendientes (S2-5) encaja perfecto con esto.
+3. `inicio` trae `seed_efecto`. Con `"etiqueta"` la frase en pantalla es *"la semilla rotula la
+   corrida; hoy no cambia ninguna decisión"*. Va en el mismo panel que `modo` (su S2-1).
+
+**Y una recomendación de diseño que le paso, no le impongo:** con N=5 no hay estadística que
+agregar, hay puntos que mostrar. Una desviación estándar o un IQR sobre 5 datos tiene más error que
+la cosa que describe. Lo correcto es **dibujar las 5 trayectorias** y resaltar la mediana. Es un
+dot plot, no un box plot.
+
 ## Bloqueado / esperando a alguien
+
+> 🔴 **2026-08-23 — el PR de `rol/backend` está BLOQUEADO por S1-1 de Nico.** Es una línea en
+> `behavior/rondas.py:119` (redondear solo lo que es número). Sin eso, `trayectorias=5` revienta la
+> corrida entera. Mergear en orden: primero el suyo, después el mío.
+
 
 **Nada me bloquea para escribir el motor.** El contrato ya está congelado en `main`
 (`contracts/decision.json` + la forma del `Protocol Veto`), y los cuatro puntos de arriba los
