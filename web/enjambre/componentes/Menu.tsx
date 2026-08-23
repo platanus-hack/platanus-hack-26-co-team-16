@@ -2,12 +2,19 @@
 
 // Pantalla 2: dos caminos, uno solo abierto. El bloqueado se ve bloqueado a
 // propósito — es una promesa de producto, no un enlace roto.
+//
+// Acá vive el logo. Estaba en la pantalla de carga, que dura lo que tarda un
+// fetch: la marca aparecía y desaparecía antes de que nadie la registrara. Esta
+// pantalla es la que se queda quieta esperando una decisión, y es donde el logo
+// sirve de algo.
 
+import { useState } from "react";
 import { usarAlmacen } from "@/estado/simulacion";
 
 export default function Menu() {
   const setFase = usarAlmacen((s) => s.setFase);
   const poblacion = usarAlmacen((s) => s.poblacion);
+  const [falloLogo, setFalloLogo] = useState(false);
 
   return (
     <div
@@ -22,9 +29,26 @@ export default function Menu() {
       }}
     >
       <div className="aparecer" style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 14 }}>
-        <div className="kicker">mercado laboral de Bogotá · GEIH-DANE 2026</div>
+        {/* El PNG viene con fondo negro opaco (sin alfa), así que
+            `mix-blend-mode: screen` lo funde con el fondo de la app en vez de
+            dejar un rectángulo. Si el archivo faltara, `onError` lo esconde y
+            la pantalla sigue funcionando. */}
+        {!falloLogo && (
+          <img
+            src="/hive-logo.png"
+            alt="HIVE"
+            onError={() => setFalloLogo(true)}
+            style={{
+              width: 210,
+              height: "auto",
+              mixBlendMode: "screen",
+              display: "block",
+              margin: "0 auto 6px",
+            }}
+          />
+        )}
         <h1 className="cifra" style={{ fontSize: 44, color: "var(--tinta)" }}>
-          ¿Qué política quieres estresar?
+          ¿Qué política quieres simular?
         </h1>
         {poblacion && (
           <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--tinta-tenue)" }}>
@@ -48,32 +72,6 @@ export default function Menu() {
         </button>
       </div>
 
-      {/* C3 · El error del backtest, en la PRIMERA pantalla y sin un clic. Estaba
-          al pie de `/reporte`, que es una página secundaria: lo único que ningún
-          otro simulador publica quedaba donde nadie lo veía. Los tres números
-          salen de `VALIDATION.md:19,44,86` — no de esta prosa. */}
-      <div
-        className="aparecer"
-        style={{
-          fontFamily: "var(--mono)",
-          fontSize: 11,
-          lineHeight: 1.7,
-          color: "var(--tinta-tenue)",
-          textAlign: "center",
-          maxWidth: 460,
-          borderTop: "1px solid var(--linea)",
-          paddingTop: 14,
-        }}
-      >
-        <strong style={{ color: "var(--tinta)" }}>El backtest falsa este modelo.</strong> Erró por{" "}
-        <strong style={{ color: "var(--tinta)" }}>37,37 pp</strong> y con el signo al revés; un
-        baseline de persistencia le gana ocho veces (skill −8,182).
-        <br />
-        Lo publicamos igual, y por eso el número que defendemos es el reparto, no el nivel.{" "}
-        <a href="/reporte" style={{ color: "var(--tinta-tenue)", textDecoration: "underline" }}>
-          dónde no hay que creerle →
-        </a>
-      </div>
     </div>
   );
 }
