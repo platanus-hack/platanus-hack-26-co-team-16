@@ -300,7 +300,8 @@ body:has(.reporte) {
   flex-direction: column;
   gap: 5px;
   animation: burbuja-entra 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  transition: width 0.28s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.2s;
+  /* el ancho ya no cambia al abrir (ver `Noticias.tsx`): la burbuja crece hacia abajo */
+  transition: border-color 0.2s;
 }
 
 .burbuja:hover {

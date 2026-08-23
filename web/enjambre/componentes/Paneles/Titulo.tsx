@@ -1,6 +1,20 @@
 "use client";
 
 // Esquina superior izquierda: qué política corre y en qué ronda va.
+//
+// El rótulo de modo (REGLAS/LLM) vive en su PROPIA línea, la última, y no en
+// la fila del logo. Es geometría, no gusto (review de R2, menor 2): la fila
+// del logo está a y≈32 y las burbujas de `Noticias` ocupan y=26 hacia abajo.
+// El rótulo iba al final de esa fila, así que era lo primero en quedar
+// debajo de una burbuja — y es justo el que no puede esconderse en una demo.
+//
+// Tampoco va pegado a la fila de avance: ahí el texto es
+// «RONDA n DECIDIENDO · x/81 CELDAS» mientras la corrida corre, ~270 px que
+// aparecen exactamente cuando brotan las burbujas. En su propia línea el
+// rótulo mide 149 px y el ancho del panel deja de depender de él.
+//
+// Por lo mismo el kicker se acortó: sus 49 caracteres en mono con 0.18em de
+// interletra medían ~420 px de adorno.
 
 import { usarAlmacen } from "@/estado/simulacion";
 
@@ -30,27 +44,7 @@ export default function Titulo() {
           alt="HIVE"
           style={{ width: 26, height: 26, objectFit: "cover", mixBlendMode: "screen", flexShrink: 0 }}
         />
-        <div className="kicker">simulación de política · mercado laboral de Bogotá</div>
-        {modo && (
-          <div
-            title={
-              modo === "reglas"
-                ? "ablación determinista: sin LLM, sin costo, sin key"
-                : "decisiones vía LLM (ClienteConductual), con caché y tope de presupuesto"
-            }
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 10,
-              letterSpacing: "0.08em",
-              padding: "2px 7px",
-              borderRadius: 3,
-              border: `1px solid ${modo === "reglas" ? "var(--ambar)" : "var(--azul-vivo)"}`,
-              color: modo === "reglas" ? "var(--ambar)" : "var(--azul-vivo)",
-            }}
-          >
-            MODO {modo === "reglas" ? "REGLAS (ablación)" : "LLM"}
-          </div>
-        )}
+        <div className="kicker">mercado laboral de Bogotá</div>
       </div>
       <div className="cifra" style={{ fontSize: 38, lineHeight: 1.05 }}>
         Alza del salario mínimo
@@ -80,6 +74,29 @@ export default function Titulo() {
               : "CONSTRUYENDO LA CIUDAD"}
         </div>
       </div>
+      {modo && (
+        <div
+          title={
+            modo === "reglas"
+              ? "ablación determinista: sin LLM, sin costo, sin key"
+              : "decisiones vía LLM (ClienteConductual), con caché y tope de presupuesto"
+          }
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 10,
+            letterSpacing: "0.08em",
+            padding: "2px 7px",
+            borderRadius: 3,
+            whiteSpace: "nowrap",
+            alignSelf: "flex-start",
+            marginTop: -4,
+            border: `1px solid ${modo === "reglas" ? "var(--ambar)" : "var(--azul-vivo)"}`,
+            color: modo === "reglas" ? "var(--ambar)" : "var(--azul-vivo)",
+          }}
+        >
+          MODO {modo === "reglas" ? "REGLAS (ablación)" : "LLM"}
+        </div>
+      )}
     </div>
   );
 }

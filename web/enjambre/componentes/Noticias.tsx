@@ -6,15 +6,43 @@
 // con el largo del titular y de la cita del LLM. Ocupaba lienzo, competía con
 // las cifras y solo mostraba la última ronda.
 //
-// Ahora cada ronda cerrada suelta una burbuja cuadrada arriba, donde no había
-// nada que mostrar. Son chicas y se leen de un vistazo; si alguien quiere el
-// detalle —la cita textual del motor, la celda protagonista— le da clic y la
-// burbuja se abre. Cerradas no estorban; abiertas tampoco tapan el centro del
-// enjambre.
+// Ahora cada ronda cerrada suelta una burbuja cuadrada arriba. Son chicas y se
+// leen de un vistazo; si alguien quiere el detalle —la cita textual del motor,
+// la celda protagonista— le da clic y la burbuja se abre.
+//
+// LA FILA VIVE EN UN CORREDOR ACOTADO (review de R2, menor 2). Antes estaba
+// centrada en el viewport con `translateX(-50%)`, así que crecía hacia los dos
+// lados y se metía debajo de `Titulo` (arriba a la izquierda) y `Hero` (arriba
+// a la derecha). Con las 3 rondas y una burbuja abierta llegaba a 732 px y se
+// comía el rótulo «MODO REGLAS (ablación)», que es justo el que no puede
+// esconderse en una demo.
+//
+// Dos cambios lo cierran de raíz, y ninguno depende de adivinar el ancho del
+// texto de los costados:
+//
+//   1. `left`/`right` fijos en `CORREDOR` en vez de centrado por transform. La
+//      caja de la fila NO PUEDE cruzar esa frontera, mida lo que mida.
+//   2. Las burbujas son flexibles (`flex: 1 1 0`, tope `ANCHO_BURBUJA`): si el
+//      corredor se angosta, se angostan ellas en vez de desbordar. El titular
+//      ya venía con clamp de 3 líneas, así que encoger no rompe nada.
+//
+// Y al abrirse, la burbuja crece HACIA ABAJO —se suelta el clamp y aparecen
+// cita y atribución— en vez de empujar a sus vecinas. Abajo hay enjambre, que
+// se puede tapar un momento; a los lados hay cifras que no.
 
 import { useMemo, useState } from "react";
 import { titular } from "@/lib/narrativa";
 import { rondasVisibles, usarAlmacen } from "@/estado/simulacion";
+
+/** Tope de ancho de cada burbuja, abierta o cerrada. Si el corredor no da,
+ *  la burbuja encoge por debajo de esto. */
+const ANCHO_BURBUJA = 176;
+
+/** Cuánto se le reserva a CADA costado para los paneles de cifras. Medido en
+ *  headless a 1440×900 con la corrida andando: `Titulo` llega a x≈452 en su
+ *  fila más larga («RONDA n DECIDIENDO · x/81 CELDAS») y `Hero` empieza en
+ *  x≈1038, o sea a 402 px del borde derecho. 470 cubre las dos con margen. */
+const CORREDOR = 470;
 
 export default function Noticias() {
   const rondas = usarAlmacen((s) => s.rondas);
@@ -39,11 +67,12 @@ export default function Noticias() {
     <div
       className="panel panel--activo"
       style={{
-        left: "50%",
+        left: CORREDOR,
+        right: CORREDOR,
         top: 26,
-        transform: "translateX(-50%)",
         zIndex: 22,
         display: "flex",
+        justifyContent: "center",
         gap: 10,
         alignItems: "flex-start",
       }}
@@ -55,7 +84,7 @@ export default function Noticias() {
             key={ronda}
             className="burbuja"
             onClick={() => setAbierta(esta ? null : ronda)}
-            style={{ width: esta ? 340 : 186 }}
+            style={{ flex: "1 1 0", minWidth: 0, maxWidth: ANCHO_BURBUJA }}
           >
             <div className="burbuja__ronda">ronda {ronda}</div>
             <div
