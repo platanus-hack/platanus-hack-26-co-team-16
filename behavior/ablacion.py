@@ -94,16 +94,40 @@ class ClienteReglas:
         # salarial informal/formal (el 0,85x del andamio no es un dato). Sesga a
         # favor de formalizar —o sea, A FAVOR de nuestro propio candado 4— y por
         # eso va acompañada del barrido de sensibilidad del factor prestacional.
+        # TODO SE MIDE EN COP POR PERIODO (un trimestre, ADR 0005). Antes no.
+        #
+        # A3 arregló la mitad de esto: puso la caja en COP/trimestre porque la
+        # ablación despedía en casos donde el veto decía que sí se podía pagar.
+        # Pero dejó los costos en COP/MES, así que la comparación siguió
+        # enfrentando dos unidades, ahora en el otro sentido. Dos consecuencias
+        # medidas, en direcciones opuestas:
+        #
+        #   1. `sobrecosto x n_trabajadores > caja_periodo` comparaba un costo
+        #      MENSUAL contra una caja TRIMESTRAL, o sea que el sobrecosto
+        #      entraba 3 veces más chico de lo que es y la ablación despedía de
+        #      menos.
+        #   2. `costo_informal` sumaba un salario MENSUAL con una sanción
+        #      esperada TRIMESTRAL (`prob` es la probabilidad del trimestre y
+        #      `multa` es un monto, no un flujo), o sea que la sanción pesaba 3
+        #      veces más de lo que le toca frente al salario y evadir se veía
+        #      artificialmente caro.
+        #
+        # El motor ya lo hacía bien y es la autoridad: `engine/veto.py:297`,
+        # `:420` y `:444` multiplican por `MESES_POR_RONDA` en los tres lugares.
+        # Esta capa ahora usa la misma unidad que él, que es la condición para
+        # que "el modelo propone y la aritmética manda" signifique algo: el
+        # árbitro y el jugador tienen que medir en la misma moneda.
+        #
+        # `prob * multa` NO se multiplica: ya es la sanción esperada del periodo,
+        # porque `prob` sale de `EstadoFiscalizacion` por trimestre.
         factor = self._factor(arq)
-        costo_formal = arq.ingreso_por_trabajador * factor * (1 + aumento)
-        costo_informal = arq.ingreso_por_trabajador + prob * multa
+        costo_formal = (
+            arq.ingreso_por_trabajador * factor * (1 + aumento) * MESES_POR_RONDA
+        )
+        costo_informal = arq.ingreso_por_trabajador * MESES_POR_RONDA + prob * multa
         # El sobrecosto que hay que financiar es el incremento sobre lo que ya se
         # pagaba (salario x factor), no sobre el salario pelado.
-        sobrecosto = arq.ingreso_por_trabajador * factor * aumento
-        # A3: la regla fija compara contra la caja del PERIODO, igual que el veto
-        # y que el prompt. Comparaba contra el flujo mensual, así que la
-        # ablación despedía en casos en los que el veto decía que sí se podía
-        # pagar: tres lugares y dos unidades para la misma billetera.
+        sobrecosto = arq.ingreso_por_trabajador * factor * aumento * MESES_POR_RONDA
         caja_periodo = arq.flujo_caja * MESES_POR_RONDA
 
         # SUPUESTO: la regla fija decide para la planta entera. Una unidad con la

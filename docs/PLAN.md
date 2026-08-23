@@ -8,7 +8,20 @@
 
 ## 1. Qué se va a construir
 
-Un simulador de políticas públicas que no responde *"¿funciona la política?"* sino **"¿cuánta gente la cumple y a quién le cae encima?"**. La población de agentes se instancia desde personas reales anonimizadas de los microdatos de la GEIH del DANE (✅ única fuente verificada de los cinco insumos) — no se inventa nadie. Un motor determinista con seed calcula costos y **veta** las reacciones imposibles que propone una capa LLM que descubre estrategias de adaptación (informalizar, absorber, despedir, evadir). Los agentes deciden en 3–4 rondas de mejor respuesta viendo lo que hacen los demás: como la fiscalización es fija, más evasión baja la probabilidad de sanción y produce la **cascada** que el modelo oficial no ve. Demo: el aumento del salario mínimo del 23% en Bogotá, validado contra ~20 alzas históricas cuyo resultado ya se conoce, sin decirle nunca al modelo el nombre de la política.
+Un simulador de políticas públicas que no responde *"¿funciona la política?"* sino **"¿cuánta gente la cumple y a quién le cae encima?"**. La población de agentes se instancia desde personas reales anonimizadas de los microdatos de la GEIH del DANE (✅ única fuente verificada de los cinco insumos) — no se inventa nadie. Un motor determinista con seed calcula costos y **veta** las reacciones imposibles que propone una capa LLM que descubre estrategias de adaptación (informalizar, absorber, despedir, evadir). Los agentes deciden en 3–4 rondas de mejor respuesta viendo lo que hacen los demás: como la fiscalización es fija, más evasión baja la probabilidad de sanción y produce la **cascada** que el modelo oficial no ve. Demo: el aumento del salario mínimo del 23% en Bogotá, sin decirle nunca al modelo el nombre de la política.
+
+> ### ⚠️ Dos correcciones a este párrafo — 23-ago
+>
+> **1. La cascada es el mecanismo del modelo, no un hallazgo del proyecto.** La predicción
+> agregada que produce está **falsada** por el propio backtest del equipo: error **+37,37 pp**
+> con el signo contrario al observado ([`VALIDATION.md`](../VALIDATION.md)). Y su aporte medido
+> al resultado en el camino determinista es **+0,0 pp**
+> ([evidencia](evidencia/2026-08-23-E1-E2-E3.md) §E2). El mecanismo está implementado y su
+> aritmética es correcta; su efecto sobre el agregado está por demostrarse.
+>
+> **2. Lo de "validado contra ~20 alzas históricas" nunca ocurrió** y se quitó de la frase. La
+> validación real es un backtest de **un** episodio (2025→2026) más un segundo episodio de
+> control (2024→2025), o sea **n = 2**, y así se reporta en `VALIDATION.md`.
 
 ### 1.1 El aporte: los cuatro datos que hoy no existen — el desarrollo se mide contra esto
 

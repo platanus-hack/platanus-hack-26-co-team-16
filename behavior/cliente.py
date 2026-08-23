@@ -10,6 +10,8 @@ Cuatro cosas pasan en cada llamada, en este orden y sin excepción:
   2. Caché en disco por hash. Si hay acierto, no se llama a la API.
   3. La salida se valida ANTES de cachearse. Una respuesta inválida no toca el disco.
   4. `presupuesto.registrar()`, después de cachear. Si se pasó del tope, muere acá.
+     La plata se APARTA antes de llamar (`reservar()`) para que N llamadas en
+     vuelo no puedan pasarse del tope entre todas (DEFECTOS.md §3.7).
 """
 
 from __future__ import annotations
@@ -102,7 +104,35 @@ class ClienteConductual:
             # `TypeError: process() takes no keyword arguments` antes de que la
             # respuesta llegue al SDK. Sin compresión el camino funciona; el
             # costo es unos KB más de red por llamada.
-            return anthropic.Anthropic(default_headers={"Accept-Encoding": "identity"})
+            # SUPUESTO: 90 s es tiempo de sobra para una respuesta sana y sigue
+            # siendo un corte, no una espera.
+            #
+            # Sin esto el SDK hereda su default: 600 s de read timeout y 2
+            # reintentos, o sea que UNA llamada colgada retiene un worker del
+            # pool hasta 20 minutos. En una corrida de 12 olas eso no es lentitud,
+            # es la demo muerta.
+            #
+            # Por qué 90 y no 60. Un timeout acá NO cae al fallback: no lo atrapa
+            # `capa.py:322` (que solo mira `RespuestaInvalida/ValueError/
+            # TypeError`) ni `trayectorias.py` (que solo mira
+            # `PresupuestoAgotado`), así que se propaga y mata la trayectoria
+            # completa. O sea que un timeout corto de más no degrada el
+            # resultado: cancela la corrida en vivo. La latencia medida es 23,3 s
+            # por OLA con paralelismo 8, y la maqueta sube a 18 conexiones
+            # simultáneas (9 celdas x 2 trayectorias), donde la latencia por
+            # llamada sube. 90 s deja ~4x de margen sobre lo medido en vez de
+            # 2,6x, y aun así corta un worker colgado 6,7x antes que el default.
+            #
+            # `max_retries=1` y no 2: el reintento del SDK es sobre errores de
+            # red, y encima de él ya existe el reintento del veto
+            # (`MAX_REINTENTOS = 3`), que es el que de verdad cuesta plata y ya
+            # está contado en `FACTOR_REINTENTO`. Dos capas de reintento
+            # multiplican el peor caso sin multiplicar la información.
+            return anthropic.Anthropic(
+                default_headers={"Accept-Encoding": "identity"},
+                timeout=90.0,
+                max_retries=1,
+            )
         except Exception:  # noqa: BLE001 — sin key o sin SDK: se sigue con caché
             return None
 
@@ -144,55 +174,77 @@ class ClienteConductual:
                 "o importa un caché con `Cache().importar(...)`."
             )
 
-        # 3. Presupuesto: comprobar antes, registrar después.
+        # 3. Presupuesto: RESERVAR antes, registrar después.
+        #
+        # Antes acá decía `comprobar()`, que solo mira lo ya gastado. Con N
+        # llamadas en vuelo —hasta `paralelismo x trayectorias`, o sea 40— los N
+        # hilos pasaban la comprobación mientras el gasto todavía era cero y
+        # después registraban todos: el tope se pasaba por N veces el costo de
+        # una llamada y el «corte duro» no cortaba (DEFECTOS.md §3.7).
+        # `reservar()` aparta la plata dentro del mismo `with self._lock` que la
+        # comprueba, así que dos hilos no pueden ver el mismo margen libre.
         with self._lock:
-            self.presupuesto.comprobar()
+            reservado = self.presupuesto.reservar()
+        # La reserva se mantiene VIVA hasta que `registrar()` la absorba, y el
+        # `finally` de más abajo la devuelve por cualquier otro camino: timeout,
+        # red, JSON ilegible o respuesta que no construye una decisión. Si no se
+        # devolviera, una corrida con fallos se estrangularía sola sin haber
+        # gastado un peso.
         try:
-            respuesta = self._llamar(sistema, usuario, modelo, max_tokens)
-        except TypeError as e:  # el SDK no resuelve credenciales sino al pedir
-            if "authentication" in str(e).lower():
-                raise SinCredenciales(
-                    "sin credenciales de Anthropic y el prompt no está en el caché "
-                    f"({self.cache.dir}). Corre `ant auth login` o exporta ANTHROPIC_API_KEY."
+            try:
+                respuesta = self._llamar(sistema, usuario, modelo, max_tokens)
+            except TypeError as e:  # el SDK no resuelve credenciales sino al pedir
+                if "authentication" in str(e).lower():
+                    raise SinCredenciales(
+                        "sin credenciales de Anthropic y el prompt no está en el caché "
+                        f"({self.cache.dir}). Corre `ant auth login` o exporta ANTHROPIC_API_KEY."
+                    ) from e
+                raise
+            salida = self._extraer_json(respuesta)
+            # 4. Validar ANTES de cachear. Una salida que no construye una
+            # decisión usable no puede llegar al disco: si se cachea, la falla
+            # queda grabada y **toda re-corrida determinista revienta en el
+            # mismo punto**, sin gastar una llamada que la arregle. O sea que se
+            # dispara justo donde más duele, en la re-corrida barata sin API. Se
+            # valida con el mismo `contrato.construir()` que consume `capa.py`,
+            # para que no existan dos definiciones distintas de "respuesta usable".
+            try:
+                contrato.construir("_validacion", 0, salida)
+            except (ValueError, TypeError) as e:
+                raise RespuestaInvalida(
+                    f"la salida del modelo no construye una decisión válida: {e}; "
+                    f"cruda: {salida!r}"
                 ) from e
-            raise
-        salida = self._extraer_json(respuesta)
-        # 4. Validar ANTES de cachear. Una salida que no construye una decisión
-        # usable no puede llegar al disco: si se cachea, la falla queda grabada y
-        # **toda re-corrida determinista revienta en el mismo punto**, sin gastar
-        # una llamada que la arregle. O sea que se dispara justo donde más duele,
-        # en la re-corrida barata sin API. Se valida con el mismo
-        # `contrato.construir()` que consume `capa.py`, para que no existan dos
-        # definiciones distintas de "respuesta usable".
-        try:
-            contrato.construir("_validacion", 0, salida)
-        except (ValueError, TypeError) as e:
-            raise RespuestaInvalida(
-                f"la salida del modelo no construye una decisión válida: {e}; "
-                f"cruda: {salida!r}"
-            ) from e
 
-        with self._lock:
-            # Cachear antes de registrar, no al revés: si el corte duro del
-            # presupuesto dispara acá, esta respuesta YA está pagada. Con el
-            # orden inverso se descartaba y se volvía a pagar en la corrida
-            # siguiente.
-            self.cache.escribir(
-                k,
-                {
-                    "modelo": modelo,
-                    "salida": salida,
-                    "usage": {
-                        "input_tokens": respuesta.usage.input_tokens,
-                        "output_tokens": respuesta.usage.output_tokens,
-                        "cache_read_input_tokens": getattr(
-                            respuesta.usage, "cache_read_input_tokens", 0
-                        ),
+            with self._lock:
+                # Cachear antes de registrar, no al revés: si el corte duro del
+                # presupuesto dispara acá, esta respuesta YA está pagada. Con el
+                # orden inverso se descartaba y se volvía a pagar en la corrida
+                # siguiente.
+                self.cache.escribir(
+                    k,
+                    {
+                        "modelo": modelo,
+                        "salida": salida,
+                        "usage": {
+                            "input_tokens": respuesta.usage.input_tokens,
+                            "output_tokens": respuesta.usage.output_tokens,
+                            "cache_read_input_tokens": getattr(
+                                respuesta.usage, "cache_read_input_tokens", 0
+                            ),
+                        },
                     },
-                },
-            )
-            self.presupuesto.registrar(modelo, respuesta.usage)
-        return salida
+                )
+                # `registrar()` absorbe la reserva: a partir de acá el gasto es
+                # real y no estimado. Se pone en 0 para que el `finally` no la
+                # devuelva otra vez y el bote quede inflado.
+                self.presupuesto.registrar(modelo, respuesta.usage, reservado)
+                reservado = 0.0
+            return salida
+        finally:
+            if reservado:
+                with self._lock:
+                    self.presupuesto.liberar(reservado)
 
     def _llamar(self, sistema: str, usuario: str, modelo: str, max_tokens: int):
         # NO se pasa `temperature` (ni `top_p` ni `top_k`), y no es un olvido.

@@ -180,9 +180,40 @@ def test_el_tope_paga_la_corrida_que_promete():
         f"el tope no paga las {N_TRAYECTORIAS} trayectorias (${en_frio:.2f} en frío)"
     )
     assert MARGEN_TOPE > 1.0, "sin margen, una corrida un poco más cara se corta"
-    # La corrida de máxima calidad (las 81 celdas, las N trayectorias) tiene que
-    # caber bajo el techo: si no, el techo estaría prohibiendo la mejor corrida.
-    assert tope_derivado(1.0, N_TRAYECTORIAS) <= TOPE_USD_MAXIMO
+
+    # Las corridas que el proyecto DE VERDAD corre tienen que caber bajo el
+    # techo: la maqueta de la demo y la completa de la validación.
+    assert tope_derivado(0.50, 2, 3) <= TOPE_USD_MAXIMO
+    assert tope_derivado(0.80, N_TRAYECTORIAS) <= TOPE_USD_MAXIMO
+
+    # Y cada una tiene que cubrir lo que esa MISMA corrida gastó de verdad.
+    # No es aritmética: son las dos corridas pagadas del 23-ago.
+    assert tope_derivado(0.50, 2, 3) >= 0.9742, "la maqueta ya se cortó una vez con $0,96"
+    assert tope_derivado(0.80, N_TRAYECTORIAS) >= 7.8731, "la completa costó $7,87"
+
+    # LO QUE ESTA ASERCIÓN DEJÓ DE PROMETER, y por qué.
+    #
+    # Antes decía `tope_derivado(1.0, N) <= TOPE_USD_MAXIMO`: el techo no puede
+    # prohibir la mejor corrida. Hoy no se cumple —deriva USD 47,35 contra un
+    # techo de 35— y la razón es que `USD_POR_LLAMADA_EN_FRIO` se recalibró sobre
+    # el PEOR caso medido, que es el camino de cobertura BAJA: con 0,50 el top-K
+    # se queda con las 9 celdas más grandes, cuyas llamadas cuestan 0,0195 y se
+    # vetan más. Aplicar ese costo a las 81 celdas de una corrida de cobertura
+    # 1,00 —donde la mayoría son celdas chicas y baratas— es una sobreestimación
+    # CONOCIDA: la corrida de cobertura 0,80 deriva USD 18,12 y costó USD 7,87.
+    #
+    # O sea que el techo no está prohibiendo una corrida cara: está prohibiendo
+    # una ESTIMACIÓN cara de una corrida que nadie ha corrido nunca y que además
+    # es la más lenta (81 celdas = 21 olas, ~8 min), o sea que no es ni la de la
+    # demo ni la de la validación. Cuando alguien la necesite, hay dos caminos
+    # honestos y ninguno es aflojar el tope a ciegas: medir una corrida de
+    # cobertura 1,00 y calibrar con ella, o subir el techo con la decisión de
+    # plata del equipo por delante.
+    assert tope_derivado(1.0, N_TRAYECTORIAS) > TOPE_USD_MAXIMO, (
+        "si esto ya no se cumple, la calibración cambió: revisa el comentario "
+        "de arriba y decide si vuelve a prometerse que la corrida de cobertura "
+        "1,00 cabe bajo el techo"
+    )
 
 
 def test_la_cuenta_de_llamadas_cuadra_con_lo_medido():

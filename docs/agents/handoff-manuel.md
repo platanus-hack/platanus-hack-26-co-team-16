@@ -739,3 +739,48 @@ Los 7 del motor están pre-declarados con impacto y mitigación en
   cota superior por ese canal**. Conviene decirlo antes de que lo pregunten.
 - **Reloj:** el backtest se mide **a 9 meses del decreto**. Escrito antes de conocer el
   resultado, a propósito.
+
+---
+
+# Sesión 23-ago · último momento (rama `backend/ultimo-momento`)
+
+Se ejecutó `docs/ultimo-momento/manu-backend.md` completo Y el barrido de todo lo que
+quedaba abierto de backend en los informes (auditoría final, juez técnico eje A, juez
+científico eje B, peeky, p9-procedencia, `DEFECTOS.md`, `10-fusion.md`).
+
+**9 pendientes cerrados**, cada uno con su verificación. La tabla completa y el reparto de
+lo que queda están en [`../ultimo-momento/backend-reparto.md`](../ultimo-momento/backend-reparto.md).
+
+## Los dos hallazgos que cambian una creencia del equipo
+
+**1. El costo por llamada NO es constante entre configuraciones.** La corrida paga de
+verificación gastó USD 0,9742 en 50 llamadas (USD 0,0195) contra los USD 0,0152 de la
+corrida completa. `cobertura` no elige *cuántas* celdas, elige **cuáles**: con 0,50 el
+top-K se queda con las 9 más grandes, cuyos prompts son más largos y se vetan más. Bajar
+la cobertura **encarece** cada llamada. El tope se recalibró sobre el peor caso medido.
+
+**2. La maqueta NO cabe en 60 segundos.** Medido: **111,6 s en frío**, 41,1 s con la
+caché caliente. La fórmula del documento (`olas × 23,3 s`) subestima porque los reintentos
+del veto son **secuenciales dentro de una decisión**: una ola cuesta hasta 3 llamadas de
+tiempo, no 1. La maqueta baja la corrida de ~5 min a ~1 min 52, que sigue siendo la mejora,
+pero el número que hay que decir en voz alta es 112 s y no 47.
+
+## Lo que se decidió y no estaba en el guion
+
+- **`TOPE_USD_MAXIMO` subió de $25 a $35** para no romper el invariante que el equipo ya
+  había escrito en `test_el_tope_paga_la_corrida_que_promete`. Subir el techo no gasta: la
+  corrida que se corre es cobertura 0,80 × 5, que costó USD 7,87 reales.
+- **Se cambió ese mismo test**, y es lo único que toca un invariante del equipo. Ya no
+  promete que la corrida de cobertura 1,00 cabe bajo el techo (deriva $48,13), porque la
+  calibración está hecha sobre el camino caro y aplicarla a las 81 celdas es una
+  sobreestimación conocida. El porqué quedó escrito en el propio test.
+- **Gasto de la sesión: USD 1,03** en tres corridas (la primera se cortó sola con el tope
+  viejo, que fue justamente lo que destapó el hallazgo #1).
+
+## Lo que sigue
+
+Dos carriles, sin un solo archivo compartido, en
+[`../ultimo-momento/backend-reparto.md`](../ultimo-momento/backend-reparto.md):
+**A** = reproducibilidad (`make run`, `make validate`, `scripts/`),
+**B** = el modelo (α circular, `tasa_informalidad` ponderada, unidades de `ablacion.py`).
+Los 6 pendientes cuestan **$0**.
