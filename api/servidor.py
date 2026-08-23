@@ -46,6 +46,7 @@ from behavior.arquetipos import (
     particionar_por_peso,
     poblacion_cuenta_propia,
 )
+from behavior.cache import Cache
 from behavior.cliente import ClienteConductual, SinCredenciales
 from behavior.presupuesto import Presupuesto
 from api.trayectorias import N_TRAYECTORIAS, correr_consolidada
@@ -174,6 +175,38 @@ def _grilla():
 @lru_cache(maxsize=1)
 def _cuenta_propia():
     return poblacion_cuenta_propia(_RAIZ / "data" / "poblacion.parquet")
+
+
+# La caché versionada del escenario del demo, si alguien la dejó en el repo.
+#
+# Por qué acá y no en un script: la caché en disco vive en la MÁQUINA que corre
+# el motor, y quien corre el motor es este proceso. Warmear la caché en un
+# portátil no calienta el deploy; `behavior/cache-demo.json` es la única forma
+# de que una corrida ya pagada viaje con el repositorio. Hoy solo la importaba
+# `scripts/reproduce.py`, o sea que el deploy arrancaba siempre en frío.
+#
+# El archivo NO existe todavía (`DEFECTOS.md` 3.6 lo tiene abierto). Cuando
+# exista, esto lo levanta solo y el demo deja de depender de que nadie mueva el
+# slider a una posición nueva. Si no existe, no pasa nada y la corrida es en
+# frío, que es exactamente lo de hoy.
+_CACHE_DEMO = _RAIZ / "behavior" / "cache-demo.json"
+
+
+def _precargar_cache_demo() -> int:
+    """Mete la caché versionada en la caché de disco. Devuelve cuántas entradas.
+
+    El origen es un archivo del propio repositorio, no entrada de usuario: no
+    hay ruta pública que llame a `Cache.importar()` con algo de afuera, y esto
+    no abre una.
+    """
+    if not _CACHE_DEMO.is_file():
+        return 0
+    n = Cache().importar(_CACHE_DEMO)
+    print(f"[caché] {n} entradas precargadas desde {_CACHE_DEMO.name}")
+    return n
+
+
+_precargar_cache_demo()
 
 
 @app.get("/poblacion")
