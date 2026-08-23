@@ -5,7 +5,135 @@
 > Tus carpetas: `engine/`, `api/` · Tu rama: `rol/backend`
 > Tu misión, entregables y prompt de arranque: [`docs/ROLES.md`](../ROLES.md)
 
-## Cómo retomar (actualizado 2026-08-23, sesión 3)
+## Cómo retomar (actualizado 2026-08-23 06:45, sesión 4 — la del corte final)
+
+> **Pega esto en una sesión nueva y arranca sin leer nada más.** El detalle está más abajo,
+> en la sección **Sesión 4**.
+
+```
+Trabajas en engine/ y api/, y SOLO ahí. Rama: rol/backend.
+Lee docs/agents/handoff-manuel.md, seccion "Sesion 4". Congelamiento: domingo 09:30.
+
+TODO LO DE ABAJO ESTA MEDIDO A MANO ENTRE LAS 04:45 Y LAS 06:45. No confies en los
+informes del vet a tres ejes: los tres miden arboles viejos.
+
+ESTADO DEL DEPLOY, y es lo primero que hay que arreglar:
+- enjambre-web YA esta en main. Probado: /reporte paso de 404 a 200.
+- enjambre-api NO se redesplego. La prueba: el candado `_ocupado` (api/servidor.py:167)
+  sigue trabado desde las 04:49, y un redeploy reinicia el proceso y lo liberaria. Son
+  DOS servicios en render.yaml (:32 api, :52 web) y se cambio solo uno.
+- Consecuencia: la URL publica NO puede correr una sola simulacion. Seis corridas de
+  `make humo` entre 04:49 y 06:40 devuelven "ya hay una corrida en curso".
+- ARREGLALO PRIMERO: cambiar la rama de enjambre-api a main en el dashboard, o reiniciar
+  el servicio. Verifica con `make humo URL=https://enjambre-web.onrender.com` (ablacion,
+  cuesta $0): tiene que llegar el evento `fin` con 4 rondas.
+
+LO QUE MIDE EL REPO HOY (corrido, no leido):
+  make test       88 passed en 0.48s + regresiones de behavior/ ok
+  make reproduce  corre y es determinista SIN cache-demo.json; CON el revienta
+  make run        PENDIENTE - scripts/run_simulacion.py NO EXISTE
+  make validate   imprime EL numero pero SALE CON EXIT CODE 1 (G1, G2, G3 BLOQUEADO)
+  make humo prod  FALLO por el candado trabado
+
+DOS DEFECTOS QUE NADIE HABIA MEDIDO Y NO SON DEL DEPLOY:
+1. `make humo` sobre la corrida real falla con "la ronda 0 arranca en 0.1799 y la GEIH
+   dice 0.3057". Es sobre main, sin Render de por medio. El motor arranca en ~18% y
+   /poblacion declara 30,57%. Es una pregunta de juez sin respuesta ensayada, y NO esta
+   en ninguno de los 9 arreglos de la fusion.
+2. scripts/humo_deploy.py:53 se traga la excepcion y reporta "ni /api/poblacion ni
+   /poblacion respondieron 200". Con el CA bundle roto el error real es SSL y el mensaje
+   manda a perseguir Render en vez del portatil. Son 3 lineas.
+
+LOS 9 ARREGLOS DE LA FUSION: al cierre solo A1 (a medias) y A2 estaban tocados.
+   Verificados uno por uno con grep; la tabla esta en la seccion "Sesion 4".
+
+LO TUYO (engine/ y api/), en orden:
+   1. A3 - cap de gasto acumulado en el evento `fin` y exponer fraccion_fallback (69,1%)
+      y fraccion_sin_salida (63,0%). Los campos ya viajan en el contrato y ningun panel
+      los lee. Es la mitad de motor del defecto estructural E2.
+   2. El candado `_ocupado` no tiene timeout ni forma de resetearse sin reiniciar el
+      proceso. Hoy costo ~2 horas de URL muerta. Un timeout, o un endpoint de estado que
+      diga si esta ocupado, es tuyo.
+   3. El 18% vs 30,57%: si sale de engine/, es tuyo.
+```
+
+## Sesión 4 — 2026-08-23 04:45-06:45 — la corrida pagada y el vet de ejecución
+
+Sesión de verificación y de A2. **Nada de lo de acá viene de un informe de agente: todo se
+corrió.** El disparador fue leer `docs/vet/revision-3ejes/10-fusion.md` y preguntarse qué falta
+para que el deploy esté vivo de verdad.
+
+### Lo que se entregó
+
+- **PR #36** (`a2/cache-demo-versionada`): `behavior/cache-demo.json` con **518 respuestas
+  Sonnet ya pagadas**. Cierra la deuda que la **ADR 0009** le dejó abierta a `behavior/`
+  (`:32-34`) y que nunca se cumplió.
+- Este handoff.
+
+### La corrida pagada, con sus números
+
+Contra `api/servidor.py` local, sobre el código de `main`, con los **mismos parámetros que
+manda el frontend** (`web/enjambre/estado/flujo.ts:37` manda `aumento_pct=23` y `seed=42`; el
+resto son defaults del servidor: `cobertura=0.8`, `trayectorias=5`, `parafrasis=1`):
+
+```
+518 llamadas a claude-sonnet-5 · USD 7,8731 · 1547,9 s (25,8 min)
+1028 decisiones · 4 rondas · cache 0 aciertos / 648 fallos (corrida en frío)
+final: informalidad 31,22% · empleo 99,64%
+banda entre_trayectorias [27,21%, 50,84%] · estabilizada=True
+```
+
+**El costo real fue 2,5× la primera estimación.** Se estimó "<$3" leyendo
+`behavior/presupuesto.py:30` (`TOPE_POR_DEFECTO_USD = 3.00`). El número correcto sale de
+`api/servidor.py`: el front no fija `trayectorias`, así que toma `N_TRAYECTORIAS = 5`, y eso
+son 465 llamadas previstas (~$6,23), no 93 (~$1,25). Terminó en 518 llamadas y $7,87 por
+reintentos. **Para la próxima: el costo de una corrida se calcula con
+`llamadas_de_la_corrida(cobertura, trayectorias)` y `tope_derivado(...)`, que ya existen y no
+mienten. La constante de `presupuesto.py` es de cuando una corrida era UNA trayectoria.**
+
+### Por qué el `cache-demo.json` no se pudo hacer gratis
+
+El primer intento fue exportar la caché que ya había en disco (503 entradas). **No sirve, y
+falla de la peor forma:** son todas `claude-haiku-4-5`, anteriores al commit `13c5a5b` ("la
+masa pasa de Haiku 4.5 a Sonnet 5"), y `cache.clave()` hashea el modelo como **primer campo**.
+Acierto estructural: **cero**. Commitear ese archivo convierte un `make reproduce` que cae
+limpio a la ablación en un stack trace para cualquiera sin API key. Se probó y se descartó.
+
+`Cache.exportar()` (`behavior/cache.py:94`) **ya existía y nadie lo había llamado nunca.**
+
+### El límite conocido que el PR #36 deja abierto
+
+`make reproduce` **no** queda arreglado, y cambia su modo de fallar: con el archivo presente,
+`scripts/reproduce.py:58-66` construye `ClienteConductual` (que sin key **no** falla al
+construirse, falla al pedir) y revienta en vez de caer a la ablación.
+
+Causa: `reproduce.py` llama a `correr()` **sin `cobertura_llm`**, o sea manda las **81** celdas
+al LLM; la API manda **31**. Medido: con `cobertura_llm=0.8` sube a **43 aciertos / 5 fallos**,
+así que tampoco alcanza solo con eso. Los 5 que faltan son de la **paráfrasis**, que
+`reproduce.py` no fija y `api/trayectorias.py` sí. El arreglo es de R5 y son dos cosas: pasar la
+cobertura, y capturar `SinCredenciales`.
+
+### Los 9 arreglos de la fusión, verificados uno por uno
+
+| # | Estado al cierre | Evidencia |
+|---|---|---|
+| A1 | **a medias** | web en main (`/reporte` 200); api no (candado sigue trabado) |
+| A2 | **PR #36** | `cache-demo.json` con 518 entradas Sonnet |
+| A3 | sin tocar | `fraccion_fallback` 69,1% y `fraccion_sin_salida` 63,0% siguen sin panel |
+| B1 | parcial | "no puede pagar"/"quién aprieta" ya no están en `web/`; falta la nota al pie |
+| B2 | sin tocar | `VALIDATION.md`: 0 ocurrencias de "2,63" y 0 de "ciego" |
+| B3 | sin tocar | `scripts/validate.py:206` sigue diciendo `Cobertura del rango:` |
+| C1 | sin tocar | "proyección oficial" vivo en `Hero.tsx:70`, `CurvaBrecha.tsx`, `Relato.tsx:86`, `reporte/page.tsx:182` **y en el stdout de `make reproduce`** |
+| C2 | sin tocar | no verificable con la API trabada |
+| C3 | sin tocar | el 37,37 solo vive en `/reporte` y `narrativa.ts`, no en `/` |
+
+**Dos cosas que la fusión no vio:** C1 **también está en la CLI**, no solo en `web/` (`make
+reproduce` termina con "brecha contra la proyección oficial"); y `web/prototipo/mapa.html`
+narra la cascada como hallazgo en 4 líneas.
+
+**Y un número que la fusión subestimó:** al deploy le faltaban **71** commits de `main`, no 15.
+
+## Cómo retomar (sesión 3, histórico)
 
 > **Pega esto en una sesión nueva y arranca sin leer nada más.** Lo de abajo es el detalle.
 
