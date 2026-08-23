@@ -190,6 +190,7 @@ def correr(
     al_decidir_arquetipo: Callable[[int, str, ResultadoArquetipo], None] | None = None,
     fiscalizacion: EstadoFiscalizacion | None = None,
     congelar_prob_fiscalizacion: bool = False,
+    alfa_visibilidad: float | None = None,
     reskin: Reskin | None = None,
 ) -> list[Ronda]:
     """Corre las rondas de mejor respuesta y devuelve el agregado de cada una.
@@ -210,8 +211,14 @@ def correr(
     representa cada arquetipo (B1) en vez de darle la misma cantidad a todos.
 
     `congelar_prob_fiscalizacion=True` corre el experimento de cascada apagada
-    (B4): la sanción se queda en su valor de la ronda 0 y la diferencia contra
-    la corrida normal es, en pp, cuánto de la brecha pone la cascada.
+    (B4): la sanción de cada celda se queda en su valor de la ronda 0 y la
+    diferencia contra la corrida normal es, en pp, cuánto de la brecha pone la
+    cascada. El `prob_fiscalizacion` agregado del contrato es el promedio de las
+    probabilidades por celda ponderado por `peso`, porque el contrato describe
+    el riesgo que enfrenta una persona representativa, no una firma sin tamaño.
+
+    `alfa_visibilidad` existe para reproducir la calibración; `None` usa el
+    valor congelado por el motor. No es una perilla de la política ni del usuario.
 
     El calendario es el de la [ADR 0005](../docs/adr/0005-el-reloj-de-la-simulacion.md):
     una ronda es un trimestre, la **ronda 0 es la reacción ingenua** —la
@@ -292,26 +299,34 @@ def correr(
             universo=max(1.0, universo_de_firmas(arquetipos))
         )
 
-    def _fraccion_firmas_fuera_de_regla() -> float:
-        """Qué fracción del universo de FIRMAS está fuera de regla.
+    def _celdas_evasoras() -> list[tuple[str, int, float]]:
+        """Conteos vivos de firmas evasoras para repartir la capacidad fija."""
+        total_firmas = sum(a.n_empresas for a in arquetipos)
+        return [
+            (
+                a.id,
+                a.n_trabajadores,
+                (
+                    a.n_empresas
+                    if total_firmas > 0
+                    else fiscalizacion.universo * a.peso / peso_total
+                )
+                * estado.fraccion_informal[a.id],
+            )
+            for a in arquetipos
+        ]
 
-        La sanción se le aplica a unidades productivas, no a trabajadores: es la
-        divergencia del defecto §3.5, donde esta capa contaba personas y el motor
-        contaba empresas para la misma probabilidad. Con la grilla real se
-        pondera por `n_empresas`; sin ella se cae al peso poblacional, que es lo
-        único disponible en el andamio.
-        """
-        pesos_firma = sum(a.n_empresas for a in arquetipos)
-        if pesos_firma <= 0:
-            return min(1.0, sum(a.peso * estado.fraccion_informal[a.id] for a in arquetipos) / peso_total)
-        return min(
-            1.0,
-            sum(a.n_empresas * estado.fraccion_informal[a.id] for a in arquetipos) / pesos_firma,
+    def _promedio_prob(probabilidades: dict[str, float]) -> float:
+        return (
+            sum(a.peso * probabilidades[a.id] for a in arquetipos) / peso_total
         )
 
     # La p(sanción) de la ronda 0, que es también la que se congela cuando se
     # corre el experimento de cascada apagada (B4).
-    prob_inicial = fiscalizacion.prob(_fraccion_firmas_fuera_de_regla())
+    probs_iniciales = fiscalizacion.prob_celdas(
+        _celdas_evasoras(), alfa=alfa_visibilidad
+    )
+    prob_inicial = _promedio_prob(probs_iniciales)
 
     # RONDA 0 — la proyección oficial (ADR 0005). No se llama al LLM: por
     # definición asume cumplimiento total, así que la informalidad se queda en la
@@ -351,11 +366,14 @@ def correr(
         # experimento que CUANTIFICA la cascada: la diferencia entre esta corrida
         # y la normal es, en puntos porcentuales, cuánto de la brecha pone el
         # hecho de que la capacidad de fiscalización no crece.
-        prob = (
-            prob_inicial
+        probs = (
+            probs_iniciales
             if congelar_prob_fiscalizacion
-            else fiscalizacion.prob(_fraccion_firmas_fuera_de_regla())
+            else fiscalizacion.prob_celdas(
+                _celdas_evasoras(), alfa=alfa_visibilidad
+            )
         )
+        prob = _promedio_prob(probs)
 
         # Las RONDAS son secuenciales por definición (cada una responde al
         # agregado de la anterior), pero los ARQUETIPOS dentro de una ronda son
@@ -383,7 +401,7 @@ def correr(
                 # dice "periodo 1 de 3", no "de 4".
                 rondas_totales=rondas_totales - 1,
                 tasa_informalidad=tasa,
-                prob_fiscalizacion=prob,
+                prob_fiscalizacion=probs[a.id],
                 # SUPUESTO: la sanción equivale a `multa_factor` meses de
                 # ingreso por trabajador (por defecto 12). Es el parámetro que
                 # decide si evadir paga, así que es de los primeros que R5 debe

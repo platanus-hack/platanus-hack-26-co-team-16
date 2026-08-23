@@ -18,6 +18,8 @@ verifica que hoy NO ocurre. Si alguna vuelve a fallar, el bug volvió.
 
 from __future__ import annotations
 
+import pathlib
+
 import shutil
 import sys
 import tempfile
@@ -440,9 +442,30 @@ def punto_11_la_tasa_inicial_no_tiene_default_de_andamio() -> None:
 
     from behavior.arquetipos import informalidad_observada
 
+    # Se compara contra `momentos.json`, no contra un literal. Lo que este punto
+    # protege es que la tasa SALGA DEL ARTEFACTO y no de un andamio (el 0,42 sin
+    # fuente del PR #4); clavar el numero acá hacía que el candado se disparara
+    # cuando el artefacto cambiaba por una razon legitima. Paso justo: al separar
+    # empleados de firma de cuenta propia, el objetivo del motor paso de 0,3057
+    # (todos los ocupados) a 0,1799 (los que el motor de verdad simula), y este
+    # check fallaba señalando un cambio correcto.
+    import json
+
+    momentos = json.loads(
+        (pathlib.Path(__file__).resolve().parents[1] / "data" / "momentos.json")
+        .read_text(encoding="utf-8")
+    )
+    esperado = momentos.get(
+        "tasa_informalidad_empleados_de_firma", momentos["tasa_informalidad_total"]
+    )
     _check(
-        abs(informalidad_observada() - 0.3057) < 1e-9,
-        f"momentos.json publica {informalidad_observada():.4f}, no 0,42",
+        abs(informalidad_observada() - esperado) < 1e-9,
+        f"informalidad_observada() da {informalidad_observada():.4f} y "
+        f"momentos.json publica {esperado:.4f}",
+    )
+    _check(
+        abs(informalidad_observada() - 0.42) > 1e-9,
+        "informalidad_observada() volvio al 0,42 de andamio, sin fuente",
     )
 
 

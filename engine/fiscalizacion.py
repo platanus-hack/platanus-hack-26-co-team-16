@@ -70,6 +70,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from typing import Sequence
 
 # --- Los números, cada uno con su origen -------------------------------------
 
@@ -104,6 +105,18 @@ TRIMESTRES_POR_ANO = 4
 # en C y no en el fenómeno. Nunca se ajusta C para pegarle a este número.
 PROB_ANUAL_REFERENCIA_EEUU = 0.014
 
+# SUPUESTO: la elasticidad no se escoge para producir una curva conveniente: se
+# CALIBRA contra la informalidad observada por tamaño con
+# `python scripts/calibrar_visibilidad.py`. `alfa=0` recupera exactamente el
+# reparto uniforme anterior y por eso es el contrafactual auditable del cambio.
+# El valor de abajo lo produjo esa corrida contra
+# `tasa_informalidad_por_tamano_empleados_de_firma` de `data/momentos.json`, que
+# es el objetivo de EMPLEADOS DE FIRMA: el de todos los ocupados mete al cuenta
+# propia dentro de "micro" y contra ese numero inflado salia 1,875, que
+# sacrificaba micro para compensar el error de pyme, que ninguna alfa mueve. Si cambia el objetivo,
+# se vuelve a correr el calibrador y este numero cambia con el.
+ELASTICIDAD_VISIBILIDAD = 1.875
+
 
 # --- La probabilidad ---------------------------------------------------------
 
@@ -124,6 +137,39 @@ def prob_sancion(capacidad: float, evasores: float) -> float:
     # vive la cascada. `-expm1(-x)` es exacto ahí. Ver `satura()` para el otro
     # extremo, donde ninguna de las dos formas alcanza.
     return -math.expm1(-capacidad / max(evasores, 1.0))
+
+
+def prob_por_celda(
+    capacidad: float,
+    celdas: Sequence[tuple[str, float, float]],
+    alfa: float,
+) -> dict[str, float]:
+    """Reparte `C` según la visibilidad de cada celda de firmas evasoras.
+
+    La unidad sigue siendo la firma: `n_empleados_por_firma` solo modifica qué
+    fracción de la capacidad ve cada una. `expm1` conserva la precisión por la
+    misma razón documentada en `prob_sancion()`.
+    """
+    if capacidad < 0:
+        raise ValueError(f"la capacidad no puede ser negativa: {capacidad}")
+    filas = list(celdas)
+    pesos = {
+        identificador: n_empleados**alfa
+        for identificador, n_empleados, _ in filas
+    }
+    denominador = sum(
+        evasores * pesos[identificador]
+        for identificador, _, evasores in filas
+        if evasores > 0
+    )
+    if denominador <= 0:
+        return {identificador: 0.0 for identificador, _, _ in filas}
+    return {
+        identificador: -math.expm1(
+            -capacidad * pesos[identificador] / max(denominador, 1.0)
+        )
+        for identificador, _, _ in filas
+    }
 
 
 def satura(capacidad: float, evasores: float) -> bool:
@@ -214,6 +260,15 @@ class EstadoFiscalizacion:
     def prob(self, fraccion_fuera_de_regla: float) -> float:
         """`p` para la ronda siguiente, a partir de la fracción de la anterior."""
         return prob_sancion(self.capacidad(), self.evasores(fraccion_fuera_de_regla))
+
+    def prob_celdas(
+        self,
+        celdas: Sequence[tuple[str, float, float]],
+        alfa: float | None = None,
+    ) -> dict[str, float]:
+        """`p` por celda con la misma capacidad fija del estado del mundo."""
+        elasticidad = ELASTICIDAD_VISIBILIDAD if alfa is None else alfa
+        return prob_por_celda(self.capacidad(), celdas, elasticidad)
 
     def con(self, **cambios) -> EstadoFiscalizacion:
         """Una copia con un factor cambiado. Es como se hace el barrido."""

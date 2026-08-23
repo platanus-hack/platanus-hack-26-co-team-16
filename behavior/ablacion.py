@@ -131,12 +131,23 @@ class ClienteReglas:
         if eleccion == "despedir":
             # SUPUESTO: despide lo mínimo para que el sobrecosto quepa en la caja.
             faltante = sobrecosto * arq.n_trabajadores - caja_periodo
-            detalle = {
-                "empleados_a_despedir": max(1, min(arq.n_trabajadores - 1,
-                                                   int(faltante // max(sobrecosto, 1)) + 1))
-            }
+            # Antes `max(1, ...)` medía un despido aun con sobrecosto y faltante
+            # iguales a cero; el placebo perdía empleo por una deuda inexistente.
+            if sobrecosto <= 0 or faltante <= 0:
+                eleccion = "absorber"
+            else:
+                detalle = {
+                    "empleados_a_despedir": min(
+                        arq.n_trabajadores - 1,
+                        int(faltante // sobrecosto) + 1,
+                    )
+                }
         elif eleccion == "informalizar_total":
-            detalle = {"empleados_a_informalizar": arq.n_trabajadores}
+            empleados_en_regla = round(arq.n_trabajadores * (1 - frac_previa))
+            if empleados_en_regla <= 0:
+                eleccion = "absorber"
+            else:
+                detalle = {"empleados_a_informalizar": empleados_en_regla}
 
         return {
             "estrategia_propuesta": eleccion,
