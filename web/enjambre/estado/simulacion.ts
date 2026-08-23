@@ -24,6 +24,7 @@ export interface Poblacion {
   arquetipos: ArquetipoEstatico[];
   peso_total: number;
   tasa_informalidad_observada: number;
+  tasa_informalidad_total_ciudad?: number;
   ocupados_expandidos: number;
   cuenta_propia: { peso_cuenta_propia: number; fraccion_cuenta_propia: number };
   piso_salarial_anterior: number;

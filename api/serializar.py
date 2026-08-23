@@ -70,7 +70,28 @@ def evento_poblacion(
     return {
         "arquetipos": [arquetipo_a_dict(a) for a in arquetipos],
         "peso_total": round(sum(a.peso for a in arquetipos), 1),
-        "tasa_informalidad_observada": float(m["tasa_informalidad_total"]),
+        # DOS TASAS, DOS DENOMINADORES, Y HAY QUE DECIR CUAL ES CUAL.
+        #
+        # `tasa_informalidad_observada` es la de ESTA poblacion: los empleados
+        # de firma, que son los 3,23 M que viajan en `arquetipos`/`peso_total`.
+        # Es el punto de partida real de la ronda 0.
+        #
+        # Antes esta clave mandaba `tasa_informalidad_total` (30,57%), que cubre
+        # a TODOS los ocupados de Bogota (4,20 M, cuenta propia incluida). La
+        # pantalla la rotulaba "informalidad observada de partida" al lado de una
+        # ronda 0 de 17,99%: dos denominadores distintos presentados como
+        # comparables, y la pregunta de juez que eso invita no tiene respuesta
+        # buena. El motor ya lo habia corregido de su lado
+        # (`behavior.arquetipos.informalidad_observada`, y el candado
+        # `tests/test_placebo.py` naciO midiendo exactamente esta confusion);
+        # faltaba corregirlo de este.
+        #
+        # La total NO se borra: es el contexto de ciudad y sin ella el enjambre
+        # se lee como si fuera Bogota entera. Viaja con su propio nombre.
+        "tasa_informalidad_observada": float(
+            m.get("tasa_informalidad_empleados_de_firma", m["tasa_informalidad_total"])
+        ),
+        "tasa_informalidad_total_ciudad": float(m["tasa_informalidad_total"]),
         "ocupados_expandidos": float(m["ocupados_expandidos"]),
         # Un tercio de los ocupados de Bogotá es cuenta propia y la grilla de
         # empleadores no los cubre: se reporta para que el enjambre no se lea

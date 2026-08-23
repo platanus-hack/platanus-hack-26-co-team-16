@@ -6,7 +6,24 @@ Simulador que no responde *"¿funciona la política?"* sino **"¿cuánta gente l
 >
 > **Fuente de verdad del producto:** [`docs/PLAN.md`](docs/PLAN.md). Este archivo no lo duplica, lo indexa. Si los dos se contradicen, gana `PLAN.md` y este se corrige.
 
-> ## ⚠️ ESTADO MÁS RECIENTE — 22-ago 23:00
+> ## ⚠️ ESTADO MÁS RECIENTE — 23-ago 08:20
+>
+> **Se corrió la auditoría final de `main`** ([`docs/vet/revision-3ejes/20-auditoria.md`](docs/vet/revision-3ejes/20-auditoria.md)).
+> Los 9 arreglos de la lista de corte están cerrados, y se arreglaron tres defectos medidos que
+> no estaban en la lista: la corrida bajó de ~23 min a ~5 (las 5 trayectorias iban en serie), el
+> candado de corrida ya no deja la URL pública muerta, y la pantalla dejó de enfrentar dos
+> denominadores de informalidad.
+>
+> **Queda UNA cosa abierta que importa, y está declarada:** el artefacto que produce EL NÚMERO
+> (`data/prediccion_modelo.json`) es anterior al arreglo de denominador del motor, así que el
+> 37,37 pp **no se reproduce corriendo `main` hoy**. Ver el recuadro en [`VALIDATION.md`](VALIDATION.md)
+> y el pendiente #1 de [`docs/agents/handoff-auditoria.md`](docs/agents/handoff-auditoria.md).
+>
+> Evidencia completa, comando por comando: [`docs/agents/auditoria-final/`](docs/agents/auditoria-final/).
+>
+> ---
+>
+> ## Estado anterior — 22-ago 23:00
 >
 > **Antes de trabajar, lee [`docs/vet/`](docs/vet/).** Ahí está el vet completo de `main`, las decisiones
 > que salieron de él y **el prompt de arranque de tu track** ([`docs/vet/03-arranque-por-track.md`](docs/vet/03-arranque-por-track.md)).

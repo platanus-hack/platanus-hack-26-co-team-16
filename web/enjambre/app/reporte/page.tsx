@@ -291,9 +291,17 @@ export default function Reporte() {
           lineHeight: 1.6,
         }}
       >
-        Población instanciada desde microdatos de la GEIH (DANE); informalidad observada de partida{" "}
-        {pct(poblacion.tasa_informalidad_observada)}. Piso salarial anterior{" "}
-        {miles(poblacion.piso_salarial_anterior)} COP/mes.
+        Población instanciada desde microdatos de la GEIH (DANE). La informalidad de partida de esta
+        población —{miles(poblacion.peso_total)} empleados de firma, que son los que el modelo mueve—
+        es {pct(poblacion.tasa_informalidad_observada)}, y es de donde arranca la ronda 0.
+        {poblacion.tasa_informalidad_total_ciudad !== undefined && (
+          <>
+            {" "}La de Bogotá entera es {pct(poblacion.tasa_informalidad_total_ciudad)}, más alta porque
+            incluye al cuenta propia, que esta grilla no cubre. Son dos denominadores distintos y no
+            se comparan entre sí.
+          </>
+        )}{" "}
+        Piso salarial anterior {miles(poblacion.piso_salarial_anterior)} COP/mes.
         <br />
         Generado el {new Date(registro.ts).toLocaleString("es-CO")} · HIVE
       </footer>

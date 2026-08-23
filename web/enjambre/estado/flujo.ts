@@ -21,7 +21,8 @@ export async function cargarPoblacion(): Promise<Poblacion> {
   console.info(
     `[enjambre] grilla: ${p.arquetipos.length} celdas empleadoras · ` +
       `${Math.round(p.peso_total).toLocaleString("es-CO")} trabajadores expandidos · ` +
-      `informalidad observada ${(p.tasa_informalidad_observada * 100).toFixed(1)}%`
+      `informalidad observada de ESTA poblacion ${(p.tasa_informalidad_observada * 100).toFixed(1)}% ` +
+      `(empleados de firma) · ciudad entera ${((p.tasa_informalidad_total_ciudad ?? 0) * 100).toFixed(1)}%`
   );
   return p;
 }

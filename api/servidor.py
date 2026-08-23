@@ -32,7 +32,7 @@ import threading
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -163,8 +163,74 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# SUPUESTO: una toma de más de 15 minutos ya no representa una corrida sana. Desde
+# a4e1429 las 5 trayectorias corren en paralelo y una corrida LLM completa tarda
+# ~5 minutos (antes eran ~23), así que el margen es 3x sin condenar el proceso:
+# el 23-ago un stream abandonado dejó la URL pública bloqueada durante ~2 horas.
+UMBRAL_CANDADO_HUERFANO_SEGUNDOS = 15 * 60
+
+
+class GuardianCorrida:
+    """Excluye corridas concurrentes sin convertir un stream muerto en un bloqueo eterno.
+
+    Cada toma recibe un token. Recuperar un huérfano reemplaza ese token dentro
+    del mismo tramo protegido que comprueba su edad; por eso dos peticiones no
+    pueden heredar el mismo turno. El token también evita que el `finally` tardío
+    del stream viejo suelte la corrida nueva que lo reemplazó.
+    """
+
+    def __init__(
+        self,
+        umbral_segundos: float = UMBRAL_CANDADO_HUERFANO_SEGUNDOS,
+        reloj: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._umbral_segundos = umbral_segundos
+        self._reloj = reloj
+        self._candado = threading.Lock()
+        self._estado = threading.Lock()
+        self._turno: object | None = None
+        self._tomado_en: float | None = None
+
+    def adquirir(self) -> tuple[object | None, float]:
+        """Toma o recupera el turno; devuelve token y antigüedad previa en segundos."""
+        with self._estado:
+            ahora = self._reloj()
+            if self._candado.acquire(blocking=False):
+                self._turno = object()
+                self._tomado_en = ahora
+                return self._turno, 0.0
+
+            # El reloj monotónico no retrocede por ajustes de hora del sistema;
+            # `max` deja el guardián seguro también ante un reloj falso defectuoso.
+            tomado_en = ahora if self._tomado_en is None else self._tomado_en
+            antiguedad = max(0.0, ahora - tomado_en)
+            if antiguedad <= self._umbral_segundos:
+                return None, antiguedad
+
+            # Nadie puede observar el candado libre entre estas dos operaciones:
+            # ambas ocurren bajo `_estado`, que gobierna todas sus transiciones.
+            self._candado.release()
+            self._candado.acquire()
+            self._turno = object()
+            self._tomado_en = ahora
+            print(
+                "[candado] recuperado candado huérfano tras "
+                f"{antiguedad:.1f} segundos tomado"
+            )
+            return self._turno, antiguedad
+
+    def soltar(self, turno: object | None) -> None:
+        """Suelta solo el turno propio; un `finally` obsoleto es inocuo."""
+        with self._estado:
+            if turno is None or turno is not self._turno:
+                return
+            self._turno = None
+            self._tomado_en = None
+            self._candado.release()
+
+
 # Una corrida a la vez: el motor satura los hilos y el presupuesto es uno solo.
-_ocupado = threading.Lock()
+_ocupado = GuardianCorrida()
 
 
 @lru_cache(maxsize=1)
@@ -316,8 +382,19 @@ def _generar(
             return
         tope_usd = derivado
 
-    if not _ocupado.acquire(blocking=False):
-        yield _sse("error", {"mensaje": "ya hay una corrida en curso; espera a que termine"})
+    turno, antiguedad = _ocupado.adquirir()
+    if turno is None:
+        restante = max(0.0, UMBRAL_CANDADO_HUERFANO_SEGUNDOS - antiguedad)
+        yield _sse(
+            "error",
+            {
+                "mensaje": (
+                    "ya hay una corrida en curso desde hace "
+                    f"{antiguedad / 60:.1f} min; se liberará automáticamente "
+                    f"en {restante / 60:.1f} min"
+                )
+            },
+        )
         return
 
     eventos: queue.Queue[tuple[str, dict[str, Any]] | None] = queue.Queue()
@@ -492,4 +569,4 @@ def _generar(
             yield _sse(*item)
     finally:
         cancelado.set()
-        _ocupado.release()
+        _ocupado.soltar(turno)

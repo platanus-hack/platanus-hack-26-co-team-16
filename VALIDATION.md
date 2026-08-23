@@ -37,6 +37,43 @@ Delta predicho por el modelo:     +33,3  pp
 
 Reproducible con: `make validate` · sale con código **1** mientras haya compuertas bloqueadas.
 
+> ### ⚠️ El artefacto de la predicción es ANTERIOR al arreglo de denominador — pendiente #1
+>
+> **Encontrado el 23-ago 08:05 auditando `main`. Se declara acá en vez de taparlo, y regenerarlo
+> es el pendiente número uno de después del congelamiento.**
+>
+> El error de arriba **no se recalcula en cada corrida**: sale de cruzar el dato observado con
+> `data/prediccion_modelo.json`, un artefacto congelado a propósito para que el backtest sea
+> auditable. La aritmética es exacta y cualquiera la reproduce:
+>
+> ```
+> brecha predicha por el modelo   +33,30 pp   (prediccion_modelo.json: ronda_0 30,6% -> ronda_3 63,8%)
+> delta observado                  -4,07 pp   (34,64% -> 30,57%)
+> error firmado                   +37,37 pp
+> ```
+>
+> **El problema:** ese artefacto se generó con la ronda 0 en **30,6 %**, que es
+> `tasa_informalidad_total` — TODOS los ocupados de Bogotá. El motor de hoy arranca la ronda 0 en
+> **17,99 %**, la de empleados de firma, porque `behavior.arquetipos.informalidad_observada()` se
+> corrigió después (es el mismo cambio de denominador que motivó `tests/test_placebo.py`). El
+> artefacto también declara `arquetipos: 101` y la grilla viva tiene **81**.
+>
+> **Qué significa y qué NO significa.** No significa que 37,37 pp sea falso: la brecha es una
+> diferencia entre dos rondas de la misma corrida, y una corrida es internamente consistente.
+> Sí significa que **el número publicado no se reproduce corriendo el código de `main` hoy**, y
+> eso es exactamente lo que este documento promete que sí pasa. Quien corra el comando de
+> `prediccion_modelo.json` va a ver otra cosa.
+>
+> **Por qué no se regeneró antes del congelamiento:** cuesta ~USD 8 y produce un número
+> desconocido; cambiar la cifra que encabeza el proyecto a una hora del cierre, sin tiempo de
+> actualizar láminas ni documentos, es peor que declararlo. La decisión fue del equipo y está
+> tomada por escrito acá.
+>
+> **Cómo se cierra** (`data/prediccion_modelo.json` trae el comando en `como_regenerarlo`):
+> correrlo contra el motor actual, comparar, y publicar el número nuevo con su signo salga como
+> salga — la regla del proyecto no cambia porque el número cambie. Desde el commit `a4e1429` esa
+> corrida tarda ~5 min y no ~23.
+
 **Y se reproduce en un clon limpio, sin descargar nada.** Los dos momentos que V0 necesita están
 versionados (`data/momentos_2025.json` y `data/momentos.json`), así que el número sale sin los
 ~370 MB de crudos, que están gitignorados. Los crudos solo hacen falta para el corte abr–jun, que es
