@@ -29,6 +29,26 @@ PRECIOS: dict[str, tuple[float, float]] = {
 
 TOPE_POR_DEFECTO_USD = 3.00  # una corrida completa de 4 rondas cabe de sobra acá
 
+# Lo que cuesta UNA llamada, medido. Vive acá y no en `api/` porque acá es donde
+# se lleva la contabilidad: `api.servidor` lo IMPORTA para derivar su tope, en
+# vez de tener su propia copia. Dos constantes de costo en dos archivos cuadran
+# por casualidad hasta el día que una se actualiza sola (el repo ya se quemó con
+# eso: el tope y `Presupuesto` compartían el literal 3,00 sin saberlo).
+#
+# El número sale de la corrida de verificación de la maqueta (23-ago, aumento
+# 17%, cobertura 0,50, 2 trayectorias): USD 0,9742 en 50 llamadas.
+#
+#   | corrida                        | USD/llamada |
+#   |--------------------------------|-------------|
+#   | cobertura 0,80 x 5 (completa)  |     0,01520 |
+#   | cobertura 0,50 x 2 (maqueta)   |     0,01948 |
+#
+# Se toma el PEOR de los dos y no el promedio: con cobertura baja el top-K se
+# queda con las celdas más grandes, cuyos prompts son más largos. Para una
+# reserva, equivocarse hacia arriba aparta plata que se devuelve; equivocarse
+# hacia abajo es el sobregiro que esta constante existe para cerrar.
+USD_POR_LLAMADA_MEDIDO = 0.9742 / 50
+
 
 class PresupuestoAgotado(RuntimeError):
     """Se llegó al tope. La corrida se para acá, a propósito."""
@@ -44,6 +64,9 @@ class Presupuesto:
     tokens_cache_leidos: int = 0
     tokens_cache_escritos: int = 0
     por_modelo: dict[str, float] = field(default_factory=dict)
+    # Plata apartada por llamadas QUE ESTÁN EN VUELO y todavía no tienen `usage`.
+    # Es lo que cierra la ventana de sobregiro (DEFECTOS.md §3.7): ver `reservar()`.
+    reservado_usd: float = 0.0
 
     def costo(self, modelo: str, usage) -> float:
         """Costo en USD de una respuesta, según su `usage`."""
@@ -58,8 +81,47 @@ class Presupuesto:
             + g("cache_creation_input_tokens") * p_in * 1.25
         ) / 1_000_000
 
-    def registrar(self, modelo: str, usage) -> float:
-        """Suma una llamada. Revienta si esa llamada pasó el tope."""
+    def reservar(self, estimado_usd: float = USD_POR_LLAMADA_MEDIDO) -> float:
+        """Aparta plata ANTES de llamar. Devuelve lo apartado, para soltarlo después.
+
+        POR QUÉ EXISTE (DEFECTOS.md §3.7, «el corte de presupuesto no es atómico»).
+        `comprobar()` solo mira lo YA gastado, y una llamada no cuesta hasta que
+        vuelve con su `usage`. Con N hilos en vuelo —hoy `paralelismo x
+        trayectorias`, o sea hasta 40— los N pasan la comprobación mientras el
+        gasto todavía es cero y después registran todos: el sobregiro máximo es
+        N x el costo de una llamada, y el «corte DURO» del encabezado de este
+        módulo no lo es.
+
+        Reservar lo cierra: la plata se aparta en el mismo tramo protegido que
+        la comprueba, así que dos hilos no pueden ver el mismo margen libre. Lo
+        reservado se descuenta en `registrar()` (la llamada volvió y ahora se
+        sabe lo que costó de verdad) o en `liberar()` (la llamada murió y no
+        costó nada). El precio de la garantía es headroom: con N en vuelo hacen
+        falta N x `USD_POR_LLAMADA_MEDIDO` de margen, y por eso
+        `api.servidor.tope_derivado()` lo suma como término aparte en vez de
+        esconderlo dentro del margen.
+        """
+        if self.gastado_usd + self.reservado_usd + estimado_usd > self.tope_usd:
+            raise PresupuestoAgotado(
+                f"corte duro: ${self.gastado_usd:.4f} gastados + "
+                f"${self.reservado_usd:.4f} en vuelo + ${estimado_usd:.4f} de esta "
+                f"llamada pasan el tope ${self.tope_usd:.2f}"
+            )
+        self.reservado_usd += estimado_usd
+        return estimado_usd
+
+    def liberar(self, reservado_usd: float) -> None:
+        """Suelta una reserva cuya llamada nunca llegó a costar (murió o falló)."""
+        self.reservado_usd = max(0.0, self.reservado_usd - reservado_usd)
+
+    def registrar(self, modelo: str, usage, reservado_usd: float = 0.0) -> float:
+        """Suma una llamada. Revienta si esa llamada pasó el tope.
+
+        `reservado_usd` es lo que `reservar()` había apartado por esta misma
+        llamada: se suelta acá, porque a partir de ahora el gasto es real y no
+        estimado. Contar los dos sería cobrar dos veces la misma llamada.
+        """
+        self.liberar(reservado_usd)
         c = self.costo(modelo, usage)
         self.gastado_usd += c
         self.llamadas += 1

@@ -33,7 +33,11 @@ from behavior.arquetipos import Arquetipo, arquetipos_falsos
 from behavior.cache import Cache
 from behavior.capa import decidir_arquetipo, situacion_planta
 from behavior.cliente import ClienteConductual, SinCredenciales
-from behavior.presupuesto import Presupuesto, PresupuestoAgotado
+from behavior.presupuesto import (
+    USD_POR_LLAMADA_MEDIDO,
+    Presupuesto,
+    PresupuestoAgotado,
+)
 from behavior.rondas import correr
 
 _FALLOS: list[str] = []
@@ -191,8 +195,33 @@ def punto_8_lo_pagado_queda_cacheado_aunque_dispare_el_corte() -> None:
     print("\nPunto #8 — cachear antes de registrar")
     tmp = Path(tempfile.mkdtemp(prefix="behavior-pruebas-"))
     try:
+        # El tope era 1e-12, y con el corte atómico eso ya no llega al escenario
+        # que esta prueba mide: `reservar()` rechaza ANTES de llamar, así que no
+        # hay respuesta pagada de la cual hablar (y rechazar antes de gastar es
+        # justo lo que se quería, ver `Presupuesto.reservar()`).
+        #
+        # Para volver a poner la prueba en su propio escenario hacen falta las
+        # dos cosas a la vez: que la reserva QUEPA y que el costo REAL de la
+        # respuesta se pase. Por eso el tope es exactamente una reserva y la
+        # respuesta de esta prueba es cara (7.000 tokens de entrada = USD 0,021,
+        # por encima del tope). La `_APIFalsa` compartida devuelve un `usage` de
+        # 10+10 tokens, que cuesta USD 0,0002 y nunca dispararía nada.
+        class _UsageCara:
+            input_tokens = 7_000
+            output_tokens = 0
+            cache_read_input_tokens = 0
+
+        api_cara = _APIFalsa(BUENA)
+        crear = api_cara.create
+
+        def _crear_caro(**kw):
+            respuesta = crear(**kw)
+            respuesta.usage = _UsageCara()
+            return respuesta
+
+        api_cara.create = _crear_caro
         cli = ClienteConductual(
-            Presupuesto(tope_usd=1e-12), Cache(tmp), _APIFalsa(BUENA)
+            Presupuesto(tope_usd=USD_POR_LLAMADA_MEDIDO), Cache(tmp), api_cara
         )
         try:
             cli.proponer("sistema limpio", "usuario limpio")
@@ -205,6 +234,76 @@ def punto_8_lo_pagado_queda_cacheado_aunque_dispare_el_corte() -> None:
         )
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def punto_8b_el_corte_es_atomico_con_llamadas_en_vuelo() -> None:
+    """DEFECTOS.md §3.7 — N llamadas en vuelo no pueden pasarse del tope entre todas.
+
+    `comprobar()` solo miraba lo YA gastado, y una llamada no cuesta hasta que
+    vuelve con su `usage`. Con N hilos concurrentes los N pasaban la
+    comprobación mientras el gasto era cero y después registraban todos: medido
+    con 40 hilos y un tope de USD 0,20, el gasto llegó a USD 0,78 — 290% de
+    sobregiro sobre un corte que el módulo llama DURO.
+
+    Esta prueba corre el mismo escenario contra `reservar()`, que aparta la
+    plata en el mismo tramo protegido que la comprueba. No prueba una fórmula:
+    prueba que el tope es un tope.
+    """
+    import threading
+    import time
+
+    print("\nPunto #8b — el corte duro es atómico con llamadas en vuelo")
+
+    class _UsageReal:  # una llamada del tamaño de las que se pagaron de verdad
+        input_tokens = 4_000
+        output_tokens = 500
+        cache_read_input_tokens = 0
+
+    def gasto_con(hilos: int, tope: float) -> float:
+        presupuesto = Presupuesto(tope_usd=tope)
+        candado = threading.Lock()
+
+        def uno() -> None:
+            try:
+                with candado:
+                    reservado = presupuesto.reservar()
+            except PresupuestoAgotado:
+                return
+            time.sleep(0.01)  # la llamada, en vuelo
+            try:
+                with candado:
+                    presupuesto.registrar("claude-sonnet-5", _UsageReal(), reservado)
+            except PresupuestoAgotado:
+                return
+
+        equipo = [threading.Thread(target=uno) for _ in range(hilos)]
+        for hilo in equipo:
+            hilo.start()
+        for hilo in equipo:
+            hilo.join()
+        return presupuesto.gastado_usd
+
+    # 40 = el pico real de hoy: `paralelismo` 8 x 5 trayectorias en paralelo.
+    tope = 0.20
+    gastado = gasto_con(40, tope)
+    _check(
+        gastado <= tope,
+        f"40 llamadas en vuelo no se pasan del tope (gastado ${gastado:.4f} de ${tope:.2f})",
+    )
+    _check(
+        gastado > 0.0,
+        "y el tope no estrangula la corrida: algo se llegó a gastar",
+    )
+
+    # Una reserva que no llega a costar vuelve al bote: si no, una corrida con
+    # timeouts se apaga sola sin haber gastado un peso.
+    presupuesto = Presupuesto(tope_usd=1.0)
+    reservado = presupuesto.reservar()
+    presupuesto.liberar(reservado)
+    _check(
+        presupuesto.reservado_usd == 0.0,
+        "la reserva de una llamada que murió se devuelve entera",
+    )
 
 
 # --- Crítico #2 --------------------------------------------------------------
@@ -648,6 +747,7 @@ def main() -> int:
         punto_5_el_fallback_es_cumplir,
         punto_7_fallos_tecnicos_se_cuentan_con_reintento_exitoso,
         punto_8_lo_pagado_queda_cacheado_aunque_dispare_el_corte,
+        punto_8b_el_corte_es_atomico_con_llamadas_en_vuelo,
         punto_11_la_tasa_inicial_no_tiene_default_de_andamio,
         s1_1_la_banda_con_tipo_sobrevive_a_a_contrato,
         s1_2_la_banda_cubre_todas_las_metricas_publicadas,

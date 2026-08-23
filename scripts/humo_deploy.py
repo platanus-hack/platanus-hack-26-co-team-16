@@ -43,14 +43,29 @@ def _prefijo(base: str) -> str:
     para los dos servicios: el que importa es el del frontend (es la cadena
     completa), pero cuando algo falla lo primero es preguntarle a la API sola.
     """
+    # Se guarda POR QUÉ falló cada intento en vez de tragárselo. `URLError`
+    # cubre desde "el servicio está caído" hasta "tu certificado local está
+    # roto", y el mensaje de antes decía lo mismo para los dos: quien corría
+    # esto veía «el deploy no responde» cuando el problema era su propia
+    # máquina. Un diagnóstico que apunta al lugar equivocado cuesta más que no
+    # tener diagnóstico.
+    motivos: list[str] = []
     for p in ("/api", ""):
         try:
             with _abrir(f"{base}{p}/poblacion") as r:
                 if r.status == 200:
                     return p
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError):
-            continue
-    raise SystemExit(f"FALLO · ni {base}/api/poblacion ni {base}/poblacion respondieron 200")
+                motivos.append(f"{base}{p}/poblacion -> HTTP {r.status}")
+        except urllib.error.HTTPError as e:
+            motivos.append(f"{base}{p}/poblacion -> HTTP {e.code} {e.reason}")
+        except urllib.error.URLError as e:
+            motivos.append(f"{base}{p}/poblacion -> {type(e.reason).__name__}: {e.reason}")
+        except TimeoutError:
+            motivos.append(f"{base}{p}/poblacion -> timeout")
+    detalle = "\n  ".join(motivos)
+    raise SystemExit(
+        f"FALLO · ni {base}/api/poblacion ni {base}/poblacion respondieron 200:\n  {detalle}"
+    )
 
 
 def _eventos(respuesta):

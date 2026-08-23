@@ -247,9 +247,20 @@ def evento_ronda(
             k: round(v, 4) for k, v in ronda.desglose_estrategias().items()
         },
         "desglose_estrategias_conteo": ronda.desglose_estrategias_conteo(),
+        # La misma p(sanción) del contrato, ponderada por firmas evasoras en vez
+        # de por trabajadores: el riesgo del que EVADE, no el de la persona
+        # representativa. Sale al lado y no en lugar de
+        # `contrato.prob_fiscalizacion`, que sigue intacto (ver el campo en
+        # `behavior/rondas.py`). Son 62,94% contra 0,99% sobre la misma `p`.
+        "prob_fiscalizacion_evasores": round(ronda.prob_fiscalizacion_evasores, 4),
         "fraccion_jornada_recortada": round(ronda.fraccion_jornada_recortada, 4),
         "fraccion_fallback": round(ronda.fraccion_fallback, 4),
         "fraccion_sin_salida": round(ronda.fraccion_sin_salida, 4),
+        # Las mismas dos ponderadas por población: "a qué fracción de la GENTE le
+        # decidió el fallback", contra "qué fracción de las VECES que se preguntó".
+        # Son +10,3 pp de diferencia y el umbral de alarma del equipo es 5%.
+        "fraccion_fallback_ponderada": round(ronda.fraccion_fallback_ponderada, 4),
+        "fraccion_sin_salida_ponderada": round(ronda.fraccion_sin_salida_ponderada, 4),
         "fraccion_poblacion_llm": round(ronda.fraccion_poblacion_llm, 4),
         "varianza_media": round(ronda.varianza_media, 4),
         "estado_por_arquetipo": {
