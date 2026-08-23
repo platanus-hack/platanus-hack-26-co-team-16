@@ -81,16 +81,31 @@ Se mide con N=5 paráfrasis, que es la regla del plan §5 (la banda se construye
 sobre paráfrasis del prompt, no sobre temperatura). Con N=1 el mismo barrido
 parecía tener estructura; no la tenía.
 
-**Lo que SÍ sobrevive, y es el hallazgo del proyecto:**
+> ### ⛔ Lo que decía este bloque quedó FALSADO — corregido el 23-ago
+>
+> Acá decía, textual: *"Lo que SÍ sobrevive, **y es el hallazgo del proyecto**: el dato A1
+> aguanta. Las siete políticas dan una brecha de **+28 a +45 pp** sobre la proyección
+> oficial."* Se corrige en vez de borrarse, porque una afirmación de resultado que
+> desaparece sin dejar rastro es peor que una equivocada.
+>
+> **Por qué está falsado:** [`VALIDATION.md`](../VALIDATION.md) lo dice con nombre propio —
+> *"`behavior/README.md` todavía afirma que el dato A1 aguanta… **contra el dato observado
+> esa afirmación está falsada**"*. El backtest fuera de muestra da error **+37,37 pp** con el
+> signo contrario al observado, y la persistencia le gana ocho veces.
+>
+> Es el defecto **S3-6** del vet del 22-ago, y siguió abierto hasta hoy.
 
-- **El dato A1 aguanta.** Las siete políticas dan una brecha de **+28 a +45 pp**
-  sobre la proyección oficial. El signo, el mecanismo y el orden de magnitud son
-  robustos aunque el nivel exacto no lo sea. La afirmación defendible es *"la
-  brecha está entre 28 y 45 puntos y no depende de qué alza elijas"*.
-  **Verificado post-fix en un punto de los siete** (23% → +33,3 pp, dentro del
-  rango): el fix del estado vivo no tumba A1. Los otros seis puntos son pre-fix.
-- **La cascada aparece en los 7 puntos:** la probabilidad de sanción cae de 6,3%
-  a 2,6–3,4% en todos. El mecanismo es consistente aunque el nivel sea ruidoso.
+**Lo que sobrevive, dicho con la precisión que aguanta:**
+
+- **La brecha interna del modelo es positiva y consistente.** Es un **resultado del motor**,
+  no una predicción validada: describe lo que el modelo hace, no lo que pasó en Bogotá.
+  Medido hoy en el camino determinista, la relación política → informalidad es **monótona no
+  decreciente en 16 puntos** (Spearman 0,96), entre −0,92 pp con alza cero y +6,07 pp desde
+  el 22% — [evidencia](../docs/evidencia/2026-08-23-E1-E2-E3.md) §E1.
+- **La cascada aparece en los 7 puntos:** la probabilidad de sanción cae de 6,3% a 2,6–3,4%
+  en todos. El mecanismo es consistente aunque el nivel sea ruidoso. **Pero su aporte al
+  agregado, medido, es +0,0 pp** en el camino determinista (§E2): el mecanismo opera y
+  todavía no cambia el resultado. Las dos cosas se publican juntas.
 
 **Consecuencia para el motor:** el test *"el barrido es monótono donde debe
 serlo"* de [`engine/MODELO.md`](../engine/MODELO.md) va a fallar, y no por un bug
@@ -320,8 +335,10 @@ python3 -m behavior.demo --llm --real --aumento 23 --parafrasis 5 \
 
 **Tres cosas que hay que decir, y una incomoda:**
 
-1. **El dato A1 aguanta el fix.** +33,3 pp sobre la proyección oficial, con el
-   signo y el mecanismo intactos. Es el hallazgo del proyecto y sigue en pie.
+1. **El dato A1 aguanta el fix**, como comportamiento del motor: +33,3 pp sobre la ronda 0,
+   con el signo y el mecanismo intactos. **No es el hallazgo del proyecto**: contra el dato
+   observado de Bogotá esa predicción está falsada (error +37,37 pp, signo contrario). Lo que
+   aguanta es que el fix no cambió lo que el modelo hace, no que el modelo acierte.
 2. **La banda se triplica, y eso empeora el dato A2, no lo mejora.** Con 33,9 pp
    de ancho en un solo punto, la conclusión de que las bandas se solapan y el
    codo no se puede afirmar queda **más firme**, no menos. Traducido a la brecha,

@@ -1,0 +1,64 @@
+{
+  "brecha_pp": 6.0717816443,
+  "identidad": {
+    "manifiesto_cache": "sin-cache",
+    "modo": "ablacion-reglas-fijas",
+    "seed": 42,
+    "versiones": {
+      "anthropic": "1.0.0",
+      "numpy": "2.3.3",
+      "pandas": "3.0.2",
+      "pyarrow": "25.0.1"
+    }
+  },
+  "poblacion": {
+    "fuente": "data/empresas.parquet (empleadores GEIH Bogotá 2026)",
+    "informalidad_observada": 0.1799,
+    "n_arquetipos": 81,
+    "peso_total": 3235639.0,
+    "universo": "ocupados con empleador; excluye cuenta propia"
+  },
+  "politica": {
+    "aumento_pct": 23.0,
+    "tipo": "cambio_costo_laboral"
+  },
+  "que_es": "Corrida canónica del simulador. NO lleva fecha a propósito: dos corridas con el mismo (seed, manifiesto, versiones) deben producir este archivo byte a byte idéntico, y un timestamp lo haría imposible de comparar.",
+  "rondas": [
+    {
+      "empleo_relativo": 1.0,
+      "estabilizada": false,
+      "ingreso_laboral_relativo": 1.0,
+      "movimiento_pp": 0.0,
+      "prob_fiscalizacion": 0.6293522942,
+      "ronda": 0,
+      "tasa_informalidad": 0.1799
+    },
+    {
+      "empleo_relativo": 1.0,
+      "estabilizada": false,
+      "ingreso_laboral_relativo": 0.9951280844,
+      "movimiento_pp": 6.0717816443,
+      "prob_fiscalizacion": 0.6293522942,
+      "ronda": 1,
+      "tasa_informalidad": 0.2406178164
+    },
+    {
+      "empleo_relativo": 1.0,
+      "estabilizada": true,
+      "ingreso_laboral_relativo": 0.991230552,
+      "movimiento_pp": 0.0,
+      "prob_fiscalizacion": 0.6197651898,
+      "ronda": 2,
+      "tasa_informalidad": 0.2406178164
+    },
+    {
+      "empleo_relativo": 1.0,
+      "estabilizada": true,
+      "ingreso_laboral_relativo": 0.988112526,
+      "movimiento_pp": 0.0,
+      "prob_fiscalizacion": 0.6197651898,
+      "ronda": 3,
+      "tasa_informalidad": 0.2406178164
+    }
+  ]
+}

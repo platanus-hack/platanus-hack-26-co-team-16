@@ -183,7 +183,7 @@ Los que aplican, y **los que no**, que es la mitad honesta de esta sección:
 
 | Concepto | Cómo aparece |
 |---|---|
-| **Emergencia** | ✅ **La cascada.** No está programada: sale de que la probabilidad de sanción decrece con el número de evasores. Nadie escribió "si muchos evaden, evade más" |
+| **Emergencia** | 🟡 **La cascada, como mecanismo.** No está programada: sale de que la probabilidad de sanción decrece con el número de evasores, y nadie escribió "si muchos evaden, evade más". **Pero no es un hallazgo del proyecto**: la predicción agregada que produce está falsada por el backtest (+37,37 pp, signo contrario) y su aporte medido al resultado es **+0,0 pp** en el camino determinista ([evidencia](evidencia/2026-08-23-E1-E2-E3.md) §E2) |
 | **Adaptación** | ✅ La firma elige estrategia dada la mecánica del cambio de costos y el agregado observado |
 | **Objetivos** | ✅ parcial. **No le imponemos función de utilidad a la firma** — la conducta la propone el LLM y la filtra el veto. El trabajador **sí** tiene objetivo explícito: neto ajustado por protección ([ADR 0008](adr/0008-asimetria-firma-trabajador.md)) |
 | **Aprendizaje** | ❌ **No hay.** Los agentes no acumulan memoria entre rondas más allá del agregado que ven. Un modelo con aprendizaje sería otra cosa y no cabe en el horizonte |

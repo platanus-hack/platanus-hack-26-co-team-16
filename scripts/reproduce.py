@@ -42,12 +42,17 @@ MOMENTOS = RAIZ / "data" / "momentos.json"
 # El escenario que se reproduce: el aumento del 23% del caso demo.
 AUMENTO_DEMO = 23.0
 SEED_DEMO = 42
+# La cobertura top-K de la corrida que generó `cache-demo.json`. Tiene que coincidir o
+# los prompts no son los mismos y la caché no acierta. Ver el comentario en `main()`.
+COBERTURA_DEMO = 0.80
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--aumento", type=float, default=AUMENTO_DEMO)
     ap.add_argument("--seed", type=int, default=SEED_DEMO)
+    ap.add_argument("--cobertura", type=float, default=COBERTURA_DEMO,
+                    help="top-K de la corrida que produjo la caché versionada")
     args = ap.parse_args(argv)
 
     if not EMPRESAS.exists():
@@ -77,13 +82,41 @@ def main(argv: list[str] | None = None) -> int:
           f"alza {args.aumento:g}%")
     print(f"informalidad observada (GEIH): {tasa:.1%}\n")
 
-    rondas = correr(
-        arquetipos,
-        cliente,
-        aumento_pct=args.aumento,
-        seed=args.seed,
-        tasa_informalidad_inicial=tasa,
-    )
+    # `cobertura_llm` NO es opcional cuando se reproduce sobre la caché versionada: la
+    # corrida que la produjo usó `--cobertura 0.80`, y la clave del caché depende del
+    # prompt, que depende de qué celdas entran al LLM. Sin este argumento la partición
+    # era otra, los prompts eran otros y la tasa de acierto caía al 6,3% — o sea que
+    # "reproduje el resultado" era, casi siempre, "corrí otra cosa".
+    def _correr(con):
+        return correr(
+            arquetipos,
+            con,
+            aumento_pct=args.aumento,
+            seed=args.seed,
+            tasa_informalidad_inicial=tasa,
+            cobertura_llm=args.cobertura,
+        )
+
+    try:
+        rondas = _correr(cliente)
+    except Exception as e:  # noqa: BLE001
+        # El try/except de arriba solo cubría CONSTRUIR el cliente. El fallo real llega
+        # más tarde, a mitad de corrida, cuando un prompt no está en la caché: entonces
+        # `SinCredenciales` sube desde `behavior/capa.py` y el script moría con exit 1.
+        #
+        # Y no es un caso raro: `cache-demo.json` se grabó con la grilla de 101
+        # arquetipos y la de hoy tiene 81, así que los prompts cambiaron y la caché ya
+        # no los cubre. Mientras eso siga así, el nivel 2 de la ADR 0009 no se puede
+        # servir y hay que decirlo en voz alta en vez de morir con un stack trace.
+        if isinstance(cliente, ClienteReglas):
+            raise
+        print(f"\n  la caché versionada NO cubre esta corrida ({type(e).__name__}).")
+        print("  Causa conocida: cache-demo.json es de la grilla de 101 arquetipos y")
+        print(f"  la de hoy tiene {len(arquetipos)}, así que los prompts ya no coinciden.")
+        print("  Se REPITE con la ablación determinista, que no depende de nada externo.\n")
+        cliente = ClienteReglas()
+        modo = "ABLACIÓN (reglas fijas, sin API) — la caché no cubrió"
+        rondas = _correr(cliente)
 
     print("ronda  informalidad  p.sanción   empleo   masa salarial")
     for r in rondas:
@@ -98,6 +131,16 @@ def main(argv: list[str] | None = None) -> int:
           f"(umbral {UMBRAL_ESTABILIDAD_PP:g} pp)")
     print(f"fallbacks: {ultima.fraccion_fallback:.1%} de las decisiones · "
           f"sin ninguna opción factible: {ultima.fraccion_sin_salida:.1%}")
+
+    # El modo se repite ACÁ ABAJO a propósito. El aviso de arriba se pierde entre el
+    # resto de la salida, y una corrida rotulada "reproducción" que en realidad usó
+    # reglas fijas es indistinguible de la buena para quien solo mira el número final.
+    print(f"\nMODO EFECTIVO DE ESTA CORRIDA: {modo}")
+    if isinstance(cliente, ClienteReglas):
+        print("  ATENCION: esto NO reproduce la corrida con LLM del artefacto publicado.")
+        print("  Es la ablacion determinista (nivel 3 de la ADR 0009): sirve para")
+        print("  comprobar que el pipeline corre y es reproducible, no para recuperar")
+        print("  el numero de `data/prediccion_modelo.json`.")
     print("\nPara verificar el determinismo: corre esto dos veces y compara.")
     return 0
 

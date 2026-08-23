@@ -72,10 +72,46 @@ def candado_g1() -> Resultado:
         faltan.append("falta requirements.txt")
     elif "anthropic==" not in requisitos.read_text(encoding="utf-8").lower():
         faltan.append("anthropic sin fijar (no está instalado)")
-    if not (RAIZ / "scripts" / "run_simulacion.py").exists():
+
+    corredor = RAIZ / "scripts" / "run_simulacion.py"
+    if not corredor.exists():
         faltan.append("falta scripts/run_simulacion.py para comparar dos corridas completas")
-    faltan.append("falta el artefacto canónico de salida y el manifiesto de caché")
-    return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+        return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+
+    # Antes acá había un `faltan.append(...)` INCONDICIONAL seguido de un return
+    # BLOQUEADO: la compuerta no podía dar verde ni aunque el artefacto existiera, y
+    # `README.md` seguía vendiendo "los 4 candados". Ahora se MIDE, que es lo que la
+    # compuerta prometía: se corre la simulación dos veces en modo reglas (determinista,
+    # sin API key, ~5 s) y se comparan los dos artefactos byte a byte. Si difieren, es
+    # FALLA de verdad y no un "pendiente".
+    primera = _ejecutar("scripts/run_simulacion.py", "--seed", "42", "--modo", "reglas")
+    if primera.returncode != 0:
+        detalle = (primera.stdout + primera.stderr).strip().splitlines()[-1:]
+        faltan.append(f"run_simulacion.py salió {primera.returncode}: {' '.join(detalle)}")
+        return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+
+    artefacto = RAIZ / "scripts" / "salidas" / "corrida-reglas-23-42.json"
+    if not artefacto.exists():
+        faltan.append("la corrida no dejó artefacto canónico")
+        return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+
+    antes = artefacto.read_bytes()
+    segunda = _ejecutar("scripts/run_simulacion.py", "--seed", "42", "--modo", "reglas")
+    despues = artefacto.read_bytes()
+    if segunda.returncode != 0 or antes != despues:
+        return Estado.FALLA, (
+            "dos corridas con el mismo (seed, manifiesto, versiones) NO dieron "
+            "salida idéntica"
+        )
+
+    if faltan:
+        return Estado.BLOQUEADO, f"{len(faltan)} bloqueos: " + "; ".join(faltan)
+
+    identidad = json.loads(artefacto.read_text(encoding="utf-8"))["identidad"]
+    return Estado.PASA, (
+        f"dos corridas idénticas byte a byte · seed={identidad['seed']} · "
+        f"manifiesto={identidad['manifiesto_cache']} · modo={identidad['modo']}"
+    )
 
 
 def candado_g2() -> Resultado:

@@ -31,43 +31,44 @@ help:
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
 
+# Corre por defecto en modo `reglas`: determinista, sin API key y USD 0,00, que es lo
+# que puede correr alguien que acaba de clonar. `make run MODO=llm` usa la capa real.
+MODO ?= reglas
+
 run:
 	@if [ -f scripts/run_simulacion.py ]; then \
-		$(PY) scripts/run_simulacion.py --seed $(SEED); \
+		$(PY) scripts/run_simulacion.py --seed $(SEED) --modo $(MODO); \
 	else \
-		echo "PENDIENTE · make run"; \
-		echo "  Falta: scripts/run_simulacion.py (R5) sobre engine/ (R2, Manuel)."; \
-		echo "  Se cablea en el checkpoint C3 (H+10): la corrida punta a punta."; \
-		echo "  Mientras tanto la referencia del flujo es docs/FLUJO.md."; \
+		echo "FALTA scripts/run_simulacion.py — este target no puede correr."; \
+		exit 1; \
 	fi
 
 # Los tests del nucleo viven en `engine/` y `behavior/`, no solo en `tests/`:
 # cada duenio los escribe en su carpeta. Este target los corria solo desde
 # `tests/` e imprimia "No hay tests todavia" mientras 58 pasaban en `engine/`.
+# `api/` estaba fuera de este target y eran 16 tests que el comando oficial nunca
+# corria: `test_guardian_corrida`, `test_serializar` y `test_trayectorias`. Un test
+# que no corre en el comando que la gente usa es un test que no existe.
 test:
 	@if ! command -v pytest >/dev/null 2>&1; then \
-		echo "PENDIENTE · make test — pytest no esta instalado (pip install -r requirements.txt)."; \
+		echo "make test NO CORRIO — pytest no esta instalado."; \
+		echo "  pip install -r requirements.txt"; \
+		exit 1; \
 	else \
-		pytest engine/ tests/ -q; \
+		pytest engine/ api/ tests/ -q; \
 		echo ""; \
 		echo "  regresiones de behavior/ (no son pytest, corren solas):"; \
 		$(PY) -m behavior.pruebas | tail -3; \
 	fi
 
+# Sale con 1 mientras haya compuertas bloqueadas, y eso es lo ESPERADO, no un fallo
+# del comando: VALIDATION.md lo declara. Un CI que exija 0 aca esta midiendo mal.
 validate:
 	@if [ -f scripts/validate.py ]; then \
 		$(PY) scripts/validate.py; \
 	else \
-		echo ""; \
-		echo "  VALIDACION — sin datos aun."; \
-		echo ""; \
-		echo "  EL numero del backtest existe en el checkpoint C5 (H+20 a H+26)."; \
-		echo "  Se publica salga como salga: un error grande medido y reportado"; \
-		echo "  vale mas que una cifra que nadie puede refutar."; \
-		echo ""; \
-		echo "  Los 4 candados y su estado: VALIDATION.md"; \
-		echo "  Metodologia completa:      docs/PLAN.md seccion 5"; \
-		echo ""; \
+		echo "FALTA scripts/validate.py — este target no puede correr."; \
+		exit 1; \
 	fi
 
 # C4 — corre en una maquina limpia SIN API key. Importa la cache versionada del
@@ -77,7 +78,8 @@ reproduce:
 	@if [ -f scripts/reproduce.py ]; then \
 		$(PY) scripts/reproduce.py --seed $(SEED); \
 	else \
-		echo "PENDIENTE · make reproduce — llega junto con el numero de validacion (C5)."; \
+		echo "FALTA scripts/reproduce.py — este target no puede correr."; \
+		exit 1; \
 	fi
 
 estado:
