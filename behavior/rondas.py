@@ -137,6 +137,22 @@ class Ronda:
     # consume la pantalla y `contracts/ronda.json` está congelado desde H+4.
     # Mover una cifra publicada rompe consumidores; agregar la que falta, no.
     prob_fiscalizacion_evasores: float = 0.0
+    # La MISMA informalidad, ponderada por el empleo que SOBREVIVE.
+    #
+    # `tasa_informalidad` pondera por el peso ORIGINAL de la celda, mientras
+    # `empleo_relativo` justo al lado ya usa `fraccion_empleada`: una celda que
+    # despide media planta sigue aportando su masa informal completa, como si
+    # los despedidos siguieran ahí siendo informales. Son dos denominadores
+    # distintos conviviendo en el mismo contrato.
+    #
+    # Medido, y por eso NO se cambia la publicada: en el camino determinista
+    # (`modo=reglas`, el que usa el backtest) el empleo no se mueve —100% en
+    # todas las rondas— así que la diferencia es **exactamente 0,00 pp**. En el
+    # camino LLM el empleo bajó a 98,98% en la peor corrida observada, o sea
+    # ~0,4 pp de corrección: real, y dos órdenes de magnitud por debajo del
+    # error de 37,37 pp del backtest. Va al lado para que se pueda auditar
+    # cuál de los dos denominadores se está mirando.
+    tasa_informalidad_sobre_empleo_vivo: float = 0.0
     # Las MISMAS dos fracciones, ponderadas por población en vez de por conteo
     # de decisiones.
     #
@@ -434,6 +450,10 @@ def correr(
         tasa_informalidad=tasa,
         prob_fiscalizacion=prob_inicial,
         prob_fiscalizacion_evasores=prob_inicial_evasores,
+        # En la ronda 0 nadie ha despedido, así que las dos ponderaciones
+        # coinciden por construcción. Se llena igual para que el campo no
+        # aparezca en 0,0 y parezca un dato faltante.
+        tasa_informalidad_sobre_empleo_vivo=tasa,
         empleo_relativo=1.0,
         # La proyección oficial es un punto, no una distribución: no tiene banda
         # porque no hay nada estocástico que la genere. Se marca degenerada en
@@ -586,6 +606,27 @@ def correr(
         empleo_relativo = (
             sum(a.peso * estado.fraccion_empleada[a.id] for a in arquetipos) / peso_total
         )
+        # La misma informalidad sobre el empleo que sobrevive: mismo numerador
+        # que `tasa` pero cada celda entra con la planta que le queda, no con la
+        # que tenía. Si no sobrevive nadie no hay tasa que reportar y se deja en
+        # 0,0 en vez de dividir por cero o inventar un promedio.
+        peso_vivo = sum(
+            a.peso * estado.fraccion_empleada[a.id] for a in arquetipos
+        )
+        tasa_sobre_empleo_vivo = (
+            min(
+                1.0,
+                sum(
+                    a.peso
+                    * estado.fraccion_empleada[a.id]
+                    * estado.fraccion_informal[a.id]
+                    for a in arquetipos
+                )
+                / peso_vivo,
+            )
+            if peso_vivo > 0
+            else 0.0
+        )
         # A4 — la masa salarial que sobrevive: empleo × jornada. Un trabajador
         # que conserva el puesto con media jornada cuenta como medio. Es la
         # CUARTA cifra del plan y es material nuevo para el mapa distributivo:
@@ -660,6 +701,7 @@ def correr(
             traslado_precios_pct=traslado_precios,
             fraccion_fallback=fraccion_fallback,
             fraccion_sin_salida=fraccion_sin_salida,
+            tasa_informalidad_sobre_empleo_vivo=tasa_sobre_empleo_vivo,
             fraccion_fallback_ponderada=fraccion_fallback_ponderada,
             fraccion_sin_salida_ponderada=fraccion_sin_salida_ponderada,
             estado_por_arquetipo={

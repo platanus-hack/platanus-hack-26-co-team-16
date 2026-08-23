@@ -453,6 +453,7 @@ def critico_3_el_costo_de_formalizarse_es_el_costo_completo() -> None:
     """
     print("\nCrítico #3 — el costo real de formalizarse")
     from behavior.ablacion import FACTOR_PRESTACIONAL, ClienteReglas, barrer_factor
+    from engine.veto import MESES_POR_RONDA
 
     informal = Arquetipo(
         id="y-inf", sector="comercio", tamano="micro", formal=False, tramo_ingreso="t1",
@@ -470,38 +471,80 @@ def critico_3_el_costo_de_formalizarse_es_el_costo_completo() -> None:
         salida["justificacion"],
     )
 
-    # El punto de indiferencia analítico: F(1+a) = 1 + 12p
-    p_ind = (FACTOR_PRESTACIONAL * 1.23 - 1) / 12
-    _check(abs(p_ind - 0.0602) < 5e-4, f"punto de indiferencia p* = {p_ind:.2%} (era 1,92%)")
+    # El punto de indiferencia analítico, AHORA CON TODO EN COP/TRIMESTRE:
+    #
+    #     3·F·(1+a) = 3 + 12p        =>    p* = (F(1+a) − 1) · 3 / 12
+    #
+    # El `3` de la izquierda es el costo formal del trimestre; el `3` de la
+    # derecha es el salario del trimestre; el `12p` es la sanción esperada del
+    # trimestre (`p` es la probabilidad trimestral y la multa son 12 meses de
+    # ingreso, un MONTO y no un flujo, así que no se multiplica).
+    #
+    # Antes la fórmula era `F(1+a) = 1 + 12p` y daba p* = 6,02%: comparaba UN MES
+    # de costo formal contra UN MES de salario más un trimestre entero de sanción
+    # esperada, o sea que la sanción pesaba 3x de más y la regla formalizaba
+    # demasiado pronto. Con las unidades emparejadas, p* = 18,05%.
+    p_ind = (FACTOR_PRESTACIONAL * 1.23 - 1) * MESES_POR_RONDA / 12
+    _check(
+        abs(p_ind - 0.1805) < 5e-4,
+        f"punto de indiferencia p* = {p_ind:.2%} (era 6,02% con las unidades mezcladas)",
+    )
 
-    # Por debajo de p* sigue informal; por encima se formaliza. La regla ya no
-    # formaliza a todo el mundo ante cualquier probabilidad realista.
-    baja = ClienteReglas().proponer("", "", contexto={**ctx, "prob_fiscalizacion": 0.03})
-    alta = ClienteReglas().proponer("", "", contexto={**ctx, "prob_fiscalizacion": 0.09})
-    _check(baja["estrategia_propuesta"] == "absorber", "con p=3% sigue fuera de regla")
-    _check(alta["estrategia_propuesta"] == "cumplir", "con p=9% se formaliza")
+    # Por debajo de p* sigue informal; por encima se formaliza. Los dos valores
+    # abrazan el umbral NUEVO, y se comprueba justo a los dos lados: el código y
+    # la fórmula analítica tienen que voltear en el mismo punto.
+    baja = ClienteReglas().proponer("", "", contexto={**ctx, "prob_fiscalizacion": 0.18})
+    alta = ClienteReglas().proponer("", "", contexto={**ctx, "prob_fiscalizacion": 0.19})
+    _check(baja["estrategia_propuesta"] == "absorber", "con p=18% sigue fuera de regla")
+    _check(alta["estrategia_propuesta"] == "cumplir", "con p=19% se formaliza")
+    muy_baja = ClienteReglas().proponer("", "", contexto={**ctx, "prob_fiscalizacion": 0.03})
+    _check(
+        muy_baja["estrategia_propuesta"] == "absorber",
+        "y con p=3% —la banda realista— por supuesto sigue fuera de regla",
+    )
 
-    # EL HALLAZGO CAMBIÓ, y el cambio es a favor del proyecto.
+    # EL HALLAZGO VOLVIÓ A CAMBIAR, y esta vez NO es a favor del proyecto.
+    # Este comentario se reescribe entero porque decía lo contrario de lo medido.
     #
-    # Antes: el signo del candado 4 se volteaba dentro del rango que
-    # `engine/MODELO.md` declara incierto para S1 — con F=1,40 no había cascada
-    # y con F=1,45 sí. O sea que la conclusión dependía de un parámetro que
-    # nadie había medido, y eso era el defecto §3.3.
+    # Historia, en tres actos:
     #
-    # Ahora, con la grilla real de empleadores (C1: cada celda trae SU factor,
-    # entre 1,3835 y 1,5829) y con la fiscalización del motor (C2: p(sanción)
-    # con fuente de la OIT en vez del 0,02 inventado), el resultado es ESTABLE
-    # en todo el rango declarado. El factor dejó de decidir el signo.
+    #  1. El defecto §3.3 original: el SIGNO del candado 4 se volteaba dentro del
+    #     rango que `engine/MODELO.md` declara incierto — con F=1,40 no había
+    #     cascada y con F=1,45 sí. La conclusión dependía de un parámetro que
+    #     nadie había medido.
+    #  2. Con la grilla real (C1: cada celda trae SU factor, 1,3835–1,5829) y la
+    #     fiscalización del motor (C2), la dispersión bajó de 2 pp y se declaró
+    #     que el factor había dejado de decidir. Este test lo congeló.
+    #  3. Al emparejar las unidades de `ablacion.py` (COP/mes sumado con
+    #     COP/trimestre, la mitad de A3 que faltaba), **la dependencia vuelve**:
     #
-    # Se prueba la robustez, no un valor: si mañana el resultado vuelve a
-    # depender del factor, este test lo dice.
+    #        F=1,35 -> 28,57% | F=1,40 -> 28,57% | F=1,45 -> 33,50%
+    #        F=1,50 -> 33,50% | F=1,58 -> 33,50% | dispersión = 4,93 pp
+    #
+    # O sea que la robustez del acto 2 era en parte artefacto del defecto de
+    # unidades. Lo que se puede seguir afirmando, y es menos de lo que se
+    # afirmaba: el SIGNO es estable —en los cinco factores la informalidad final
+    # queda por encima del placebo (21,24%), o sea que la política siempre
+    # empeora la informalidad— pero la MAGNITUD se mueve ~5 pp según un parámetro
+    # que el modelo no midió.
+    #
+    # Por eso el candado cambia de pregunta en vez de aflojarse: antes preguntaba
+    # "¿el factor da igual?" (respuesta de hoy: NO) y ahora pregunta "¿el signo
+    # aguanta, y la dependencia no está creciendo?". La cota de 6 pp está apenas
+    # encima de los 4,93 medidos: si alguien empeora la sensibilidad, salta.
     barrido = barrer_factor([1.35, 1.40, 1.45, 1.50, 1.58])
     valores = [inf for _f, inf, _p in barrido]
     dispersion = max(valores) - min(valores)
     _check(
-        dispersion < 0.02,
-        f"el candado 4 ya NO depende del factor prestacional "
-        f"(dispersión {dispersion:.1%} en el rango 1,35-1,58)",
+        all(v > 0.2124 for v in valores),
+        "EL SIGNO aguanta: con los 5 factores la informalidad final supera el "
+        f"placebo (21,24%) — {[f'{v:.1%}' for v in valores]}",
+    )
+    _check(
+        dispersion < 0.06,
+        f"la MAGNITUD sí depende del factor prestacional y no está creciendo "
+        f"(dispersión {dispersion:.2%} en el rango 1,35-1,58; era <2% cuando las "
+        f"unidades estaban mezcladas)",
         f"valores: {[f'{v:.1%}' for v in valores]}",
     )
     _check(
