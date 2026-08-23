@@ -1,0 +1,20 @@
+{
+  "que_es": "Calibracion auditable de la elasticidad de visibilidad. Minimiza la media absoluta del error de informalidad por tamano, ponderada por trabajadores GEIH, en la ablacion sin politica.",
+  "alfa": 1.875,
+  "error_pp_por_tamano": {
+    "grande": -0.81,
+    "micro": 0.379045,
+    "pyme": -10.57
+  },
+  "error_total_pp": 2.918056,
+  "objetivos": {
+    "grande": 0.0081,
+    "micro": 0.6672,
+    "pyme": 0.1057
+  },
+  "fecha": "2026-08-22",
+  "comando_para_regenerar": "python scripts/calibrar_visibilidad.py",
+  "brecha_irreducible_pp": 10.77,
+  "nota_brecha_irreducible": "Aplicando las tres tasas observadas por tamano de momentos.json sobre los pesos de trabajadores de empresas.parquet, el agregado maximo alcanzable es 19.80%, pero momentos.json declara 30.57%. Ninguna alfa puede cerrar esos 10.77 pp: es la incoherencia entre poblacion.parquet (de donde sale momentos.json) y empresas.parquet (sobre la que corre el motor), o sea el defecto 3.4 de DEFECTOS.md. El error_total_pp de arriba mide el ajuste POR TAMANO, que es lo unico que esta grilla permite ajustar.",
+  "error_pyme_no_ajustable": "pyme queda en 0.0% contra 10.6% observado porque la regla de ablacion es determinista y las celdas son homogeneas: cada celda solo puede salir 0% o 100% informal. Una tasa intermedia del 10.6% exige heterogeneidad DENTRO de la celda, que hoy no existe."
+}
