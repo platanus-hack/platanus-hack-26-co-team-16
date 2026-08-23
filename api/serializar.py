@@ -256,6 +256,13 @@ def evento_ronda(
         "fraccion_jornada_recortada": round(ronda.fraccion_jornada_recortada, 4),
         "fraccion_fallback": round(ronda.fraccion_fallback, 4),
         "fraccion_sin_salida": round(ronda.fraccion_sin_salida, 4),
+        # La misma informalidad sobre el empleo que SOBREVIVE. La publicada
+        # pondera por el peso original de la celda, o sea que quien fue despedido
+        # sigue contando como informal. 0,00 pp de diferencia en el camino
+        # determinista, ~0,4 pp en el del LLM.
+        "tasa_informalidad_sobre_empleo_vivo": round(
+            ronda.tasa_informalidad_sobre_empleo_vivo, 4
+        ),
         # Las mismas dos ponderadas por población: "a qué fracción de la GENTE le
         # decidió el fallback", contra "qué fracción de las VECES que se preguntó".
         # Son +10,3 pp de diferencia y el umbral de alarma del equipo es 5%.
