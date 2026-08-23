@@ -9,6 +9,45 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-23 — EL DEPLOY ESTÁ VIVO** + el pre-compromiso. Rama `rol/integracion-deploy`.
+
+  - **https://enjambre-web.onrender.com** — abre sin registro, y el humo de la cadena
+    completa pasa contra producción. La API es `https://enjambre-api.onrender.com`.
+    `deploy-url` y `project-description.md` ya no son placeholders: **la entrega cuenta**.
+  - **La rama NO se llama `rol/integracion/deploy`.** Git no deja crear esa ref porque
+    ya existe la rama `rol/integracion` (una ref no puede ser rama y carpeta a la vez).
+    Quedó `rol/integracion-deploy`. Si vas a colgar otra rama de la tuya, mismo problema.
+  - **Los dos servicios en Render, no Vercel, y hay dato:** la interfaz es 100% cliente y
+    pide `/api/...` relativo, así que el servidor de Next hace de **proxy del SSE**, y
+    Vercel corta los rewrites con destino externo a **120 s** (una corrida LLM tarda 166 s).
+    Render aguanta 100 minutos. Beneficio lateral: no hubo que tocar un archivo de `web/`.
+  - 🔴 **`ENJAMBRE_API` se lee en el BUILD, no al arrancar.** `next build` congela el
+    destino del rewrite en `.next/routes-manifest.json`. Si el build corre sin la
+    variable, el front queda apuntando a `localhost:8000` dentro de su contenedor: la
+    página carga perfecta y **ninguna simulación arranca nunca**. Falla en silencio.
+    Cambiarla exige rebuild (editarla en el dashboard ya lo dispara).
+  - 🔴 **Render define `NODE_ENV=production`**, así que `npm ci` a secas se salta las
+    devDependencies — y `typescript` vive ahí. El primer build del front murió por eso.
+    Se arregló con `--include=dev` en `render.yaml`, no moviendo paquetes en el
+    `package.json` de Dani.
+  - **Una llave de Anthropic se quemó** al pegarse por error en `ENJAMBRE_API`: quedó
+    impresa en el log de build de Render. Se rotó. Si volvés a tocar variables, ojo con
+    cuál va en cuál servicio.
+  - **Plata:** $50/mes entre los dos servicios ≈ 30 días de crédito. **A partir de
+    ~23-sep-2026 le cae a la tarjeta.** Suspenderlos cuando pase la votación — está
+    escrito en `docs/DEPLOY.md` para que no dependa de que alguien se acuerde.
+  - **El pre-compromiso ya está commiteado**, o sea que Nico y Alejo pueden correr S3-1.
+    Va DESPUÉS del bloque pre-registrado: ese bloque tiene un comparador contra `2d4aa7e`
+    y meterse en el medio da un falso positivo. Verificado: `idéntico: True | 1056 vs 1056`.
+  - **Retractada** la frase de `VALIDATION.md` sobre "fuera de muestra de verdad", y
+    **corregida** la brecha proxy-oficial (decía ≈2,1 pp, la resta da 2,49 — estaba
+    subestimada a favor nuestro; lo levantó Alejo).
+  - **Pendiente de C2 y NO lo hice:** `README.md:23`, `AGENTS.md:3`, `docs/PLAN.md` §1.1 y
+    `docs/IDEA.md:145,154` siguen por revisar. En los archivos que sí toqué
+    (`platanus-hack-project.jsonc`, `project-description.md`) la cascada ya está escrita
+    como **mecanismo**, no como hallazgo. También sigue pendiente
+    `docs/agents/handoff-alejo.md:33`, que cita el −2,1 pp viejo: es de él.
+
 - **2026-08-22 · H+18 — el barrido adaptado al `main` post-PR #12**, en `rol/integracion`.
 
   - **`main` se movió debajo de la rama y el barrido dejó de correr.** La corrección C2

@@ -19,8 +19,8 @@
 
 | Servicio | URL | Qué es |
 |---|---|---|
-| `enjambre-web` | *(se llena al desplegar)* | **La URL de la entrega.** Es la que va en `platanus-hack-project.jsonc` |
-| `enjambre-api` | *(se llena al desplegar)* | El motor. Útil para depurar: `GET /poblacion` y `GET /simulaciones/flujo` |
+| `enjambre-web` | **https://enjambre-web.onrender.com** | **La URL de la entrega.** Es la que va en `platanus-hack-project.jsonc` |
+| `enjambre-api` | https://enjambre-api.onrender.com | El motor. Útil para depurar: `GET /poblacion` y `GET /simulaciones/flujo` |
 
 La interfaz es 100% cliente y pide `/api/...` **relativo**, así que el navegador nunca habla directo
 con la API: el servidor de Next hace de proxy. Por eso son dos servicios y no uno, y por eso el
@@ -53,6 +53,11 @@ dos servicios y no `free`.
 
 Se cobra prorrateado por segundo, y el crédito se descuenta solo de la factura del **workspace**. La
 única forma de perderlo es crear los servicios en un workspace distinto al que tiene el saldo.
+
+> **Acordarse de apagarlo.** $50 de crédito ÷ $50/mes ≈ **30 días de autonomía**: a partir de
+> ~23-sep-2026 la factura le empieza a caer a la tarjeta. Cuando pase la votación, en cada servicio
+> *Settings → Suspend* (o bajarlos a `free`, que los deja en línea pero con spin-down). No depende de
+> que alguien se acuerde en el momento: está escrito acá.
 
 **Anthropic es otra factura.** Cada clic en "Simular" son llamadas reales al modelo (~$1,26 medidos
 con Sonnet 5 y una paráfrasis), y las paga la cuenta de la llave que esté en `ANTHROPIC_API_KEY`. Los
@@ -96,8 +101,8 @@ arranca nunca**. Falla en silencio, que es la peor forma de fallar.
 ## Verificar que sirve
 
 ```bash
-make humo URL=https://enjambre-web-xxxx.onrender.com          # $0, ~2 s
-make humo URL=https://enjambre-web-xxxx.onrender.com LLM=1    # el camino real, gasta créditos
+make humo URL=https://enjambre-web.onrender.com          # $0, ~2 s
+make humo URL=https://enjambre-web.onrender.com LLM=1    # el camino real, gasta créditos
 ```
 
 El humo abre el SSE y consume los eventos a medida que llegan: comprueba que llegan las 4 rondas y el
