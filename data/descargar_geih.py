@@ -79,7 +79,14 @@ def ids_desde_catalogo(catalogo: int) -> dict[str, int]:
             texto = html.unescape(re.sub(r"<[^>]+>", " ", fila)).lower()
             ids = {int(x) for x in patron_id.findall(html.unescape(fila))}
             for mes in MESES:
-                if mes in texto:
+                # ANDA no nombra igual los archivos de cada año: 2026 usa
+                # "Enero 2026.zip", 2024 usa "Ene_2024.zip", "Mayo_2024 1.zip" y
+                # "Abril 2024.zip" en la misma página. Buscar el mes completo
+                # dejaba 2024 sin un solo ID. Se busca el prefijo de tres letras
+                # ANCLADO AL AÑO, que es lo único estable entre años; el ancla
+                # evita que un "mar" suelto en cualquier texto cuente como marzo.
+                patron_mes = rf"\b{mes[:3]}[a-z]*[ _-]*20\d\d\b"
+                if re.search(patron_mes, texto):
                     encontrados[mes].update(ids)
 
     ambiguos = {mes: sorted(ids) for mes, ids in encontrados.items() if len(ids) != 1}
@@ -135,6 +142,19 @@ def main() -> None:
         if not destino.exists():
             with zipfile.ZipFile(zip_path) as z:
                 z.extractall(destino)
+            # El DANE no empaqueta igual todos los meses. En 2024 conviven TRES
+            # variantes: carpeta anidada (`Ene_2024/CSV/`), directa (`CSV/`) y
+            # ZIP DENTRO DEL ZIP (`CSV.zip`, en marzo y abril). Sin esto, esos
+            # dos meses quedaban como carpetas vacias y el año entero se caia.
+            for interno in sorted(destino.rglob("*.zip")):
+                salida = interno.with_suffix("")
+                if salida.exists():
+                    continue
+                try:
+                    with zipfile.ZipFile(interno) as z:
+                        z.extractall(salida)
+                except zipfile.BadZipFile:
+                    print(f"  aviso: {interno.name} no es un ZIP valido, se deja como esta")
 
         registro["archivos"].append(
             {"mes": mes, "url_descarga": url, "archivo": zip_path.name, "sha256": sha256_de(zip_path)}

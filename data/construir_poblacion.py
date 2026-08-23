@@ -82,8 +82,42 @@ def cuantil_ponderado(valores: np.ndarray, pesos: np.ndarray, q: float) -> float
     return float(np.interp(q * w.sum(), acum, v))
 
 
+def _carpeta_csv(anio: int, mes: str) -> Path:
+    """Localiza la carpeta CSV del mes, tolerando el anidamiento del ZIP.
+
+    Los ZIP del DANE no traen la misma estructura todos los años. 2025 y 2026
+    descomprimen a `GEIH_<anio>_<mes>/CSV/`; los de 2024 traen una carpeta más
+    adentro (`GEIH_2024_enero/Ene_2024/CSV/`), porque ANDA los publica con el
+    nombre del mes abreviado. Es una diferencia de empaquetado, no de contenido:
+    los ocho módulos y sus nombres son idénticos.
+
+    Se busca a un nivel y luego a dos, y NADA MÁS. Si apareciera un tercer nivel
+    hay que mirarlo a mano en vez de barrer el árbol entero: un `rglob` podría
+    engancharse con la carpeta de otro mes y mezclar períodos en silencio.
+    """
+    raiz = RAW / f"GEIH_{anio}_{mes}"
+    if not raiz.is_dir():
+        raise FileNotFoundError(f"no existe {raiz}; corre data/descargar_geih.py --anio {anio}")
+
+    # La carpeta buena es la que CONTIENE los modulos, no la que se llama "CSV":
+    # en marzo y abril de 2024 hay un `CSV/CSV/` porque el ZIP venia doble, y
+    # quedarse con el primer `CSV` daba una carpeta sin datos.
+    candidatas = sorted(
+        {p.parent for p in raiz.rglob("Ocupados.CSV")}
+        | {p.parent for p in raiz.rglob("Ocupados.csv")}
+    )
+    if len(candidatas) == 1:
+        return candidatas[0]
+    if not candidatas:
+        raise FileNotFoundError(f"no encontre Ocupados.CSV bajo {raiz}")
+    raise RuntimeError(
+        f"{raiz} tiene {len(candidatas)} carpetas con Ocupados.CSV: {[str(c) for c in candidatas]}. "
+        "No se adivina cual es el mes; revisalo a mano antes de mezclar periodos."
+    )
+
+
 def cargar_mes(mes: str, anio: int = 2026) -> pd.DataFrame:
-    base = RAW / f"GEIH_{anio}_{mes}" / "CSV"
+    base = _carpeta_csv(anio, mes)
     occ = pd.read_csv(base / "Ocupados.CSV", sep=";", encoding="latin-1", low_memory=False)
     occ = occ[occ["AREA"] == AREA_BOGOTA]
     # El nombre del archivo varia entre meses (p.ej. abril: "Capítulos de
