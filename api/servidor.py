@@ -43,6 +43,7 @@ from behavior.ablacion import ClienteReglas
 from behavior.arquetipos import (
     desde_empresas,
     informalidad_observada,
+    particionar_por_peso,
     poblacion_cuenta_propia,
 )
 from behavior.cliente import ClienteConductual, SinCredenciales
@@ -77,36 +78,65 @@ RONDAS_TOTALES = 4
 # esto pasa a "trayectoria" y es la única línea que cambia.
 SEED_EFECTO = "etiqueta"  # "etiqueta" | "trayectoria"
 
-# El tope de gasto de UNA corrida del producto, derivado de una medición y no
-# elegido a ojo. V-1.
+# El tope de gasto de UNA corrida, derivado de la corrida QUE SE PIDIÓ. V-1.
 #
 # Lo medido (R3, 23-08-2026, `behavior/README.md` §Costo): una corrida en frío
 # con `claude-sonnet-5` sobre la grilla real y cobertura 0,80 son **94 llamadas
-# y USD 1,26**. Eso es UNA trayectoria. La banda que se publica sale de
-# `N_TRAYECTORIAS` trayectorias completas, así que el costo en frío de la
-# corrida del producto es ese número por N: **USD 6,30 con N=5**.
+# y USD 1,26**, o sea USD 0,0134 por llamada.
 #
-# El tope que había era 3,00 —el mismo literal que `behavior.presupuesto`, otra
-# vez dos fuentes cuadrando por casualidad (S2-9)—, y venía de cuando una
-# corrida era una trayectoria. Con 5 se agotaba cerca de la segunda. Y el modo
-# de falla no era "la corrida se para": `correr_consolidada()` consolida con las
-# que alcanzaron, así que la corrida TERMINABA bien y publicaba una banda sobre
-# 2 trayectorias donde el contrato promete la de 5. Un tope mal puesto no se ve
-# como un error, se ve como un resultado.
+# Por qué el tope no puede ser UN número. El tope que había era 3,00 —el mismo
+# literal que `behavior.presupuesto`, dos fuentes cuadrando por casualidad
+# (S2-9)— y venía de cuando una corrida era UNA trayectoria. Con 5 se agotaba
+# cerca de la segunda. Pero subirlo a un número más grande solo mueve el
+# problema: un número fijo o corta una corrida legítima (y entonces miente) o
+# deja pasar una corrida desbocada (y entonces cuesta). Los dos modos de falla
+# existen porque el costo de la corrida NO es constante: depende de la cobertura
+# top-K, de cuántas trayectorias se pidieron y de cuántas paráfrasis por ronda.
 #
-# SUPUESTO: el costo por trayectoria escala lineal con `N_TRAYECTORIAS` y la
-# medición se hizo con `cobertura=0,80`; bajarla abarata la corrida y subirla la
-# encarece, y ninguna de las dos rompe el tope hacia abajo. El margen cubre que
-# la medición es UNA corrida (el largo de la respuesta varía) y que el ~0,1% de
-# respuestas que no parsean se reintenta, o sea que gasta dos veces.
-# El corte sigue siendo DURO: subir el tope no gasta más, solo cambia qué
-# significa que salte. Antes saltar era el final normal; ahora es una señal.
-USD_POR_TRAYECTORIA_EN_FRIO = 1.26
+# Lo grave del tope corto no era que la corrida se parara. `correr_consolidada()`
+# consolida con las trayectorias que alcanzaron, así que la corrida TERMINABA
+# bien y publicaba una banda sobre 2 donde el contrato promete la de 5. Un tope
+# mal puesto no se ve como un error, se ve como un resultado.
+#
+# Entonces el tope se calcula por request, con la cuenta EXACTA de llamadas que
+# esa corrida va a hacer: `particionar_por_peso()` dice cuántas celdas entran al
+# LLM con esa cobertura (no es una estimación, es la misma función que usa el
+# motor). Así el corte no salta nunca en una corrida legítima —o sea que si
+# salta, algo se desbocó— y una corrida barata no queda autorizada a gastar como
+# la cara.
+#
+# SUPUESTO: el costo por llamada es el de la medición y se supone estable entre
+# celdas. El margen cubre que la medición es UNA corrida (el largo de la
+# respuesta varía) y que el ~0,1% de respuestas que no parsean se reintenta, o
+# sea que gasta dos veces.
+USD_POR_LLAMADA_EN_FRIO = 1.26 / 94
 MARGEN_TOPE = 1.25
-TOPE_USD = round(USD_POR_TRAYECTORIA_EN_FRIO * N_TRAYECTORIAS * MARGEN_TOPE, 2)
-# El techo que la API acepta por request. Derivado, no literal: así no puede
-# quedar por debajo del default el día que `N_TRAYECTORIAS` cambie.
-TOPE_USD_MAXIMO = round(TOPE_USD * 2, 2)
+
+# El techo absoluto, y la única cifra de acá que es un juicio y no una cuenta.
+# El equipo tiene ~USD 230 vivos entre los 5 (2026-08-23). La corrida más cara
+# que tiene sentido pedir —cobertura 1,00, las 81 celdas, 5 trayectorias— cuesta
+# USD 16,29 medidos, USD 20,36 con margen. El techo se pone encima de eso para
+# no clipar la corrida de máxima calidad, y ahí se queda: es el 11% de la bolsa
+# del equipo, o sea el peor caso individual que el proyecto puede absorber sin
+# que una sola corrida se coma la tarde de otro.
+TOPE_USD_MAXIMO = 25.0
+
+
+def llamadas_de_la_corrida(cobertura: float, trayectorias: int, parafrasis: int) -> int:
+    """Cuántas llamadas al LLM va a hacer esta corrida. Exacto, no estimado.
+
+    La ronda 0 es la reacción ingenua y no llama al LLM (ADR 0005), así que las
+    rondas que cuestan son `RONDAS_TOTALES - 1`.
+    """
+    celdas, _cola = particionar_por_peso(_grilla(), cobertura)
+    return len(celdas) * (RONDAS_TOTALES - 1) * trayectorias * parafrasis
+
+
+def tope_derivado(cobertura: float, trayectorias: int, parafrasis: int) -> float:
+    """Lo que esta corrida debería costar en frío, con margen. En USD."""
+    n = llamadas_de_la_corrida(cobertura, trayectorias, parafrasis)
+    return round(n * USD_POR_LLAMADA_EN_FRIO * MARGEN_TOPE, 2)
+
 
 app = FastAPI(title="enjambre-api", docs_url=None, redoc_url=None)
 app.add_middleware(
@@ -172,16 +202,18 @@ def flujo(
             "Multiplica el costo por su valor: déjalo en 1."
         ),
     ),
-    tope_usd: float = Query(
-        TOPE_USD,
+    tope_usd: float | None = Query(
+        None,
         gt=0.0,
         le=TOPE_USD_MAXIMO,
         description=(
-            "Corte DURO de gasto para la corrida entera, no por trayectoria. El "
-            "default sale de una medición (94 llamadas / USD 1,26 por "
-            "trayectoria en frío) por N_TRAYECTORIAS, con margen. Si salta, la "
-            "corrida se consolida con las trayectorias que alcanzaron y "
-            "`trayectorias_efectivas` lo declara en el evento `fin`."
+            "Corte DURO de gasto para la corrida ENTERA, no por trayectoria. "
+            "Vacío = se deriva de la corrida que se pidió (celdas × rondas con "
+            "LLM × trayectorias × paráfrasis × USD 0,0134 medidos × 1,25 de "
+            "margen), que es lo que se quiere casi siempre: así el corte no "
+            "salta nunca en una corrida legítima y saltar significa que algo se "
+            "desbocó. Si salta, la corrida se consolida con las trayectorias "
+            "que alcanzaron y `trayectorias_efectivas` lo declara en `fin`."
         ),
     ),
     modo: str = Query("llm", pattern="^(llm|reglas)$"),
@@ -208,9 +240,31 @@ def _generar(
     cobertura: float,
     trayectorias: int,
     parafrasis: int,
-    tope_usd: float,
+    tope_usd: float | None,
     modo: str,
 ) -> Iterator[str]:
+    # El tope, antes del candado y antes de gastar un peso. Si la corrida que
+    # pidieron no cabe en el techo, se dice CUÁNTO cuesta y QUÉ bajar, en vez de
+    # correrla a medias y publicar una banda sobre menos trayectorias de las
+    # prometidas.
+    llamadas_previstas = llamadas_de_la_corrida(cobertura, trayectorias, parafrasis)
+    derivado = tope_derivado(cobertura, trayectorias, parafrasis)
+    if tope_usd is None:
+        if derivado > TOPE_USD_MAXIMO:
+            yield _sse(
+                "error",
+                {
+                    "mensaje": (
+                        f"esta corrida cuesta ~${derivado:.2f} en frío "
+                        f"({llamadas_previstas} llamadas) y el techo es "
+                        f"${TOPE_USD_MAXIMO:.2f}. Baja `cobertura`, `trayectorias` "
+                        f"o `parafrasis`, o pasa `tope_usd` a mano."
+                    )
+                },
+            )
+            return
+        tope_usd = derivado
+
     if not _ocupado.acquire(blocking=False):
         yield _sse("error", {"mensaje": "ya hay una corrida en curso; espera a que termine"})
         return
@@ -344,7 +398,8 @@ def _generar(
         f"\n=== corrida: aumento {aumento_pct:g}% · seed {seed} ({SEED_EFECTO}) · "
         f"modo {modo} · "
         f"cobertura {cobertura:g} · {trayectorias} trayectorias × {parafrasis} "
-        f"paráfrasis · {total} arquetipos ==="
+        f"paráfrasis · {total} arquetipos · ~{llamadas_previstas} llamadas · "
+        f"tope ${tope_usd:.2f} ==="
     )
     try:
         yield _sse(
@@ -362,6 +417,13 @@ def _generar(
                 "trayectorias": trayectorias,
                 "parafrasis": parafrasis,
                 "n_arquetipos": total,
+                # Lo que esta corrida va a costar y dónde está su corte duro. La
+                # pantalla puede decirlo antes de que el usuario espere 15
+                # minutos, y el juez que pregunta "¿cuánto les cuesta mover el
+                # slider?" tiene el número en el primer evento.
+                "llamadas_previstas": llamadas_previstas,
+                "tope_usd": tope_usd,
+                "tope_derivado_usd": derivado,
             },
         )
         while True:

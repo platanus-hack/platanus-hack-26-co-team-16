@@ -158,30 +158,57 @@ def test_con_una_sola_trayectoria_la_banda_no_miente():
     assert rondas[-1].banda.get("tipo") != "entre_trayectorias"
 
 
-def test_el_tope_paga_las_n_trayectorias():
-    """V-1. El tope por defecto tiene que alcanzar para la corrida que promete.
+def test_el_tope_paga_la_corrida_que_promete():
+    """V-1. El tope derivado tiene que cubrir la corrida que se pidió.
 
-    No prueba una fórmula, prueba que la plata alcanza. Si mañana alguien sube
-    `N_TRAYECTORIAS` sin tocar el tope, la corrida no fallaría: terminaría bien y
-    publicaría una banda sobre menos trayectorias de las declaradas, que es peor
-    que un error porque parece un resultado. Este test es el que grita.
+    No prueba una fórmula, prueba que la plata alcanza. Si el tope se queda
+    corto la corrida no falla: termina bien y publica una banda sobre menos
+    trayectorias de las declaradas, que es peor que un error porque parece un
+    resultado. Este test es el que grita.
     """
     from api.servidor import (
         MARGEN_TOPE,
-        TOPE_USD,
         TOPE_USD_MAXIMO,
-        USD_POR_TRAYECTORIA_EN_FRIO,
+        USD_POR_LLAMADA_EN_FRIO,
+        llamadas_de_la_corrida,
+        tope_derivado,
     )
 
-    en_frio = USD_POR_TRAYECTORIA_EN_FRIO * N_TRAYECTORIAS
-    assert TOPE_USD >= en_frio, (
-        f"el tope ${TOPE_USD} no paga las {N_TRAYECTORIAS} trayectorias "
-        f"(${en_frio:.2f} en frío)"
+    llamadas = llamadas_de_la_corrida(0.80, N_TRAYECTORIAS, 1)
+    en_frio = llamadas * USD_POR_LLAMADA_EN_FRIO
+    assert tope_derivado(0.80, N_TRAYECTORIAS, 1) >= en_frio, (
+        f"el tope no paga las {N_TRAYECTORIAS} trayectorias (${en_frio:.2f} en frío)"
     )
     assert MARGEN_TOPE > 1.0, "sin margen, una corrida un poco más cara se corta"
-    # El techo del Query no puede quedar por debajo de su propio default: eso
-    # dejaría el endpoint rechazando su valor por defecto.
-    assert TOPE_USD <= TOPE_USD_MAXIMO
+    # La corrida de máxima calidad (las 81 celdas, las N trayectorias) tiene que
+    # caber bajo el techo: si no, el techo estaría prohibiendo la mejor corrida.
+    assert tope_derivado(1.0, N_TRAYECTORIAS, 1) <= TOPE_USD_MAXIMO
+
+
+def test_la_cuenta_de_llamadas_cuadra_con_lo_medido():
+    """93 calculadas contra 94 medidas (`behavior/README.md` §Costo).
+
+    Es el ancla de toda la aritmética del presupuesto: si la fórmula se separa
+    de la medición, el tope deja de significar dinero.
+    """
+    from api.servidor import llamadas_de_la_corrida
+
+    assert llamadas_de_la_corrida(0.80, 1, 1) == 93
+
+
+def test_una_corrida_cara_no_queda_autorizada_como_una_barata():
+    """Lo que un tope de UN número no podía hacer.
+
+    El costo de la corrida no es constante: depende de la cobertura, de cuántas
+    trayectorias y de cuántas paráfrasis. Un número fijo o corta la corrida cara
+    (y miente) o autoriza a la barata a gastar como la cara (y cuesta).
+    """
+    from api.servidor import tope_derivado
+
+    barata = tope_derivado(0.50, 1, 1)
+    producto = tope_derivado(0.80, N_TRAYECTORIAS, 1)
+    cara = tope_derivado(1.0, N_TRAYECTORIAS, 1)
+    assert barata < producto < cara
 
 
 if __name__ == "__main__":  # pragma: no cover
