@@ -56,13 +56,17 @@ from engine.veto import EstadoVivo, veto_del_motor
 # que viene el agente. El motor tiene la última palabra sobre el estado del
 # mundo; esto es solo el agregado que vuelve a los agentes la ronda siguiente.
 
+DECIMALES_BANDA_CONTRATO = 4
+
 
 def _serializar_banda(banda: dict[str, Any]) -> dict[str, Any]:
     """Redondea los NÚMEROS de la banda y deja pasar intacto lo que no lo es.
 
     La banda no es un dict de floats, aunque el tipo declarado lo sugiera: lleva
-    `degenerada` (bool), `tipo` (str, la etiqueta de QUÉ dispersión se midió) y
-    `metricas` (dict anidado, una banda por cada cifra que sale a pantalla).
+    `degenerada` (bool) y `tipo` (str, la etiqueta de QUÉ dispersión se midió).
+    El serializador conserva soporte recursivo, pero `a_contrato()` entrega la
+    banda plana que congela `contracts/ronda.json`; los rangos de las demás
+    métricas viven en `Ronda.rangos_metricas`, fuera de ese contrato.
 
     Acá había un dict-comp que redondeaba todo lo que no fuera `bool`, así que
     `tipo` entraba a `round()` y mataba la corrida completa con
@@ -79,7 +83,7 @@ def _serializar_banda(banda: dict[str, Any]) -> dict[str, Any]:
         elif isinstance(v, (bool, str)) or v is None:
             fuera[k] = v
         else:
-            fuera[k] = round(v, 4)
+            fuera[k] = round(v, DECIMALES_BANDA_CONTRATO)
     return fuera
 
 
@@ -125,6 +129,11 @@ class Ronda:
     # del mismo estado. Es diagnóstico interno, no la banda que se publica: por
     # construcción es más angosta que la dispersión entre trayectorias completas.
     banda_intra_ronda: dict[str, Any] = field(default_factory=dict)
+    # S1-2/S1-4: diagnóstico por cada número de `a_contrato()`. NO entra dentro
+    # de `banda`: `contracts/ronda.json` congela esa estructura como un dict
+    # plano. La API puede exponer este campo aparte cuando su dueño congele la
+    # interfaz aditiva; mientras tanto no se rompe a ningún consumidor actual.
+    rangos_metricas: dict[str, Any] = field(default_factory=dict)
     # Foto del estado vivo al CERRAR la ronda, por arquetipo:
     # {fraccion_informal, fraccion_empleada, horas}. Existe para la interfaz (el
     # enjambre necesita saber cuánta planta de cada celda sigue empleada, fuera
@@ -640,7 +649,8 @@ def _percentiles(valores: list[float], *, tipo: str) -> dict[str, Any]:
     return {
         "p10": vs[k10],
         "p90": vs[k90],
-        "degenerada": vs[k10] == vs[k90],
+        "degenerada": round(vs[k10], DECIMALES_BANDA_CONTRATO)
+        == round(vs[k90], DECIMALES_BANDA_CONTRATO),
         "tipo": tipo,
     }
 
@@ -648,49 +658,78 @@ def _percentiles(valores: list[float], *, tipo: str) -> dict[str, Any]:
 # --- B2: la banda que se PUBLICA es la de trayectorias completas -------------
 
 
-# Las cifras que `a_contrato()` publica como número pelado. La banda tiene que
-# cubrirlas TODAS: `ingreso_laboral_relativo` se mueve 10,23 pp entre 5
-# trayectorias —más que la banda de `tasa_informalidad` que sí publicábamos— y
-# salía a pantalla sin ninguna. Publicar banda sobre una métrica y dejar las
-# otras peladas es peor que no publicar ninguna, porque le enseña al lector que
-# las peladas son ciertas.
-METRICAS_PUBLICADAS = (
+# Los números de dominio que publica `a_contrato()`. `seed` y `ronda` son
+# coordenadas, no resultados; `estabilizada` es la etiqueta booleana de
+# `movimiento_pp`. La regresión deriva esta lista también desde el contrato real
+# para que una omisión acá no vuelva a verificarse a sí misma.
+METRICAS_NUMERICAS_CONTRATO = (
     "tasa_informalidad",
     "prob_fiscalizacion",
     "empleo_relativo",
     "traslado_precios_pct",
     "ingreso_laboral_relativo",
+    "movimiento_pp",
 )
 
 
 def banda_entre_trayectorias(corridas: list[list[Ronda]], ronda: int = -1) -> dict[str, Any]:
-    """p10/p90 entre N corridas completas e independientes, métrica por métrica.
+    """La banda PLANA de tasa que exige el contrato congelado.
 
-    Esta es la banda honesta y es la que va a la pantalla. La otra —la que
-    calcula `_banda()`— mide la dispersión de las paráfrasis DENTRO de una ronda
-    partiendo todas del mismo estado, y por construcción es más angosta: en la
-    corrida medida daba 0,0 pp mientras la dispersión real entre trayectorias
-    independientes era de 22,5 pp.
+    La otra —la que calcula `_banda()`— mide dispersión DENTRO de una ronda. Esta
+    compara trayectorias completas observadas. En el producto esas trayectorias
+    están pareadas por estado y seed y difieren por paráfrasis: no son réplicas
+    iid y esta función no afirma que lo sean.
 
-    Publicar la angosta no era una decisión, era un accidente del código; pero
-    el efecto habría sido presentar una precisión que el modelo no tiene. La
-    banda se ENSANCHA con esta corrección, y ese ensanchamiento es el arreglo.
-
-    `p10`/`p90` en la raíz siguen siendo los de `tasa_informalidad`, porque eso
-    es lo que `contracts/ronda.json` declara y lo que el frontend ya lee. Las
-    demás viajan en `metricas`, una entrada por cifra publicada.
+    Los nombres `p10`/`p90` se conservan porque son parte de
+    `contracts/ronda.json`; con N=5 sus valores son el mínimo y el máximo. El
+    reporte correcto es "rango entre las N trayectorias", no un intervalo de
+    confianza ni cinco realizaciones independientes. Las demás métricas van al
+    diagnóstico separado `rangos_entre_trayectorias()`.
     """
     validas = [c for c in corridas if c]
-    banda = _percentiles(
+    return _percentiles(
         [c[ronda].tasa_informalidad for c in validas], tipo="entre_trayectorias"
     )
-    banda["metricas"] = {
-        m: _percentiles(
-            [getattr(c[ronda], m) for c in validas], tipo="entre_trayectorias"
-        )
-        for m in METRICAS_PUBLICADAS
+
+
+def _rango_muestral(valores: list[float]) -> dict[str, Any]:
+    """Extremos observados, sin convertirlos en percentiles inferenciales."""
+    if not valores:
+        raise ValueError("un rango muestral requiere al menos una observación")
+    minimo, maximo = min(valores), max(valores)
+    minimo_publicado = round(minimo, DECIMALES_BANDA_CONTRATO)
+    maximo_publicado = round(maximo, DECIMALES_BANDA_CONTRATO)
+    return {
+        "minimo": minimo_publicado,
+        "maximo": maximo_publicado,
+        "degenerado": minimo_publicado == maximo_publicado,
     }
-    return banda
+
+
+def rangos_entre_trayectorias(
+    corridas: list[list[Ronda]], ronda: int = -1
+) -> dict[str, Any]:
+    """Diagnóstico honesto de todas las métricas, fuera del contrato plano.
+
+    `fuente_variacion` es deliberadamente descriptiva: esta capa recibe
+    trayectorias terminadas y no inventa si cambiaron por paráfrasis, seed u
+    otra coordenada. El llamador que las construye conserva esa procedencia.
+    """
+    validas = [c for c in corridas if c]
+    metricas = {}
+    if validas:
+        metricas = {
+            metrica: _rango_muestral(
+                [getattr(c[ronda], metrica) for c in validas]
+            )
+            for metrica in METRICAS_NUMERICAS_CONTRATO
+        }
+    return {
+        "metodo": "rango_muestral",
+        "n_efectivas": len(validas),
+        "fuente_variacion": "trayectorias_observadas",
+        "metricas": metricas,
+    }
 
 
 def consolidar_trayectorias(corridas: list[list[Ronda]]) -> list[Ronda]:
@@ -704,13 +743,20 @@ def consolidar_trayectorias(corridas: list[list[Ronda]]) -> list[Ronda]:
     if not corridas:
         return []
     validas = [c for c in corridas if c]
+    if not validas:
+        return []
     if len(validas) == 1:
-        return validas[0]
+        unica = validas[0]
+        for n, r in enumerate(unica):
+            r.rangos_metricas = rangos_entre_trayectorias(validas, ronda=n)
+        return unica
     orden = sorted(validas, key=lambda c: c[-1].tasa_informalidad)
     mediana = orden[len(orden) // 2]
     for n, r in enumerate(mediana):
         r.banda_intra_ronda = dict(r.banda)
-        r.banda = banda_entre_trayectorias(validas, ronda=min(n, len(validas[0]) - 1))
+        indice = min(n, len(validas[0]) - 1)
+        r.banda = banda_entre_trayectorias(validas, ronda=indice)
+        r.rangos_metricas = rangos_entre_trayectorias(validas, ronda=indice)
     return mediana
 
 
