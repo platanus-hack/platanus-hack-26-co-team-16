@@ -27,6 +27,7 @@ con el link puede usarlo.
 from __future__ import annotations
 
 import json
+import math
 import queue
 import threading
 import time
@@ -48,7 +49,7 @@ from behavior.arquetipos import (
 )
 from behavior.cache import Cache
 from behavior.cliente import ClienteConductual, SinCredenciales
-from behavior.presupuesto import Presupuesto
+from behavior.presupuesto import USD_POR_LLAMADA_MEDIDO, Presupuesto
 from api.trayectorias import N_TRAYECTORIAS, correr_consolidada
 
 _RAIZ = Path(__file__).resolve().parent.parent
@@ -123,36 +124,231 @@ PARAFRASIS_EFECTO = "ninguno"  # "ninguno" | "intra_ronda"
 #
 # SUPUESTO: el costo por llamada es el de la medición y se supone estable entre
 # celdas. El margen cubre que la medición es UNA corrida (el largo de la
-# respuesta varía) y que el ~0,1% de respuestas que no parsean se reintenta, o
-# sea que gasta dos veces.
-USD_POR_LLAMADA_EN_FRIO = 1.26 / 94
+# respuesta varía).
+#
+# El número viejo era `1.26 / 94 = 0,0134` y salía de una medición que no es la
+# del modelo que hoy corre. Se corrigió a `7,8731 / 518 = 0,0152` con la corrida
+# pagada del 23-ago, Y ESO TAMBIÉN QUEDÓ CORTO: la corrida de verificación de la
+# maqueta (23-ago, aumento 17%, cobertura 0,50, 2 trayectorias) gastó USD 0,9742
+# en 50 llamadas, o sea USD 0,0195 — 28% por encima. El tope derivado de USD 0,96
+# la cortó y publicó `trayectorias_efectivas: 1` sobre 2 pedidas, con
+# `banda_tipo: "degenerada"`. Exactamente la falla que este bloque existe para
+# evitar, ocurrida DESPUÉS del primer arreglo.
+#
+# POR QUÉ NO ES RUIDO, y esto es lo que importa: el costo por llamada NO es
+# constante entre configuraciones, porque `cobertura` no elige un número de
+# celdas, elige CUÁLES.
+#
+#   | corrida                        | USD/llamada | factor de reintento |
+#   |--------------------------------|-------------|---------------------|
+#   | cobertura 0,80 x 5 (completa)  |     0,01520 |               1,11x |
+#   | cobertura 0,50 x 2 (cortada)   |     0,01948 |        >= 1,58x     |
+#
+# Con cobertura 0,50 el top-K se queda con las 9 celdas MÁS GRANDES: prompts más
+# largos y más vetos, o sea más caro por llamada Y más reintentos. Con cobertura
+# 1,00 entran también las celdas chicas, que son baratas. Bajar la cobertura
+# encarece cada llamada.
+#
+# Entonces el tope se calibra sobre el PEOR caso medido y no sobre el promedio.
+# Un tope es un colchón, no un pronóstico: equivocarse hacia arriba cuesta
+# headroom que no se gasta, y equivocarse hacia abajo publica una banda que no
+# se pagó. Consecuencia declarada: para las corridas de cobertura alta este tope
+# sobreestima (la completa deriva USD 18,14 y costó USD 7,87 reales). No se
+# interpola entre las dos mediciones porque dos puntos no son una curva, y el
+# repo no inventa números.
+# El número vive en `behavior/presupuesto.py`, que es donde se lleva la
+# contabilidad, y acá se IMPORTA. Tener dos copias del costo por llamada en dos
+# archivos es exactamente el defecto S2-9 que el repo ya sufrió con el literal
+# 3,00: cuadran hasta el día que alguien actualiza una sola.
+USD_POR_LLAMADA_EN_FRIO = USD_POR_LLAMADA_MEDIDO
 MARGEN_TOPE = 1.25
 
+# SUPUESTO: cada corrida hace ~1,4 veces las llamadas que estaban previstas.
+#
+# `llamadas_de_la_corrida()` cuenta UNA llamada por celda-ronda, y eso es cierto
+# solo si ninguna decisión se reintenta. Pero `behavior.capa.MAX_REINTENTOS = 3`
+# y cada veto de factibilidad dispara una llamada nueva, así que el gasto real
+# vive por encima del conteo. Medido, tres corridas distintas:
+#
+#   | corrida                              | previstas | reales | factor |
+#   |--------------------------------------|-----------|--------|--------|
+#   | pagada (cobertura 0,80, 5 tray.)     |       465 |    518 |  1,11x |
+#   | camino LLM desde caché               |        93 |    122 |  1,31x |
+#   | maqueta 17% (cobertura 0,50, 2 tray.)|        36 |  57 (*)| 1,58x (*)|
+#   | ablación al 23%                      |        93 |    219 |  2,35x |
+#
+# (*) COTA INFERIOR: esa corrida se cortó por presupuesto antes de terminar la
+# segunda trayectoria, así que 57 prompts únicos sobre 36 previstas es lo que
+# alcanzó a intentar, no lo que necesitaba. El factor verdadero de esa
+# configuración es MAYOR que 1,58.
+#
+# 1,6 se pone justo encima de esa cota inferior y por debajo del 2,35x de la
+# ablación, que no gasta. Empezó en 1,4 —encima del 1,31x del camino de caché— y
+# la corrida de verificación demostró que no alcanzaba: con 1,4 el tope de la
+# maqueta quedó en USD 0,96 y la corrida gastó USD 0,9742. Sin este factor
+# quedaba peor todavía: `tope_derivado(0,50, 2)` daba USD 0,60 contra USD 0,72.
+# La corrida pagada del 23-ago costó USD 7,87 contra un tope de USD 7,79: se
+# habría cortado a sí misma.
+#
+# Y cortarse no se ve como un error. `correr_consolidada()` consolida con las
+# trayectorias que alcanzaron, así que la corrida TERMINA bien y publica una
+# banda sobre menos trayectorias de las que prometió. Un tope mal puesto no se
+# ve como falla: se ve como resultado.
+FACTOR_REINTENTO = 1.6
+
 # El techo absoluto, y la única cifra de acá que es un juicio y no una cuenta.
-# El equipo tiene ~USD 230 vivos entre los 5 (2026-08-23). La corrida más cara
-# que tiene sentido pedir —cobertura 1,00, las 81 celdas, 5 trayectorias— cuesta
-# USD 16,29 medidos, USD 20,36 con margen. El techo se pone encima de eso para
-# no clipar la corrida de máxima calidad, y ahí se queda: es el 11% de la bolsa
-# del equipo, o sea el peor caso individual que el proyecto puede absorber sin
-# que una sola corrida se coma la tarde de otro.
-TOPE_USD_MAXIMO = 25.0
+# El equipo tiene ~USD 230 vivos entre los 5 (2026-08-23).
+#
+# Sube de 25 a 35 al corregir el costo por llamada, y sube para NO romper el
+# invariante que el equipo ya había escrito en
+# `api/test_trayectorias.py::test_el_tope_paga_la_corrida_que_promete`: el techo
+# no puede prohibir la mejor corrida. La corrida de máxima calidad —cobertura
+# 1,00, las 81 celdas, 5 trayectorias, 1215 llamadas— derivaba USD 20,36 con los
+# números viejos y deriva USD 32,32 con los buenos; con el techo en 25 quedaba
+# imposible de pedir incluso pasando `tope_usd` a mano, porque el mismo techo
+# acota ese parámetro.
+#
+# Subir el techo NO autoriza gasto nuevo en el camino normal: el techo no
+# gasta, solo deja de rechazar. Lo que se gasta lo fija la corrida que se pide,
+# y la que se pide es cobertura 0,80 x 5 trayectorias — USD 12,37 derivados,
+# USD 7,87 REALES medidos el 23-ago. La de 1,00 nunca se ha corrido y además es
+# la más lenta (81 celdas = 21 olas, ~8 min), así que no es la corrida de la
+# demo ni de la validación: es el máximo que el presupuesto debe poder cubrir
+# sin clipar, que es exactamente lo que un techo describe.
+#
+# 35 es el 15% de la bolsa del equipo, contra el 11% de antes: sigue siendo el
+# peor caso individual que el proyecto puede absorber sin que una sola corrida
+# se coma la tarde de otro.
+TOPE_USD_MAXIMO = 35.0
 
 
-def llamadas_de_la_corrida(cobertura: float, trayectorias: int) -> int:
-    """Cuántas llamadas al LLM va a hacer esta corrida. Exacto, no estimado.
+def celdas_al_llm(cobertura: float) -> int:
+    """Cuántas celdas de la grilla entran al LLM con esa cobertura top-K.
 
-    La ronda 0 es la reacción ingenua y no llama al LLM (ADR 0005), así que las
-    rondas que cuestan son `RONDAS_TOTALES - 1`. `parafrasis` NO entra: ver
-    `PARAFRASIS_EFECTO`.
+    No es una estimación: es la misma `particionar_por_peso()` que usa el motor.
+    La usan el conteo de llamadas y el paralelismo, que TIENEN que estar de
+    acuerdo — el tiempo de una corrida no lo fija cuántas celdas hay, lo fija
+    cuántas OLAS de llamadas ocurren, y una ola es `celdas / paralelismo`.
     """
     celdas, _cola = particionar_por_peso(_grilla(), cobertura)
-    return len(celdas) * (RONDAS_TOTALES - 1) * trayectorias
+    return len(celdas)
 
 
-def tope_derivado(cobertura: float, trayectorias: int) -> float:
-    """Lo que esta corrida debería costar en frío, con margen. En USD."""
-    n = llamadas_de_la_corrida(cobertura, trayectorias)
-    return round(n * USD_POR_LLAMADA_EN_FRIO * MARGEN_TOPE, 2)
+def llamadas_de_la_corrida(
+    cobertura: float, trayectorias: int, rondas: int = RONDAS_TOTALES
+) -> int:
+    """Cuántas llamadas al LLM tiene PREVISTAS esta corrida. Exacto, no estimado.
+
+    La ronda 0 es la reacción ingenua y no llama al LLM (ADR 0005), así que las
+    rondas que cuestan son `rondas - 1`. `parafrasis` NO entra: ver
+    `PARAFRASIS_EFECTO`.
+
+    A propósito NO lleva `FACTOR_REINTENTO`: esta cifra es el PISO exacto y se
+    publica como tal en el evento `inicio`. Lo que el veto reintenta se paga
+    pero no estaba previsto; meterle el factor acá convertiría un conteo en una
+    estimación y la pantalla dejaría de tener un número que pueda defender.
+    El factor vive donde corresponde, en `tope_derivado()`.
+    """
+    return celdas_al_llm(cobertura) * (rondas - 1) * trayectorias
+
+
+def reserva_en_vuelo(cobertura: float, trayectorias: int) -> float:
+    """Lo que `Presupuesto.reservar()` tiene apartado en el pico. En USD.
+
+    Desde que el corte de presupuesto es atómico (DEFECTOS.md §3.7), cada
+    llamada en vuelo tiene plata APARTADA que todavía no se gastó. En el pico
+    hay `paralelismo x trayectorias` llamadas volando a la vez, así que ese
+    monto no está disponible para autorizar la siguiente.
+
+    Si no se sumara al tope, la garantía de no-sobregiro se pagaría cortando
+    corridas legítimas: la maqueta necesita ~USD 1,21 y con 18 llamadas en vuelo
+    tendría USD 0,35 congelados, o sea que se cortaría a sí misma otra vez. Va
+    como término APARTE y no dentro de `MARGEN_TOPE` porque mide otra cosa: el
+    margen cubre que el costo por llamada varía, esto cubre que hay llamadas sin
+    liquidar. Cada término, un trabajo.
+    """
+    concurrencia = paralelismo_de_la_corrida(cobertura, trayectorias) * trayectorias
+    return concurrencia * USD_POR_LLAMADA_EN_FRIO
+
+
+def tope_derivado(
+    cobertura: float, trayectorias: int, rondas: int = RONDAS_TOTALES
+) -> float:
+    """Lo que esta corrida va a costar en frío de verdad, con margen. En USD.
+
+    `piso exacto × reintentos medidos × margen + reserva en vuelo`. Los cuatro
+    términos están separados porque miden cosas distintas: el primero se cuenta,
+    el segundo se midió en tres corridas, el tercero es el colchón declarado y
+    el cuarto es la plata que la atomicidad del corte mantiene apartada.
+    """
+    n = llamadas_de_la_corrida(cobertura, trayectorias, rondas)
+    esperado = n * USD_POR_LLAMADA_EN_FRIO * FACTOR_REINTENTO
+    return round(
+        esperado * MARGEN_TOPE + reserva_en_vuelo(cobertura, trayectorias), 2
+    )
+
+
+# Cuántas celdas resuelve a la vez CADA trayectoria, y el techo total de
+# conexiones simultáneas contra el proveedor.
+#
+# Por qué esto existe: hasta hoy `paralelismo` no era perilla de la API — se
+# quedaba en el default 8 de `behavior.rondas.correr()` y `grep -n paralelismo
+# api/servidor.py` daba cero. Eso hacía que bajar la cobertura NO bajara el
+# tiempo, que es justo lo que la demo necesita. La aritmética que manda no es
+# cuántos agentes hay, es cuántas OLAS de llamadas ocurren:
+#
+#     olas   = ceil(celdas / paralelismo) x (rondas - 1)
+#     tiempo ~ olas x 23,3 s        (23,3 s/llamada: medido, 1398 s / 60 olas)
+#
+# Con 9 celdas y el default 8 son 2 olas por ronda, no 1, y la maqueta no cabe
+# en la demo. Con `paralelismo = celdas` es 1 ola por ronda: 3 rondas totales
+# (2 con LLM) = 2 olas ~ 47 s.
+#
+# Los dos techos son distintos y los dos hacen falta:
+#   - `TECHO_PARALELISMO` acota UNA trayectoria. 31 conexiones simultáneas no
+#     están probadas contra este proveedor y el rate limit de la cuenta se
+#     desconoce.
+#   - `TECHO_CONEXIONES` acota el producto, que es lo que de verdad llega a la
+#     red: las N trayectorias corren en paralelo entre sí desde a4e1429, así que
+#     las conexiones vivas son `paralelismo x trayectorias`. 40 no es un número
+#     de gusto: es el punto que YA se corrió sano (8 x 5 en la corrida pagada del
+#     23-ago, ~5 min sin errores de rate limit). No se autoriza más de lo medido.
+TECHO_PARALELISMO = 12
+TECHO_CONEXIONES = 40
+
+
+def paralelismo_de_la_corrida(cobertura: float, trayectorias: int) -> int:
+    """Cuántas celdas en vuelo por trayectoria, sin pasarse de lo ya probado.
+
+    Con la cobertura por defecto (0,80 -> 31 celdas, 5 trayectorias) devuelve 8,
+    o sea exactamente el default de antes: esto no cambia la corrida completa,
+    solo deja de desperdiciar paralelismo cuando hay pocas celdas.
+    """
+    return max(
+        1,
+        min(
+            celdas_al_llm(cobertura),
+            TECHO_PARALELISMO,
+            TECHO_CONEXIONES // max(1, trayectorias),
+        ),
+    )
+
+
+def perfil_de_la_corrida(cobertura: float, trayectorias: int, rondas: int) -> str:
+    """`"completo"` o `"maqueta"`. Va en el evento `inicio` para que se pueda decir.
+
+    No es cosmético y no es "el simulador más pequeño": es OTRA corrida. La
+    respuesta del modelo a la política es escalonada (medido: +3,25 pp idéntico
+    en 5/10/12%, +6,07 pp idéntico en 23/30%), así que cambiar QUÉ celdas deciden
+    puede saltar de escalón entero. Un resultado de maqueta que se muestre sin
+    rótulo es un resultado distinto presentado como el mismo.
+    """
+    completo = (
+        rondas == RONDAS_TOTALES
+        and cobertura >= 0.8
+        and trayectorias >= N_TRAYECTORIAS
+    )
+    return "completo" if completo else "maqueta"
 
 
 app = FastAPI(title="enjambre-api", docs_url=None, redoc_url=None)
@@ -297,7 +493,24 @@ def flujo(
             "DECISIÓN: nada del bucle de rondas sortea. Ver `SEED_EFECTO`."
         ),
     ),
-    cobertura: float = Query(0.8, gt=0.0, le=1.0),
+    cobertura: float = Query(
+        0.8,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "Fracción de la POBLACIÓN cuyas celdas deciden con el LLM (top-K por "
+            "peso); el resto se resuelve con las reglas fijas de la ablación. "
+            "SUPUESTO: el 0,8 es un CORTE DE PRESUPUESTO, no una propiedad del "
+            "modelo. Con 0,80 son 31 celdas de 81 y la corrida cuesta USD 7,87 "
+            "medidos; con 1,00 son las 81 y ~USD 20. No hay ningún hallazgo que "
+            "diga que el 80% de la población basta para representar al 100%: se "
+            "eligió para que una corrida quepa en la bolsa del equipo, y la "
+            "pantalla lo muestra como «población decidida por LLM» justamente "
+            "para que la cifra viaje con esa procedencia. El supuesto sobre "
+            "cómo se resuelve la cola sí está marcado aparte, en "
+            "`behavior/arquetipos.py`."
+        ),
+    ),
     trayectorias: int = Query(
         N_TRAYECTORIAS,
         ge=1,
@@ -319,6 +532,19 @@ def flujo(
             "publica es la de ENTRE trayectorias, que es la que reemplazó a esta."
         ),
     ),
+    rondas: int = Query(
+        RONDAS_TOTALES,
+        ge=2,
+        le=RONDAS_TOTALES,
+        description=(
+            "Cuántas rondas corre el motor, contando la 0. La ronda 0 es la "
+            "reacción ingenua y no llama al LLM (ADR 0005), así que las rondas "
+            "que cuestan son `rondas - 1`. Bajarla a 3 es la mitad de la "
+            "maqueta de demo: 2 rondas con LLM en vez de 3. La elección viaja "
+            "en el evento `inicio` (`rondas` y `perfil`) para que la pantalla "
+            "pueda decir cuántas dibuja en vez de suponerlo."
+        ),
+    ),
     tope_usd: float | None = Query(
         None,
         gt=0.0,
@@ -326,8 +552,9 @@ def flujo(
         description=(
             "Corte DURO de gasto para la corrida ENTERA, no por trayectoria. "
             "Vacío = se deriva de la corrida que se pidió (celdas × rondas con "
-            "LLM × trayectorias × paráfrasis × USD 0,0134 medidos × 1,25 de "
-            "margen), que es lo que se quiere casi siempre: así el corte no "
+            "LLM × trayectorias × USD 0,0195 medidos × 1,6 de reintentos del "
+            "veto × 1,25 de margen), que es lo que se quiere casi siempre: así "
+            "el corte no "
             "salta nunca en una corrida legítima y saltar significa que algo se "
             "desbocó. Si salta, la corrida se consolida con las trayectorias "
             "que alcanzaron y `trayectorias_efectivas` lo declara en `fin`."
@@ -344,7 +571,14 @@ def flujo(
     """
     return StreamingResponse(
         _generar(
-            aumento_pct, seed, cobertura, trayectorias, parafrasis, tope_usd, modo
+            aumento_pct,
+            seed,
+            cobertura,
+            trayectorias,
+            parafrasis,
+            rondas,
+            tope_usd,
+            modo,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -357,6 +591,7 @@ def _generar(
     cobertura: float,
     trayectorias: int,
     parafrasis: int,
+    rondas: int,
     tope_usd: float | None,
     modo: str,
 ) -> Iterator[str]:
@@ -364,8 +599,10 @@ def _generar(
     # pidieron no cabe en el techo, se dice CUÁNTO cuesta y QUÉ bajar, en vez de
     # correrla a medias y publicar una banda sobre menos trayectorias de las
     # prometidas.
-    llamadas_previstas = llamadas_de_la_corrida(cobertura, trayectorias)
-    derivado = tope_derivado(cobertura, trayectorias)
+    llamadas_previstas = llamadas_de_la_corrida(cobertura, trayectorias, rondas)
+    derivado = tope_derivado(cobertura, trayectorias, rondas)
+    paralelismo = paralelismo_de_la_corrida(cobertura, trayectorias)
+    perfil = perfil_de_la_corrida(cobertura, trayectorias, rondas)
     if tope_usd is None:
         if derivado > TOPE_USD_MAXIMO:
             yield _sse(
@@ -375,7 +612,7 @@ def _generar(
                         f"esta corrida cuesta ~${derivado:.2f} en frío "
                         f"({llamadas_previstas} llamadas) y el techo es "
                         f"${TOPE_USD_MAXIMO:.2f}. Baja `cobertura`, `trayectorias` "
-                        f"o `parafrasis`, o pasa `tope_usd` a mano."
+                        f"o `rondas`, o pasa `tope_usd` a mano."
                     )
                 },
             )
@@ -466,22 +703,23 @@ def _generar(
             else ClienteReglas()
         )
         try:
-            rondas, n_efectivas = correr_consolidada(
+            mediana, n_efectivas = correr_consolidada(
                 arquetipos,
                 cliente,
                 n_trayectorias=trayectorias,
                 aumento_pct=aumento_pct,
-                rondas_totales=RONDAS_TOTALES,
+                rondas_totales=rondas,
                 seed=seed,
                 simulacion_id=f"enjambre-{seed}-{aumento_pct:g}",
                 cobertura_llm=cobertura if modo == "llm" else None,
                 tasa_informalidad_inicial=informalidad_observada(_RAIZ / "data" / "momentos.json"),
                 n_parafrasis=parafrasis,
+                paralelismo=paralelismo,
                 al_decidir_arquetipo=al_decidir,
                 al_terminar_ronda=al_terminar,
                 al_empezar_trayectoria=al_empezar_trayectoria,
             )
-            if not rondas:
+            if not mediana:
                 eventos.put(
                     ("error", {"mensaje": "ninguna trayectoria alcanzó a terminar"})
                 )
@@ -491,7 +729,7 @@ def _generar(
             # las N puesta encima por `consolidar_trayectorias()`. La mediana y
             # no la media, porque la mediana es una trayectoria que de verdad
             # ocurrió y la media no corresponde a ninguna.
-            for r in rondas:
+            for r in mediana:
                 ev = serializar.evento_ronda(r, arquetipos, aumento_pct)
                 _imprimir_ronda("mediana · ", ev)
                 eventos.put(("ronda", ev))
@@ -502,7 +740,7 @@ def _generar(
             # dice en el contrato y esto lo dice en el informe de la corrida.
             gasto["trayectorias_pedidas"] = trayectorias
             gasto["trayectorias_efectivas"] = n_efectivas
-            gasto["banda_tipo"] = rondas[-1].banda.get("tipo", "degenerada")
+            gasto["banda_tipo"] = mediana[-1].banda.get("tipo", "degenerada")
             presupuesto = getattr(cliente, "presupuesto", None)
             if presupuesto is not None:
                 gasto["llamadas_api"] = presupuesto.llamadas
@@ -522,12 +760,17 @@ def _generar(
 
     hilo = threading.Thread(target=trabajar, daemon=True)
     hilo.start()
+    # Cuántas tandas de llamadas concurrentes va a hacer CADA trayectoria. Es la
+    # cifra que predice el tiempo de pared (~23,3 s por ola, medido), y no
+    # `llamadas_previstas`: las N trayectorias corren en paralelo entre sí.
+    olas = math.ceil(celdas_al_llm(cobertura) / paralelismo) * (rondas - 1)
     print(
         f"\n=== corrida: aumento {aumento_pct:g}% · seed {seed} ({SEED_EFECTO}) · "
         f"modo {modo} · "
         f"cobertura {cobertura:g} · {trayectorias} trayectorias × {parafrasis} "
-        f"paráfrasis · {total} arquetipos · ~{llamadas_previstas} llamadas · "
-        f"tope ${tope_usd:.2f} ==="
+        f"paráfrasis · {total} arquetipos · {rondas} rondas ({perfil}) · "
+        f"paralelismo {paralelismo} · {olas} olas · "
+        f"~{llamadas_previstas} llamadas · tope ${tope_usd:.2f} ==="
     )
     try:
         yield _sse(
@@ -546,6 +789,17 @@ def _generar(
                 "parafrasis": parafrasis,
                 "parafrasis_efecto": PARAFRASIS_EFECTO,
                 "n_arquetipos": total,
+                # Cuántas rondas dibujar. Antes la pantalla lo sacaba de
+                # `/poblacion`, que responde con la constante del módulo: el día
+                # que una corrida pidiera menos, la barra de tiempo mentía.
+                "rondas": rondas,
+                # "completo" | "maqueta". Una corrida de maqueta NO es la misma
+                # corrida más pequeña, es otra: ver `perfil_de_la_corrida()`.
+                "perfil": perfil,
+                # Lo que fija el tiempo de pared, para que se pueda prometer sin
+                # adivinar: ~23,3 s por ola, medido.
+                "paralelismo": paralelismo,
+                "olas_previstas": olas,
                 # Lo que esta corrida va a costar y dónde está su corte duro. La
                 # pantalla puede decirlo antes de que el usuario espere 15
                 # minutos, y el juez que pregunta "¿cuánto les cuesta mover el

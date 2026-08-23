@@ -65,6 +65,7 @@ def correr_consolidada(
     cobertura_llm: float | None,
     tasa_informalidad_inicial: float,
     n_parafrasis: int = 1,
+    paralelismo: int = 8,
     al_decidir_arquetipo: Callable[[int, int, str, Any], None] | None = None,
     al_terminar_ronda: Callable[[int, Ronda], None] | None = None,
     al_empezar_trayectoria: Callable[[int, int], None] | None = None,
@@ -91,6 +92,12 @@ def correr_consolidada(
     El mismo `cliente` se reusa en las N: no guarda estado por corrida, y así el
     presupuesto y la caché se acumulan solos sobre el total, que es lo que hace
     que el tope duro sea de la corrida entera.
+
+    `paralelismo` es cuántas celdas resuelve A LA VEZ **cada** trayectoria, y las
+    N trayectorias ya corren en paralelo entre sí: las conexiones simultáneas
+    contra el proveedor son `paralelismo x n_trayectorias`, no `paralelismo`.
+    Quien lo fija tiene que contar con eso — en `api/servidor.py` es
+    `TECHO_PARALELISMO` quien lo acota.
     """
     # Si faltan archivos de paráfrasis esto revienta acá, antes de gastar un
     # dólar, y con el mensaje de `parafrasis()` que dice cuántas hay.
@@ -116,6 +123,7 @@ def correr_consolidada(
                 simulacion_id=f"{simulacion_id}-t{i}",
                 veto=None,
                 n_parafrasis=n_parafrasis,
+                paralelismo=paralelismo,
                 parafrasis_fija=disponibles[i % len(disponibles)],
                 cobertura_llm=cobertura_llm,
                 tasa_informalidad_inicial=tasa_informalidad_inicial,

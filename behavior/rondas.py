@@ -121,6 +121,41 @@ class Ronda:
     # ANTES de correr; si se supera, se publica.
     fraccion_fallback: float = 0.0
     fraccion_sin_salida: float = 0.0
+    # La MISMA p(sanción), ponderada por firmas que de verdad evaden.
+    #
+    # `prob_fiscalizacion` pondera por trabajadores sobre TODAS las celdas, que
+    # es el riesgo de una persona representativa y es lo que el contrato
+    # describe. Pero no es el riesgo que enfrenta quien decide evadir, y son dos
+    # números muy distintos sobre la misma `p`: 62,94% contra 0,99% en la corrida
+    # del 23%. La diferencia no es un matiz de redondeo — 18 de las 81 celdas
+    # están clavadas en `p = 100%` y tienen el 51,8% del peso poblacional con el
+    # 0,03% de los evasores, así que medio denominador está pegado al techo y la
+    # cascada no puede VERSE en el número que debería mostrarla (medido con
+    # `congelar_prob_fiscalizacion`: aporta 0,000 pp al agregado publicado).
+    #
+    # Va AL LADO y no en lugar de: `prob_fiscalizacion` ya está publicado, lo
+    # consume la pantalla y `contracts/ronda.json` está congelado desde H+4.
+    # Mover una cifra publicada rompe consumidores; agregar la que falta, no.
+    prob_fiscalizacion_evasores: float = 0.0
+    # Las MISMAS dos fracciones, ponderadas por población en vez de por conteo
+    # de decisiones.
+    #
+    # `fraccion_fallback` y `fraccion_sin_salida` dividen por el número de
+    # decisiones, así que una celda que representa a 12 trabajadores pesa igual
+    # que una que representa a 300.000. Es la misma trampa que `MODELO.md` ya
+    # prohíbe para `tasa_informalidad` —*"siempre ponderada; sin el factor no es
+    # la informalidad de la GEIH, es la de la muestra"*— y acá estaba abierta.
+    # Medido en la corrida del 23%: publicado 0,6296 contra 0,7327 ponderado,
+    # o sea **+10,3 pp** de diferencia sobre la cifra que el propio equipo puso
+    # un umbral de alarma del 5%.
+    #
+    # Van AL LADO y no en lugar de: las viejas ya se publican y `capa.py` las usa
+    # como diagnóstico por decisión, que es una pregunta legítima y distinta.
+    # Cuál responde qué: la vieja dice *"¿qué fracción de las VECES que se
+    # preguntó cayó al fallback?"*, la nueva dice *"¿a qué fracción de la GENTE
+    # le decidió el fallback?"*. La segunda es la que el pitch necesita.
+    fraccion_fallback_ponderada: float = 0.0
+    fraccion_sin_salida_ponderada: float = 0.0
     # A5: cuánto se movió la informalidad respecto de la ronda anterior, y si
     # eso cae bajo el umbral declarado. Los llena `etiquetar_estabilidad()`.
     movimiento_pp: float = 0.0
@@ -358,12 +393,34 @@ def correr(
             sum(a.peso * probabilidades[a.id] for a in arquetipos) / peso_total
         )
 
+    def _promedio_prob_evasores(
+        probabilidades: dict[str, float], celdas: list[tuple[str, int, float]]
+    ) -> float:
+        """La misma `p`, ponderada por firmas evasoras: el riesgo del que evade.
+
+        Se pondera con las MISMAS celdas con las que se calcularon esas
+        probabilidades, no con el estado de después: si no, el numerador y el
+        denominador serían de dos momentos distintos.
+
+        Sin evasores el número no existe (no hay a quién describir) y se
+        devuelve 0,0 en vez de inventar un promedio sobre un conjunto vacío.
+        """
+        total = sum(evasoras for _aid, _trab, evasoras in celdas)
+        if total <= 0:
+            return 0.0
+        return (
+            sum(evasoras * probabilidades[aid] for aid, _trab, evasoras in celdas)
+            / total
+        )
+
     # La p(sanción) de la ronda 0, que es también la que se congela cuando se
     # corre el experimento de cascada apagada (B4).
+    celdas_iniciales = _celdas_evasoras()
     probs_iniciales = fiscalizacion.prob_celdas(
-        _celdas_evasoras(), alfa=alfa_visibilidad
+        celdas_iniciales, alfa=alfa_visibilidad
     )
     prob_inicial = _promedio_prob(probs_iniciales)
+    prob_inicial_evasores = _promedio_prob_evasores(probs_iniciales, celdas_iniciales)
 
     # RONDA 0 — la proyección oficial (ADR 0005). No se llama al LLM: por
     # definición asume cumplimiento total, así que la informalidad se queda en la
@@ -376,6 +433,7 @@ def correr(
         politica={"tipo": "cambio_costo_laboral", "aumento_pct": aumento_pct},
         tasa_informalidad=tasa,
         prob_fiscalizacion=prob_inicial,
+        prob_fiscalizacion_evasores=prob_inicial_evasores,
         empleo_relativo=1.0,
         # La proyección oficial es un punto, no una distribución: no tiene banda
         # porque no hay nada estocástico que la genere. Se marca degenerada en
@@ -403,14 +461,18 @@ def correr(
         # experimento que CUANTIFICA la cascada: la diferencia entre esta corrida
         # y la normal es, en puntos porcentuales, cuánto de la brecha pone el
         # hecho de que la capacidad de fiscalización no crece.
+        celdas_ronda = _celdas_evasoras()
         probs = (
             probs_iniciales
             if congelar_prob_fiscalizacion
-            else fiscalizacion.prob_celdas(
-                _celdas_evasoras(), alfa=alfa_visibilidad
-            )
+            else fiscalizacion.prob_celdas(celdas_ronda, alfa=alfa_visibilidad)
         )
         prob = _promedio_prob(probs)
+        # Con `congelar_prob_fiscalizacion` las probabilidades son las de la
+        # ronda 0 pero los evasores son los de HOY: es el riesgo que enfrenta
+        # quien evade ahora bajo una fiscalización que no reaccionó, que es
+        # justo lo que ese experimento pregunta.
+        prob_evasores = _promedio_prob_evasores(probs, celdas_ronda)
 
         # Las RONDAS son secuenciales por definición (cada una responde al
         # agregado de la anterior), pero los ARQUETIPOS dentro de una ronda son
@@ -552,6 +614,24 @@ def correr(
             sum(r.fallbacks for r in resultados.values()) / total_decisiones
         )
 
+        # Las mismas dos, ponderadas por cuánta gente representa cada celda. Se
+        # promedia DENTRO de la celda (su tasa de fallback entre sus paráfrasis)
+        # y después ENTRE celdas por peso, que es el mismo orden con el que se
+        # construye `tasa_informalidad` unas líneas más arriba.
+        def _ponderada(contador) -> float:
+            return (
+                sum(
+                    a.peso
+                    * contador(resultados[a.id])
+                    / max(1, len(resultados[a.id].decisiones))
+                    for a in arquetipos
+                )
+                / peso_total
+            )
+
+        fraccion_fallback_ponderada = _ponderada(lambda r: r.fallbacks)
+        fraccion_sin_salida_ponderada = _ponderada(lambda r: r.sin_salida)
+
         r = Ronda(
             simulacion_id=simulacion_id,
             seed=seed,
@@ -559,6 +639,7 @@ def correr(
             politica={"tipo": "cambio_costo_laboral", "aumento_pct": aumento_pct},
             tasa_informalidad=tasa,
             prob_fiscalizacion=prob,
+            prob_fiscalizacion_evasores=prob_evasores,
             empleo_relativo=empleo_relativo,
             # SUPUESTO: sin N paráfrasis la banda es degenerada (p10 = p90 = media).
             # Con n_parafrasis>=5 se llena de verdad; hasta entonces se reporta
@@ -572,6 +653,8 @@ def correr(
             traslado_precios_pct=traslado_precios,
             fraccion_fallback=fraccion_fallback,
             fraccion_sin_salida=fraccion_sin_salida,
+            fraccion_fallback_ponderada=fraccion_fallback_ponderada,
+            fraccion_sin_salida_ponderada=fraccion_sin_salida_ponderada,
             estado_por_arquetipo={
                 a.id: {
                     "fraccion_informal": estado.fraccion_informal[a.id],

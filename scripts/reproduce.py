@@ -33,6 +33,7 @@ from behavior.arquetipos import (  # noqa: E402
     informalidad_observada,
 )
 from behavior.cache import Cache  # noqa: E402
+from behavior.cliente import SinCredenciales  # noqa: E402
 from behavior.rondas import UMBRAL_ESTABILIDAD_PP, correr  # noqa: E402
 
 CACHE_DEMO = RAIZ / "behavior" / "cache-demo.json"
@@ -42,6 +43,13 @@ MOMENTOS = RAIZ / "data" / "momentos.json"
 # El escenario que se reproduce: el aumento del 23% del caso demo.
 AUMENTO_DEMO = 23.0
 SEED_DEMO = 42
+
+# La cobertura top-K con la que se PAGÓ `cache-demo.json`. No es una preferencia:
+# es la llave de la caché. Este script no la pasaba, así que `correr()` mandaba
+# las 81 celdas de la grilla a una caché comprada para 31 y la cobertura caía a
+# 6,3%; con este valor sube a ~90% (medido hoy, 43 aciertos contra 5 fallos).
+# El día que se pague una caché con otra cobertura, este número la sigue.
+COBERTURA_CACHE_DEMO = 0.80
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -77,13 +85,49 @@ def main(argv: list[str] | None = None) -> int:
           f"alza {args.aumento:g}%")
     print(f"informalidad observada (GEIH): {tasa:.1%}\n")
 
-    rondas = correr(
-        arquetipos,
-        cliente,
-        aumento_pct=args.aumento,
-        seed=args.seed,
-        tasa_informalidad_inicial=tasa,
-    )
+    # Por qué esto es un intento y no una llamada.
+    #
+    # Una caché de ~90% no alcanza: basta UN prompt que no esté para que
+    # `ClienteConductual` levante `SinCredenciales` y el script muera con exit 1
+    # en la máquina del jurado, que es el escenario exacto que este archivo
+    # existe para evitar. Y no se puede saber de antemano cuáles faltan: los
+    # prompts de la ronda n llevan el historial que produjo la ronda n-1, así
+    # que la caché solo se puede sondear corriendo.
+    #
+    # Entonces el nivel 2 de la ADR 0009 (caché) se INTENTA y el nivel 3
+    # (ablación determinista) es la red, que es como la ADR los ordena. Lo que
+    # no se hace es esconder cuál de los dos corrió: si cae, lo dice y con
+    # cuántos fallos.
+    rondas = None
+    if isinstance(cliente, ClienteReglas):
+        pass
+    else:
+        try:
+            rondas = correr(
+                arquetipos,
+                cliente,
+                aumento_pct=args.aumento,
+                seed=args.seed,
+                tasa_informalidad_inicial=tasa,
+                cobertura_llm=COBERTURA_CACHE_DEMO,
+            )
+        except SinCredenciales:
+            fallos = getattr(getattr(cliente, "cache", None), "fallos", "?")
+            print(f"  la caché no cubre esta corrida ({fallos} prompts sin pagar) "
+                  "y no hay credenciales:")
+            print("  se reproduce con la ablación, que es determinista sin "
+                  "depender de nada externo (nivel 3 de la ADR 0009).")
+            modo = "ABLACIÓN (reglas fijas, sin API)"
+            print(f"\nmodo: {modo}")
+
+    if rondas is None:
+        rondas = correr(
+            arquetipos,
+            ClienteReglas(),
+            aumento_pct=args.aumento,
+            seed=args.seed,
+            tasa_informalidad_inicial=tasa,
+        )
 
     print("ronda  informalidad  p.sanción   empleo   masa salarial")
     for r in rondas:
