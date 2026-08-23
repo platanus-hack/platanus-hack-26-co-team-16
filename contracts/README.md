@@ -51,7 +51,7 @@ Copiados tal cual de `docs/PLAN.md` §4 — la interfaz del veto (Manuel↔Nico)
 ### Campos que `ronda.json` ganó después del congelamiento de H+4
 
 El contrato se congeló en H+4 y estos cinco campos entraron después, **avisados al
-grupo antes de tocarlo** (C3 y C5 del [plan de correcciones](../docs/agents/plan-correcciones-simulacion.md)).
+grupo antes de tocarlo** (C3 y C5 del plan de correcciones).
 Se declaran acá porque un campo que se emite y no está en el contrato es peor que un
 campo nuevo: nadie lo ve venir.
 
