@@ -39,7 +39,8 @@ export interface CorridaRegistrada {
   cobertura: number | null;
   parafrasis: number | null;
   n_arquetipos: number | null;
-  tasa_informalidad_observada: number;
+  tasa_informalidad_observada: number;   // empleados de firma: el punto de partida de la ronda 0
+  tasa_informalidad_total_ciudad?: number; // TODOS los ocupados de Bogota, cuenta propia incluida
   rondas: RondaRegistrada[];
   informalidad_final: number;
   empleo_final: number;
@@ -106,6 +107,7 @@ export function registrarCorrida(): CorridaRegistrada | null {
     parafrasis: s.inicio?.parafrasis ?? null,
     n_arquetipos: s.inicio?.n_arquetipos ?? null,
     tasa_informalidad_observada: pob.tasa_informalidad_observada,
+    tasa_informalidad_total_ciudad: pob.tasa_informalidad_total_ciudad,
     rondas,
     informalidad_final: ultima.tasa_informalidad,
     empleo_final: ultima.empleo_relativo,
