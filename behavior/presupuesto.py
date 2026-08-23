@@ -16,9 +16,16 @@ from dataclasses import dataclass, field
 # USD por millón de tokens. Fuente: tabla de precios de la API de Anthropic.
 # SUPUESTO: lectura de caché ~0.1x y escritura ~1.25x del precio de entrada.
 PRECIOS: dict[str, tuple[float, float]] = {
-    "claude-haiku-4-5": (1.00, 5.00),   # la masa
+    "claude-sonnet-5": (3.00, 15.00),   # la masa
+    "claude-haiku-4-5": (1.00, 5.00),   # la masa hasta el 22-08-2026; se conserva
+                                        # porque `behavior/README.md` reporta una
+                                        # corrida real hecha con él y su costo
+                                        # tiene que seguir siendo recalculable.
     "claude-opus-5": (5.00, 25.00),     # solo las 3-4 historias narradas
 }
+# SUPUESTO: para Sonnet 5 se fija el precio DE LISTA (3,00/15,00) y no el
+# promocional vigente hasta el 31-08-2026 (2,00/10,00). Sobreestimar es la
+# dirección segura para un tope duro: el corte salta antes, no después.
 
 TOPE_POR_DEFECTO_USD = 3.00  # una corrida completa de 4 rondas cabe de sobra acá
 

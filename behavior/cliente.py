@@ -22,9 +22,16 @@ from behavior import contrato, higiene
 from behavior.cache import Cache, clave
 from behavior.presupuesto import Presupuesto
 
-# Ruteo de modelos (decisión D4 del plan): el chico para los ~250 llamados de la
-# masa, el grande SOLO para las 3-4 historias narradas del pitch.
-MODELO_MASA = "claude-haiku-4-5"
+# Ruteo de modelos (decisión D4 del plan): un modelo para los ~250 llamados de
+# la masa, el grande SOLO para las 3-4 historias narradas del pitch.
+#
+# La masa pasó de Haiku 4.5 a Sonnet 5. Cuesta 3x más por token (3,00/15,00
+# contra 1,00/5,00 por millón), así que una corrida de 121 llamadas sube de
+# ~USD 0,33 a ~USD 1,00 y el tope duro de `presupuesto.py` sigue mandando.
+# OJO: cambiar el modelo CAMBIA LA CLAVE DE CACHÉ (`cache.clave()` la incluye),
+# así que las respuestas cacheadas con Haiku no se reutilizan: la primera
+# corrida con Sonnet se paga entera.
+MODELO_MASA = "claude-sonnet-5"
 MODELO_RELATO = "claude-opus-5"
 
 _PROMPTS = Path(__file__).parent / "prompts"
@@ -104,7 +111,14 @@ class ClienteConductual:
         sistema: str,
         usuario: str,
         modelo: str = MODELO_MASA,
-        max_tokens: int = 1024,
+        # 2048 y no 1024: con Sonnet 5 las respuestas que SÍ pasaron llegaron a
+        # 1012 tokens de salida (mediana 735, p90 939), o sea pegadas al techo
+        # anterior. Las que lo cruzaban volvían con el JSON cortado, `_extraer_json`
+        # las tumbaba como `RespuestaInvalida` y la decisión se iba al fallback:
+        # 44 de 156 intentos (28%) en la primera corrida con Sonnet, contra 0 de
+        # 121 con Haiku. El techo no cambia la clave de caché, así que subirlo no
+        # invalida lo ya cacheado.
+        max_tokens: int = 2048,
         contexto: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Una propuesta de estrategia. Devuelve el JSON crudo del modelo.
