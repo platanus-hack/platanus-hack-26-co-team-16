@@ -18,7 +18,7 @@
 | Colchón obligatorio | 1 hora |
 | **Corte real: nada nuevo empieza después de** | **08:30** |
 
-**Quedan ~3 h 55 min de trabajo real.** El cuello de botella (§3) son 95 minutos por persona.
+**Quedan ~3 h 55 min de trabajo real.** El cuello de botella (§3) son 100 minutos por persona.
 Cabe, y cabe con holgura. El riesgo de esta fusión no es el tiempo: es qué se decide mostrar.
 
 ## Estado de los tres informes
@@ -42,8 +42,44 @@ Cabe, y cabe con holgura. El riesgo de esta fusión no es el tiempo: es qué se 
 
 | # | Arreglo | Carpeta dueña | Min | Cómo se verifica | SI NO LO ARREGLAMOS |
 |---|---|---|---|---|---|
-| **A1** | Deploy apunta a `main` (o declarar qué commit está vivo) | Juanda (R5) | 15 | `curl` SSE ronda 0 del deploy == `make reproduce` local | El juez clona, corre, le salen otros números y deja de creer el 37,37 pp |
-| **A2** | `make run` que corra + `cache-demo.json` exportado | Juanda (R5) + Nico (R3) | 40 | `make run` ×2 con `diff` vacío; G1 deja de estar bloqueado | Los dos primeros comandos del README fallan delante del jurado |
+| **A1** | Deploy apunta a `main` (o declarar qué commit está vivo) **+ recalentar la caché detrás** | Juanda (R5) | **20** (15 + 3 de calentamiento, y **cuesta una corrida**) | `curl` SSE ronda 0 del deploy == `make reproduce` local, **y** `event: fin` trae `cache_aciertos > 0` | El juez clona, corre, le salen otros números y deja de creer el 37,37 pp. **Y si se hace a medias, la demo se cae** (ver el recuadro de abajo) |
+| **A2** | `make run` que corra + `cache-demo.json` exportado — **es la obligación pendiente del ADR 0009**, no un extra | Juanda (R5) + Nico (R3) | 40 | `make run` ×2 con `diff` vacío; G1 deja de estar bloqueado; **`git ls-files behavior/ \| grep cache-demo` devuelve el archivo** | Los dos primeros comandos del README fallan delante del jurado, y el nivel 2 de determinismo **no existe para nadie fuera del equipo** |
+
+> ### ⚠️ A1 en dos pasos, y el segundo no es opcional
+>
+> **Cambiar el branch dispara un redeploy, y el redeploy borra la caché.** Lo dice el propio repo:
+> `docs/DEPLOY.md:118` («la caché en disco del contenedor **no sobrevive a un redeploy**») y
+> `:152` («no hay disco montado»). Esa caché es la que tiene los **117 aciertos** que hacen que la
+> demo dure 0,6 s.
+>
+> ```bash
+> # 1. apuntar a main
+> #    render.yaml:32,52  →  branch: main
+> #    OJO: si los servicios se crearon a mano en el dashboard y no desde el Blueprint,
+> #    render.yaml es decoración y el branch se cambia en la UI de Render.
+> # 2. recalentar, inmediatamente después del último deploy
+> make humo URL=https://enjambre-web.onrender.com LLM=1   # ~3 min, PAGA una corrida
+> ```
+>
+> **Si se hace el paso 1 y no el 2, la demo pasa de 0,6 s a 90 segundos de pantalla en negro.**
+> Medido: con `aumento_pct=17` (fuera de caché) el stream no emite un solo byte en 90 s, ni el
+> evento `inicio`.
+>
+> ### Por qué A2 no es un «nice to have»
+>
+> El [ADR 0009](../../adr/0009-frontera-del-determinismo.md) define la promesa del repo como
+> *«mismo seed + misma caché de decisiones + mismas versiones = mismo resultado»* (`:22`) y le deja
+> una obligación explícita a `behavior/` (`:32-34`): *«la caché deja de ser un archivo temporal…
+> sin eso, el nivel 2 no existe para nadie que no seamos nosotros»*.
+>
+> **Verificado: nunca se cumplió.** `behavior/.gitignore` contiene `.cache/` y no existe
+> `cache-demo.json` en `main` ni en la rama desplegada. Por eso la caché del deploy vive solo dentro
+> del contenedor. **A2 es deuda de un ADR aprobado, no una mejora.**
+>
+> Nota aparte, por si alguien los confunde: **el seed no reemplaza a la caché.** El seed siembra el
+> azar del motor; la caché congela las respuestas del LLM. Y hoy el seed **no hace nada**:
+> `api/servidor.py:80` dice `SEED_EFECTO = "etiqueta"`, y `engine/seed.py` no lo importa nadie fuera
+> de sus propios tests (`api/servidor.py:73`).
 | **A3** | Cap de gasto acumulado + caché caliente | Manuel (R2) + Nico (R3) | 30 | `fin` trae gasto acumulado; `python3 -m behavior.cache` muestra entradas Sonnet | El juez espera minutos sin saber si se colgó, y el clic nº9 quema los USD 50 |
 | **B1** | Rebautizar el mapa y decir de qué está hecho: «carga legal por celda (sobrecosto prestacional + costo de despido del CST)» | Dani (R4) + Juanda (R5) | 20 | `grep -rn "no puede pagar\|quién aprieta" web/` = 0; la nota al pie existe en la lámina | Un juez abre `construir_empresas.py:70`, ve que todas las empresas tienen el mismo colchón, y pregunta *«¿su mapa solo dice que el informal es informal?»* |
 | **B2** | Meter el **segundo episodio** (2024→2025: +9,5% de alza → **+2,63 pp**, signo opuesto) y la **no-ceguera del pre-registro** en `VALIDATION.md` | Juanda (R5) | 25 | `grep -n "2,63" VALIDATION.md` y `grep -n "no fue ciego" VALIDATION.md` ≥ 1 | El jurado los encuentra solo (están en el repo público) y lo que era rigor se lee como cifra escondida |
@@ -90,10 +126,10 @@ opinión. Es estructural.
 
 | Eje | Minutos |
 |---|---|
-| Eje A (A1+A2+A3) | 85 |
+| Eje A (A1+A2+A3) | **90** (A1 subió de 15 a 20 por el recalentamiento de caché) |
 | Eje B (B1+B2+B3) | 60 |
 | Eje C (C1+C2+C3) | 60 |
-| **Total** | **205** (3 h 25 min) |
+| **Total** | **210** (3 h 30 min) |
 
 ### Suma por dueño — el número que de verdad manda
 
@@ -102,15 +138,19 @@ la vez. El cuello de botella es el dueño más cargado, no el total.
 
 | Dueño | Arreglos que le tocan | Min acumulados |
 |---|---|---|
-| **Juanda (R5)** | A1, A2, B2, B3 | **95** |
+| **Juanda (R5)** | A1, A2, B2, B3 | **100** |
 | **Dani (R4)** | B1, B3, C1, C2, C3 | **95** |
 | Nico (R3) | A2, A3 | 70 |
 | Manuel (R2) | A3 | 30 |
 | Alejo (R1) | — | 0 |
 
-**Caben los nueve.** 95 minutos contra 235 disponibles. Eso no significa que sobre tiempo: son
+**Caben los nueve.** 100 minutos contra 235 disponibles. Eso no significa que sobre tiempo: son
 estimaciones hechas a las 4am por quien no va a ejecutarlas, y `main` todavía tiene que llegar al
 deploy y volver a probarse.
+
+> **El calentamiento de A1 va al final de todo, no al hacer A1.** Cada deploy posterior vuelve a
+> borrar la caché. Si Dani mergea C1/C2/C3 después de que Juanda calentó, hay que volver a calentar.
+> **La última acción antes del pitch es siempre `make humo URL=... LLM=1`**, pase lo que pase.
 
 ### Lo que entra — en este orden, y el orden importa
 
@@ -121,7 +161,11 @@ deploy y volver a probarse.
 3. **C1 + C3** (Dani), **B3** (Juanda+Dani): los tres rótulos que mienten.
 4. **C2** (E2 en pantalla) y **A3** (E2 en el motor). Son el mismo defecto por los dos lados.
 5. **B1.** Baja la afirmación del mapa a lo que el dato aguanta.
-6. **A2** al final: es el más largo y el que menos ve el jurado en vivo.
+6. **A2**, que es el más largo. Va acá por tiempo, no por importancia: **si A2 existiera, el paso 2
+   de A1 sobraría**, porque `cache-demo.json` versionado sobrevive al redeploy y la caché del
+   contenedor no. Mientras A2 no esté, cada deploy se paga con una corrida.
+7. **Recalentar la caché.** No es un arreglo, es el cierre obligatorio:
+   `make humo URL=... LLM=1` **después del último deploy que se haga**, sea cual sea.
 
 ### Lo que NO entra, y por qué
 
