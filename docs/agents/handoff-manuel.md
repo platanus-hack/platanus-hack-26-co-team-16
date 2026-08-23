@@ -5,22 +5,24 @@
 > Tus carpetas: `engine/`, `api/` · Tu rama: `rol/backend`
 > Tu misión, entregables y prompt de arranque: [`docs/ROLES.md`](../ROLES.md)
 
-## Cómo retomar (actualizado 2026-08-23, sesión 2)
+## Cómo retomar (actualizado 2026-08-23, sesión 3)
 
 > **Pega esto en una sesión nueva y arranca sin leer nada más.** Lo de abajo es el detalle.
 
 ```
-Trabajas en engine/ y api/, y SOLO ahí. Rama: rol/backend, con 9 commits empujados.
-Lee primero docs/agents/handoff-manuel.md: la entrada del 2026-08-23 (sesión 2).
+Trabajas en engine/ y api/, y SOLO ahí. Rama: rol/backend, con 13 commits empujados.
+Lee primero docs/agents/handoff-manuel.md: la entrada del 2026-08-23 (sesión 3).
 
-ESTADO: PR #19 abierto y BLOQUEADO por S1-1 de Nico (behavior/rondas.py:119, el round() sobre
-banda.tipo, que es string). Los 5 puntos del track de backend del vet están CERRADOS: S2-9,
-S1-4, S1-7, S2-8 y V-1. 71 tests verdes (python3 -m pytest api/ engine/ -q).
+ESTADO: PR #19 abierto, mergeable=CLEAN y BLOQUEADO por S1-1 de Nico. El arreglo existe en
+conductual/banda-s1-1, commit ed99d79, pero al cierre NO tiene PR y main sigue en 9f5d71e con
+el round() sobre banda.tipo. Los 5 puntos del track están CERRADOS: S2-9, S1-4, S1-7, S2-8
+y V-1. La primitiva opcional A3, engine/arquetipos.py::muestrear(), también está hecha en
+43d5664 y auditada por juez-cientifico. 89 tests verdes (python3 -m pytest api/ engine/ -q).
 
 LO PRIMERO, y solo cuando S1-1 esté en main:
-- Traer main a rol/backend, correr los 71 tests y el smoke SSE en modo=reglas con
-  trayectorias=5. HOY muere a propósito con "TypeError: type str doesn't define __round__":
-  esa es la prueba del bloqueo. Cuando pase limpia, PR #19 está listo para que lo revise Juanda.
+- Traer main a rol/backend, correr la suite completa y el smoke SSE en modo=reglas con
+  trayectorias=5. Hoy main todavía muere con "TypeError: type str doesn't define __round__".
+  Cuando termine en evento fin, quitar el prefijo BLOQUEADO del PR #19 y pedir review a Juanda.
 
 LO QUE ESTÁ ESPERANDO A MANI (no arranques sin su OK, cuesta plata):
 - El warmeo de auditoría: UNA trayectoria a 23% = USD 1,26. Audita la cadena entera
@@ -31,9 +33,9 @@ LO QUE ESTÁ ESPERANDO A MANI (no arranques sin su OK, cuesta plata):
 - Warmear en un DIRECTORIO APARTE (Cache(directorio=...)), no en behavior/.cache/: así el
   cache-demo.json sale limpio y no se toca la caché de Nico.
 
-LO QUE NO ESPERA A NADIE (si sobra tiempo):
-- engine/arquetipos.py con muestrear(arq, n, rng): sin eso Dani no dibuja el mapa
-  distributivo (dato A3). La plomería de seed ya está en engine/seed.py y hoy no la usa nadie.
+FRONTERA DE A3:
+- muestrear(arq, n, rng) ya existe y acepta el ResultadoArquetipo real. Falta cablearlo al
+  bucle/API y pintarlo; no decir que el mapa está entregado. Ese cableado NO bloquea PR #19.
 
 REGLAS: no tocar carpetas ajenas (si el arreglo las necesita, se avisa en Vibe Coders); todo
 supuesto marcado con # SUPUESTO: donde se toma; al LLM jamás se le nombra la política, solo la
@@ -46,6 +48,43 @@ mecánica; git diff --stat antes de decir que algo se hizo; nadie pushea a main.
 ## Dónde quedé
 
 _Lo más reciente arriba._
+
+- **2026-08-23 (sesión 3) — `arquetipos.py` cerrado, PR #19 re-auditado y bloqueo S1-1
+  localizado en una rama concreta. Commit `43d5664`, empujado a `rol/backend`.**
+
+  **Estado remoto medido al cierre:** `origin/main = 9f5d71e`; PR #19 abierto,
+  `mergeStateStatus=CLEAN`, sin review ni checks publicados. S1-1 es de **Nico (R3)**. Su arreglo
+  está en `origin/conductual/banda-s1-1`, commit `ed99d79`, pero GitHub no reporta ningún PR para
+  esa rama. No se trajo ese commit directamente: el acuerdo dice esperar a que entre a `main`.
+
+  **El cuarto archivo de engine entró.** `engine/arquetipos.py::muestrear(arq, n, rng)` reparte
+  estrategias individuales desde la distribución de `behavior.capa.ResultadoArquetipo`, con
+  stream externo derivable por `stream_nombrado()`, orden estable y normalización resistente a
+  pesos extremos. `engine/test_arquetipos.py` agrega 18 pruebas. La suite completa queda en
+  **89 verdes** (`python3 -m pytest api/ engine/ -q`).
+
+  **La auditoría científica sí cambió el código.** El primer pase detectó que el protocolo decía
+  `id` mientras el productor real expone `arquetipo_id`; también detectó que el reporte decía
+  “A3 entregado” sin ningún consumidor. Se corrigió el contrato y se añadió una prueba contra el
+  `ResultadoArquetipo` real. El segundo pase exigió declarar dos supuestos más fuertes que
+  “intercambiabilidad”: (1) frecuencias de decisiones aceptadas → probabilidades conductuales y
+  (2) sorteos iid condicionales. Quedaron marcados con `# SUPUESTO:` y en S6 de `MODELO.md`.
+  Veredicto final: sin bloqueantes de código ni tests.
+
+  **Frontera honesta de A3:** la primitiva de muestreo está lista; nadie la llama todavía. Falta
+  cablearla al bucle, exponer los agentes por la API y pintarlos. No bloquea este PR y no se toca
+  `behavior/` ni `web/` desde este track.
+
+  **Lo único que falta para entregar PR #19 a Juanda:**
+  1. Nico abre y fusiona S1-1 desde `conductual/banda-s1-1` hacia `main`.
+  2. Manuel trae `main` a `rol/backend` sin resolver por encima de carpetas ajenas.
+  3. Corre `python3 -m pytest api/ engine/ -q` y el smoke SSE `modo=reglas`,
+     `trayectorias=5`; tiene que cerrar con evento `fin`, no `error`.
+  4. Quita `🔴 BLOQUEADO` del título del PR #19 y pide review a Juanda.
+
+  **No ejecutado:** ninguna llamada paga, ninguna credencial solicitada, ninguna caché tocada.
+  El warmeo de auditoría de USD 1,26 sigue esperando OK explícito de Mani y no es prerrequisito
+  para que Juanda revise PR #19.
 
 - **2026-08-23 (sesión 2) — el track del vet queda CERRADO: S2-8 y V-1 hechos, los dos
   verificadores corridos, y un bug propio encontrado por ellos. Commits `5bdc2b6` … `def0db7`.**
