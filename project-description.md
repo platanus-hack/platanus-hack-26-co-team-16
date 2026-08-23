@@ -1,87 +1,95 @@
-# EL ENJAMBRE — simulador de cumplimiento de política pública
+# El simulador que falsó su propia tesis
 
-**No responde si una política funciona, sino cuánta gente la cumple y a quién le cae encima.**
+**Track: 🌐 Simulations · team-16 · Bogotá**
 
-🔗 **[enjambre-web.onrender.com](https://enjambre-web.onrender.com)** — sin registro, sin cuenta, sin instalar nada.
+Toda proyección de política pública asume que la gente va a cumplir la norma. Esa es la parte que nadie mide.
 
-Toda proyección oficial de una política laboral asume que la política se cumple. Ese supuesto es el
-que nadie mide. Nosotros lo simulamos: qué hace cada tipo de empleador cuando su costo laboral sube,
-y qué pasa con la probabilidad de que lo sancionen cuando el de al lado también incumple.
+Construimos un simulador que no pregunta *"¿funciona esta política?"* sino **"¿cuánta gente la cumple, y a quién le cae encima?"**. El caso: el aumento del salario mínimo del 23% en Colombia — decretos 1469 y 1470 de 2025, cerca de 2,4 millones de trabajadores al mínimo, con litigio abierto en el Consejo de Estado.
 
-**Caso demo:** el aumento del salario mínimo colombiano del 23% (decretos 1469 y 1470 de 2025), sobre
-el mercado laboral de Bogotá.
+Después lo pusimos a predecir un año que ya ocurrió, para ver si acertaba.
 
-## La población no se inventa
+No acertó. **Y ese es el resultado que estamos presentando.**
 
-Los agentes se instancian desde **6.692 personas reales anonimizadas de los microdatos de la GEIH del
-DANE**, expandidas por factor de encuesta a 4,2 millones de ocupados. Sector, tamaño de empresa,
-ingreso, educación e informalidad vienen en la misma fila de la encuesta: las correlaciones entre
-atributos son las observadas, no las que un modelo de lenguaje considere plausibles. El lado
-empleador son 81 celdas con su costo formal, su factor prestacional y su indemnización calculados
-contra el Código Sustantivo del Trabajo.
+---
 
-## El LLM propone y la aritmética manda
-
-Una capa LLM descubre estrategias de adaptación —informalizar, recortar jornada, despedir,
-absorber— en vez de escogerlas de un menú que escribió un economista. Después, un motor determinista
-con seed calcula el flujo de caja de la firma y **veta** lo que es materialmente imposible: una
-empresa sin caja para pagar indemnizaciones no puede despedir, por convincente que suene la
-justificación. En casi toda simulación con agentes LLM el modelo también juzga; acá solo propone.
-
-**Al modelo jamás se le nombra la política.** No ve "salario mínimo", ni "decreto", ni un año: solo
-la mecánica (*"tu costo laboral por empleado formal sube X%"*). Una guardia revisa **cada** prompt
-antes de enviarlo y aborta la corrida entera si encuentra un término prohibido, un símbolo de moneda
-o un año de cuatro dígitos. Es fail-closed: no filtra, aborta. Si el agregado emerge igual sin el
-nombre, no es memoria del modelo.
-
-## La fiscalización es endógena, y ahí está el mecanismo
-
-La capacidad de inspección laboral es **fija** —derivada de la cifra de inspectores de la OIT—, así
-que cada evasor adicional diluye la probabilidad de que la sanción te caiga a ti. Las decisiones
-individuales se vuelven una **cascada** que el modelo oficial, que asume cumplimiento, no puede ver.
-
-Eso es el **mecanismo del modelo**, no un resultado del proyecto. La diferencia importa y la
-sostenemos abajo.
-
-## El número, publicado salga como salga
-
-Escribimos los criterios de éxito **antes** de tener los datos, en un commit fechado y verificable
-(`git log --date=iso -- VALIDATION.md`). Después corrimos el backtest fuera de muestra contra el
-episodio real de 2025→2026:
+## El número
 
 ```
-Error del backtest:          +37,37 pp
-Skill vs. persistencia:       −8,182     (la persistencia le gana ocho veces al modelo)
-Delta observado:              −4,07 pp   (la informalidad BAJÓ)
-Delta predicho:              +33,3  pp   (el modelo dice que SUBE)
+Error del backtest:          37,37 pp
+Habilidad vs. persistencia:  -8,182
 ```
 
-**El modelo falló, y el signo está al revés.** Se activó la rama que habíamos pre-escrito para ese
-caso: se publica el error, se acota el claim al margen formal→informal dentro de quienes ya tienen
-empleador, y se nombran los confusores que no cubrimos —la reforma laboral, la jornada de 42 horas,
-el ciclo— como límite declarado y no como excusa. Un backtest negativo pero medido y reportado con
-honestidad sigue siendo más serio que una cifra que nadie puede refutar.
+El modelo predijo que la informalidad en Bogotá **subiría 33 puntos** con el alza del 23%. **Bajó 4.**
 
-## Qué NO modela
+| | 2025 → 2026 | cambio |
+|---|---|---|
+| Nuestro proxy (GEIH ene–jun, mismo código en los dos extremos) | 34,64% → 30,57% | **−4,07 pp** |
+| Oficial DANE (abr–jun, otra definición) | 35,60% → 33,30% | **−2,30 pp** |
+| **Lo que predijo el modelo** | | **+33,3 pp** |
 
-Límites declarados, no omisiones. Están en el repo con la dirección del sesgo de cada uno:
+Signo contrario, un orden de magnitud, y el valor real cae **fuera del propio rango de incertidumbre del modelo**. Predecir simplemente *"2026 será igual que 2025"* erra por 4,07 puntos; nuestro modelo erra por 37,37. La regla más tonta posible nos gana ocho veces.
 
-- **No hay contrataciones**: el empleo solo puede caer. **No hay productividad, demanda, capital ni
-  precios endógenos.**
-- **La tasa de desempleo no es computable** con lo que el motor mueve.
-- **Los trabajadores por cuenta propia (23% de los ocupados de Bogotá) están fuera de la grilla**: el
-  enjambre no es la ciudad entera.
-- **No prueba convergencia a equilibrio**: son 3 rondas de mejor respuesta, y así se reporta.
-- Hoy la corrida arranca de la población posterior a la política; corregirlo cambia el número, y
-  **está pre-comprometido por escrito** qué se hace con el número nuevo salga como salga.
+Con dos episodios el problema se ve mejor todavía:
 
-## Cómo verificarlo sin creernos
+```
+2024 → 2025, alza  +9,5%:   +2,63 pp observado
+2025 → 2026, alza +23,0%:   -4,07 pp observado
+```
+
+El modelo predice que sube en los dos, y más en el grande. En el grande bajó. **Las direcciones se oponen.**
+
+---
+
+## Por qué publicamos esto en vez de esconderlo
+
+El criterio de éxito se escribió **antes** de correr el modelo y se commiteó con fecha, con los datos de 2026 todavía sin descargar. Está en el historial de git, verificable con un comando. La regla que nos pusimos entonces fue: *el número se publica salga como salga.*
+
+Un umbral escrito después de ver el resultado no es un umbral, es una racionalización.
+
+Podríamos haber presentado la cascada de evasión como hallazgo — la curva es vistosa y nadie en la sala habría podido refutarla en tres minutos. Elegimos medirla contra la realidad. La realidad dijo que no.
+
+**Lo que falló es el modelo de comportamiento. La maquinaria que lo midió funciona,** y hay una prueba independiente: el pico de la distribución salarial se movió solo, de 1.420.000 pesos en 2025 a 1.750.000 en 2026, siguiendo el mínimo legal de cada año (1.423.500 y 1.750.905) sin que nadie se lo dijera. Los datos leen bien la realidad.
+
+El aparato de medición encontró que el modelo estaba mal **antes del Q&A, no durante**. Para eso sirve un aparato de medición.
+
+---
+
+## Qué construimos, concretamente
+
+**La población no se inventa.** Los agentes se instancian desde personas y empresas reales anonimizadas de los microdatos de la GEIH, la encuesta de hogares del DANE. Educación, sector, tamaño de firma, ingreso e informalidad vienen todos de la misma fila de la encuesta: las correlaciones entre atributos son las observadas, no las que un modelo de lenguaje considere plausibles.
+
+**Al modelo de lenguaje jamás se le nombra la política.** Solo la mecánica: *"tu costo laboral por empleado formal sube un X%"*. Nunca "salario mínimo", nunca "decreto", nunca el año. Es el control contra contaminación por memoria del modelo, y un test automático lo verifica en cada corrida.
+
+**El LLM propone, el motor dispone.** La capa de lenguaje descubre estrategias de adaptación — informalizar, absorber el costo, recortar jornada, despedir, subir precios — en vez de elegirlas de un menú que escribió un economista. Un motor determinista con semilla calcula el flujo de caja y **veta** lo materialmente imposible. El veto es aritmética, no criterio.
+
+**La fiscalización es endógena.** La capacidad de inspección laboral es fija: cada evasor adicional baja la probabilidad de que la sanción te caiga a vos.
+
+**Todo número sale con banda.** La incertidumbre se mide sobre trayectorias completas e independientes, y cuando no hay dispersión que mostrar la banda se marca como degenerada, en vez de dibujar una precisión inexistente.
+
+---
+
+## Qué NO hace
+
+Límites declarados, no omisiones.
+
+- **No es un modelo macro.** Inflación, crecimiento y tasa de cambio entran como datos observados, nunca como resultado.
+- **No prueba convergencia a equilibrio.** Son rondas de mejor respuesta, y así se reportan.
+- **No optimiza políticas.** Evalúa la que se le dé; no busca la mejor.
+- **No entrega el futuro.** Entrega un rango, con el error del backtest publicado al lado.
+- **No podemos afirmar la cascada agregada.** Nuestro propio backtest la falsó, y retiramos la afirmación del repositorio cuando llegó el dato.
+
+**Tres de las compuertas de validación siguen bloqueadas** — falta el script que genera la corrida canónica, falta fijar la versión de una dependencia y falta registrar el par de prompts canónico y re-skinneado. Por eso el comando de validación **sale con código de error a propósito**. Preferimos que falle ruidosamente a que pase en silencio.
+
+---
+
+## Verificalo vos
 
 ```bash
-make test        # el núcleo determinista
-make validate    # los 4 candados e imprime EL número
-make supuestos   # cada supuesto marcado en el punto donde se toma
+make validate                 # imprime EL número; sale con código 1 mientras haya compuertas bloqueadas
+make test                     # el núcleo determinista
+python scripts/reproduce.py   # reproduce el resultado principal, sin API key
 ```
 
-Mismo seed, mismo resultado. Repo público, licencia MIT, y `grep -rn "SUPUESTO:"` es el informe de
-honestidad del proyecto.
+El número se reproduce en un clon limpio **sin descargar nada**: los momentos que necesita están versionados, así que no hacen falta los ~370 MB de microdatos crudos. Hay un test que lo verifica, y existe porque una auditoría interna encontró que la promesa era falsa — el validador exigía los crudos y funcionaba solo en la máquina de quien lo escribió.
+
+Mismo seed, mismo resultado. Corrélo dos veces y compará.
