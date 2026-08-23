@@ -9,7 +9,7 @@ Salida:   data/poblacion.parquet  — una fila por agente-trabajador de Bogota,
 Determinista: transformacion pura sin muestreo (no requiere seed); el parquet
 se escribe ordenado por id, asi dos corridas producen el mismo archivo.
 
-Uso:  python data/construir_poblacion.py [--anio 2026]
+Uso:  python data/construir_poblacion.py [--anio 2026] [--meses abril,mayo,junio]
 """
 
 from __future__ import annotations
@@ -134,6 +134,7 @@ def cargar_mes(mes: str, anio: int = 2026) -> pd.DataFrame:
 
 
 def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.DataFrame, dict]:
+    ventana_explicita = meses is not None
     meses = MESES if meses is None else meses
     crudo = pd.concat([cargar_mes(m, anio) for m in meses], ignore_index=True)
     n_crudo = len(crudo)
@@ -250,23 +251,54 @@ def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.Data
         "terciles_ingreso_cop": {"t1_max": round(t1), "t2_max": round(t2)},
         "n_arquetipos": int(poblacion["arquetipo"].nunique()),
     }
+    if ventana_explicita:
+        momentos["meses"] = meses
     return poblacion, momentos
+
+
+def _parsear_meses(valor: str) -> list[str]:
+    meses = [mes.strip().lower() for mes in valor.split(",") if mes.strip()]
+    if not meses:
+        raise argparse.ArgumentTypeError("--meses requiere al menos un mes")
+    invalidos = [mes for mes in meses if mes not in MESES]
+    if invalidos:
+        validos = ", ".join(MESES)
+        raise argparse.ArgumentTypeError(
+            f"mes(es) no válido(s): {', '.join(invalidos)}; opciones: {validos}"
+        )
+    return meses
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Construye la población GEIH de Bogotá.")
     parser.add_argument("--anio", type=int, choices=(2024, 2025, 2026), default=2026)
+    parser.add_argument(
+        "--meses",
+        type=_parsear_meses,
+        help="meses separados por comas; por ejemplo: abril,mayo,junio",
+    )
     args = parser.parse_args()
 
-    poblacion, momentos = construir(args.anio)
+    poblacion, momentos = construir(args.anio, args.meses)
     out = Path(__file__).parent
-    sufijo = "" if args.anio == 2026 else f"_{args.anio}"
-    poblacion_path = out / f"poblacion{sufijo}.parquet"
-    momentos_path = out / f"momentos{sufijo}.json"
-    poblacion.to_parquet(poblacion_path, index=False)
+    sufijo_anio = "" if args.anio == 2026 else f"_{args.anio}"
+    if args.meses:
+        # Una ventana parcial escribe SOLO los momentos. El parquet de la ventana
+        # completa es el entregable de R1 y todo el equipo construye contra el;
+        # versionar ademas un parquet por corte duplicaria microdatos para
+        # responder una sola pregunta: como se ve la ventana que publica el DANE.
+        ventana = f"{args.meses[0][:3]}_{args.meses[-1][:3]}"
+        momentos_path = out / f"momentos_{ventana}{sufijo_anio}.json"
+        salida_principal = momentos_path.name
+    else:
+        poblacion_path = out / f"poblacion{sufijo_anio}.parquet"
+        momentos_path = out / f"momentos{sufijo_anio}.json"
+        poblacion.to_parquet(poblacion_path, index=False)
+        salida_principal = poblacion_path.name
+
     with open(momentos_path, "w", encoding="utf-8") as f:
         json.dump(momentos, f, ensure_ascii=False, indent=2)
-    print(f"{poblacion_path.name}: {len(poblacion)} agentes, "
+    print(f"{salida_principal}: {len(poblacion)} agentes, "
           f"{momentos['ocupados_expandidos']:,} ocupados expandidos, "
           f"{momentos['n_arquetipos']} arquetipos")
     print(f"informalidad total: {momentos['tasa_informalidad_total']:.1%}")

@@ -31,6 +31,37 @@ python data/construir_empresas.py   # poblacion + normativa -> empresas.parquet
 Determinista sin seed: no hay muestreo, solo transformación; dos corridas producen
 archivos idénticos byte a byte (verificado por sha256).
 
+### Corte abril–junio para el contraste oficial
+
+La ventana del proyecto apila enero–junio para construir la población. El DANE publica
+la cifra comparable como trimestre **abril–junio**, así que ese corte se conserva aparte.
+No se genera otro parquet: el corte solo sirve para el contraste y duplicaría microdatos
+sin aportar otro entregable.
+
+```bash
+python data/construir_poblacion.py --anio 2026 --meses abril,mayo,junio
+python data/construir_poblacion.py --anio 2025 --meses abril,mayo,junio
+```
+
+| Artefacto | Informalidad total (proxy de pensión) |
+|---|---|
+| `momentos_abr_jun.json` (2026) | **30,81%** |
+| `momentos_abr_jun_2025.json` (2025) | **33,25%** |
+
+**Por qué esto existe como artefacto y no como una nota a mano.** La brecha contra el DANE
+(33,3% oficial abr–jun 2026 − 30,81% nuestro = **2,49 pp**) estuvo publicada como *≈2,1 pp*
+durante casi seis horas: el número era correcto cuando se escribió, el proxy se movió 18
+minutos después y nadie recalculó la resta. Un número sin script que lo produzca se queda
+viejo en silencio, y este además subestimaba **a nuestro favor** la limitación declarada.
+Cada archivo lleva dentro la ventana que usó (clave `meses`), así que la cifra no depende
+de que alguien recuerde de qué corte salió.
+
+**Lo que el corte deja comparar, y antes no se podía:** el delta abr–jun del proxy entre
+2025 y 2026 es **−2,44 pp** (33,25 → 30,81), contra el **−2,30 pp** de la serie oficial en
+esa misma ventana. Antes solo se podía contrastar ene–jun (−4,07 pp) contra abr–jun
+(−2,30 pp), que son ventanas distintas. Misma ventana, dos definiciones, y la dirección y
+la magnitud coinciden.
+
 ## Transformaciones aplicadas (todas en `construir_poblacion.py`)
 
 1. **Filtro Bogotá:** `AREA == 11` en el módulo Ocupados.
