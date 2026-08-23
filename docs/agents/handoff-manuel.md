@@ -5,6 +5,46 @@
 > Tus carpetas: `engine/`, `api/` · Tu rama: `rol/backend`
 > Tu misión, entregables y prompt de arranque: [`docs/ROLES.md`](../ROLES.md)
 
+## Cómo retomar (actualizado 2026-08-23)
+
+> **Pega esto en una sesión nueva y arranca sin leer nada más.** Lo de abajo es el detalle.
+
+```
+Trabajas en `engine/` y `api/`, y SOLO ahí. Rama: rol/backend, que ya tiene 3 commits empujados.
+Lee primero docs/agents/handoff-manuel.md: la entrada del 2026-08-23 tiene todo el contexto.
+
+ESTADO: el PR #19 está abierto y BLOQUEADO por S1-1 de Nico (`behavior/rondas.py:119`, el
+`round()` de `a_contrato()` sobre un `tipo` que es string). No se mergea antes que el suyo.
+
+LO PRIMERO, y solo cuando S1-1 ya esté en `main`:
+- Traer main a rol/backend, correr `python3 -m pytest api/ engine/ -q` (hoy: 15 verdes) y el
+  smoke del flujo SSE en modo=reglas con trayectorias=5. HOY esa corrida muere a propósito con
+  `TypeError: type str doesn't define __round__`: es la prueba de que S1-1 la bloquea. Cuando
+  pase limpia, el PR #19 está listo para mergear.
+
+LO QUE NO ESPERA A NADIE:
+- S2-8: `web/enjambre/componentes/Paneles/Metricas.tsx:27,45` calcula "$X billones/mes · proxy
+  de PIB laboral" EN EL NAVEGADOR, fuera de la capa que declara "cero números inventados". Es la
+  única cifra en pesos absolutos de la pantalla y la más citable en un pitch. Se mueve a
+  `api/serializar.py` con su `# SUPUESTO:`. El cálculo se lee de `web/`, NO se edita `web/`:
+  coordinar el borrado con Dani.
+- V-1: decidir `tope_usd` (hoy 3.0, `api/servidor.py`) contra las 465 llamadas que cuesta una
+  corrida con trayectorias=5. Con la cifra que mida Nico con caché fría, no a ojo.
+- Correr el verificador del track: el prompt 16 re-apuntado
+  (platanus-hack-26-simulations/reencuadre/16-prompt-de-cuestionamiento.md) y `juez-hackathon`.
+
+SI SOBRA: `engine/arquetipos.py` con `muestrear(arq, n, rng)` — sin eso Dani no puede dibujar el
+mapa distributivo, y la plomería de seed ya está en `engine/seed.py`.
+
+REGLAS QUE NO SE NEGOCIAN: no tocar carpetas ajenas (si el arreglo las necesita, se avisa en
+Vibe Coders); cero datos inventados y todo supuesto marcado con `# SUPUESTO:` donde se toma; al
+LLM jamás se le nombra la política, solo la mecánica; `git diff --stat` antes de decir que algo
+se hizo. Nadie pushea a `main`: rama → PR → lo revisa Juanda.
+```
+
+**Ya comunicado al equipo** (Vibe Coders, 2026-08-23): los 6 hallazgos de otras carpetas, el
+"Dani, no hagas S2-2" y el dato de p10/p90 para el pitch. No hay que repetirlo.
+
 ## Dónde quedé
 
 _Lo más reciente arriba._
