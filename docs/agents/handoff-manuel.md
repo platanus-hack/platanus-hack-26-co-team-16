@@ -9,6 +9,39 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-23 07:00 — revisé y mergeé el PR #21 (el deploy de R5) a `main`. Merge commit `9665a08`.**
+  - **Por qué me tocó a mí:** la tabla de revisores de [`docs/vet/03-arranque-por-track.md`](../vet/03-arranque-por-track.md)
+    asigna el track de R5 a R2, y el punto 3 del flujo de `AGENTS.md` exige que revise alguien
+    distinto de quien escribió, en sesión distinta.
+  - **Merge commit y no squash, a propósito:** los cuatro mensajes de Juanda traen tres hallazgos
+    medidos (Vercel corta los rewrites externos a 120 s y una corrida LLM tarda 166 s ·
+    `ENJAMBRE_API` se congela en `.next/routes-manifest.json` durante el **build**, no al arrancar ·
+    Render define `NODE_ENV=production` y `npm ci` a secas se salta `typescript`). Squashearlos
+    perdía justo lo que sirve dentro de seis meses.
+  - **Lo que verifiqué antes de mergear** (no lo que el PR decía): cero solapamiento de archivos
+    con lo que `main` avanzó desde el merge-base — los PR #20 y #23 tocaron `behavior/`, `engine/`
+    y `data/`, este toca docs raíz, `Makefile`, `scripts/` y `render.yaml` · `make test` sobre el
+    árbol **ya mergeado**: **70 pasando** (no 66; los 4 extra vienen del #23) · el deploy responde
+    en vivo, incluido **el proxy `/api/poblacion` del front en 200**, que es la prueba de que
+    `ENJAMBRE_API` quedó bien horneado · el bloque pre-registrado de `VALIDATION.md` intacto con su
+    propio comparador: `idéntico: True | 1056 vs 1056`.
+  - **Qué gana el repo:** la URL de la entrega existe (`https://enjambre-web.onrender.com`),
+    `platanus-hack-project.jsonc` dejó de tener `<FILL THIS>`, y `VALIDATION.md` **retracta** la
+    frase *"es fuera de muestra de verdad"* y **pre-compromete** qué se hace con el número nuevo
+    cuando se arregle S3-1. Eso desbloquea a Nico y Alejo: pueden correr S3-1 sabiendo que el
+    criterio ya está escrito y no depende del resultado.
+  - 🔴 **Cabo suelto que dejé vivo a propósito — no es mío y no lo toqué.** `render.yaml` declara
+    `branch: rol/integracion-deploy` en los dos servicios. **Por eso NO borré la rama al mergear:
+    borrarla tumba el autodeploy de la URL de la entrega.** Consecuencia contraintuitiva mientras
+    siga así: **un commit a `main` NO redespliega, y uno a `rol/integracion-deploy` SÍ.** El cambio
+    a `branch: main` (o cambiar la rama en el dashboard, que es equivalente) es de R5; se lo dejé
+    escrito en el comentario del PR #21. `docs/DEPLOY.md:69` también quedó desactualizado por lo
+    mismo.
+  - **Lo que este PR NO cerró y sigue abierto:** el resto de C2 — la cascada todavía figura como
+    *hallazgo* en `README.md:23`, `AGENTS.md:3`, `docs/PLAN.md` §1.1 y `docs/IDEA.md:145,154`. En
+    los dos archivos que Juanda sí publicó ya está escrita como **mecanismo**. Y `$50` de crédito
+    de Render ≈ 30 días: los servicios se suspenden cuando pase la votación.
+
 - **2026-08-22 23:00 (sesión del vet) — el vet completo de `main`, y el reparto en 5 tracks. Mergeado en PR #17.**
   - **Lo que hice:** tres auditorías de solo lectura sobre `c63343f` (conductual, pantalla, datos+validación),
     reverificadas contra `b180d51`. Once componentes decididos uno por uno. Todo quedó en
