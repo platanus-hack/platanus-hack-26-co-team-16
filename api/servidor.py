@@ -10,8 +10,11 @@ produce, por las dos costuras que `behavior/` expone para eso
 
 Eventos del flujo, en orden:
   inicio    → parámetros de la corrida (con el rótulo de qué gobierna el seed)
+  trayectoria → arrancó una de las N trayectorias de las que sale la banda
   decision  → una celda decidió (progreso intra-ronda, orden de terminación real)
-  ronda     → agregado de la ronda cerrada (contracts/ronda.json intacto + extras)
+  ronda     → agregado de la ronda cerrada (contracts/ronda.json intacto + extras).
+              Salen TODAS al final: son las de la trayectoria mediana, y cuál es
+              la mediana no se sabe hasta que las N cierran.
   fin       → la corrida terminó (con el informe de gasto si hubo LLM)
   error     → la corrida murió (sin credenciales, presupuesto, etc.)
 
@@ -44,7 +47,7 @@ from behavior.arquetipos import (
 )
 from behavior.cliente import ClienteConductual, SinCredenciales
 from behavior.presupuesto import Presupuesto
-from behavior.rondas import correr
+from api.trayectorias import N_TRAYECTORIAS, correr_consolidada
 
 _RAIZ = Path(__file__).resolve().parent.parent
 
@@ -119,7 +122,25 @@ def flujo(
         ),
     ),
     cobertura: float = Query(0.8, gt=0.0, le=1.0),
-    parafrasis: int = Query(1, ge=1, le=9),
+    trayectorias: int = Query(
+        N_TRAYECTORIAS,
+        ge=1,
+        le=N_TRAYECTORIAS,
+        description=(
+            "Trayectorias completas e independientes. La banda que se publica "
+            "es la dispersión ENTRE ellas. Con 1 no hay banda y `banda.tipo` lo dice."
+        ),
+    ),
+    parafrasis: int = Query(
+        1,
+        ge=1,
+        le=9,
+        description=(
+            "Paráfrasis por ronda DENTRO de cada trayectoria. Solo llena "
+            "`banda_intra_ronda`, que es diagnóstico y no sale a pantalla. "
+            "Multiplica el costo por su valor: déjalo en 1."
+        ),
+    ),
     tope_usd: float = Query(3.0, gt=0.0, le=10.0),
     modo: str = Query("llm", pattern="^(llm|reglas)$"),
 ) -> StreamingResponse:
@@ -131,7 +152,9 @@ def flujo(
     interfaz no lo expone.
     """
     return StreamingResponse(
-        _generar(aumento_pct, seed, cobertura, parafrasis, tope_usd, modo),
+        _generar(
+            aumento_pct, seed, cobertura, trayectorias, parafrasis, tope_usd, modo
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -141,6 +164,7 @@ def _generar(
     aumento_pct: float,
     seed: int,
     cobertura: float,
+    trayectorias: int,
     parafrasis: int,
     tope_usd: float,
     modo: str,
@@ -153,30 +177,34 @@ def _generar(
     cancelado = threading.Event()
     arquetipos = _grilla()
     total = len(arquetipos)
-    decididos: dict[int, int] = {}
+    # La cuenta de decisiones es por (trayectoria, ronda): con N trayectorias, una
+    # sola cuenta por ronda pasaría de `total` y la barra de progreso mentiría.
+    decididos: dict[tuple[int, int], int] = {}
     candado = threading.Lock()
 
-    def al_decidir(ronda: int, arquetipo_id: str, resultado) -> None:
+    def al_decidir(trayectoria: int, ronda: int, arquetipo_id: str, resultado) -> None:
         if cancelado.is_set():
             raise RuntimeError("corrida cancelada: el cliente se desconectó")
         with candado:
-            decididos[ronda] = decididos.get(ronda, 0) + 1
-            n = decididos[ronda]
+            clave = (trayectoria, ronda)
+            decididos[clave] = decididos.get(clave, 0) + 1
+            n = decididos[clave]
         ev = serializar.evento_decision(ronda, arquetipo_id, resultado, n, total)
+        # Con esto la pantalla anima el enjambre MIENTRAS se calcula, que es lo
+        # único que ocurre en vivo ahora. Va rotulado con la trayectoria: sin eso,
+        # N pasadas seguidas por las mismas celdas parecen un bucle roto.
+        ev["trayectoria"] = trayectoria
         print(
-            f"[decisión r{ronda} {n:>3}/{total}] {arquetipo_id:<28} "
+            f"[t{trayectoria} decisión r{ronda} {n:>3}/{total}] {arquetipo_id:<28} "
             f"{ev['dominante'] or '-':<14} vetadas={ev['vetadas']}"
         )
         eventos.put(("decision", ev))
 
-    def al_terminar(r) -> None:
-        if cancelado.is_set():
-            raise RuntimeError("corrida cancelada: el cliente se desconectó")
-        ev = serializar.evento_ronda(r, arquetipos, aumento_pct)
+    def _imprimir_ronda(prefijo: str, ev: dict[str, Any]) -> None:
+        """Los prints de verificación: lo que ve la pantalla es lo que dice acá."""
         c = ev["contrato"]
-        # Los prints de verificación: lo que ve la pantalla es lo que dice acá.
         print(
-            f"\n[ronda {c['ronda']}] informalidad={c['tasa_informalidad']:.1%} "
+            f"\n[{prefijo}ronda {c['ronda']}] informalidad={c['tasa_informalidad']:.1%} "
             f"p(sanción)={c['prob_fiscalizacion']:.1%} empleo={c['empleo_relativo']:.1%} "
             f"ingreso_laboral={c['ingreso_laboral_relativo']:.1%} "
             f"masa_salarial={ev['masa_salarial_relativa']} "
@@ -184,13 +212,27 @@ def _generar(
         )
         if ev["desglose_estrategias"]:
             top = ", ".join(f"{k} {v:.1%}" for k, v in list(ev["desglose_estrategias"].items())[:4])
-            print(f"[ronda {c['ronda']}] estrategias (ponderadas): {top}")
+            print(f"[{prefijo}ronda {c['ronda']}] estrategias (ponderadas): {top}")
         print(
-            f"[ronda {c['ronda']}] fallbacks={ev['fraccion_fallback']:.1%} "
+            f"[{prefijo}ronda {c['ronda']}] fallbacks={ev['fraccion_fallback']:.1%} "
             f"sin_salida={ev['fraccion_sin_salida']:.1%} "
             f"banda={c['banda']} estabilizada={c['estabilizada']}\n"
         )
-        eventos.put(("ronda", ev))
+
+    def al_terminar(trayectoria: int, r) -> None:
+        """Cierra una ronda DE UNA trayectoria: se imprime, no se transmite.
+
+        Transmitirla sería narrar en pantalla una trayectoria que puede no ser la
+        que se publique. La que sale al cable es la mediana de las N, y cuál es la
+        mediana no se sabe hasta que las N cierran.
+        """
+        if cancelado.is_set():
+            raise RuntimeError("corrida cancelada: el cliente se desconectó")
+        _imprimir_ronda(f"t{trayectoria} ", serializar.evento_ronda(r, arquetipos, aumento_pct))
+
+    def al_empezar_trayectoria(i: int, n: int) -> None:
+        print(f"\n=== trayectoria {i + 1}/{n} · paráfrasis {i + 1} ===")
+        eventos.put(("trayectoria", {"indice": i, "de": n}))
 
     def trabajar() -> None:
         t0 = time.time()
@@ -200,21 +242,43 @@ def _generar(
             else ClienteReglas()
         )
         try:
-            correr(
+            rondas, n_efectivas = correr_consolidada(
                 arquetipos,
                 cliente,
+                n_trayectorias=trayectorias,
                 aumento_pct=aumento_pct,
                 rondas_totales=RONDAS_TOTALES,
                 seed=seed,
                 simulacion_id=f"enjambre-{seed}-{aumento_pct:g}",
-                veto=None,
-                n_parafrasis=parafrasis,
                 cobertura_llm=cobertura if modo == "llm" else None,
                 tasa_informalidad_inicial=informalidad_observada(_RAIZ / "data" / "momentos.json"),
-                al_terminar_ronda=al_terminar,
+                n_parafrasis=parafrasis,
                 al_decidir_arquetipo=al_decidir,
+                al_terminar_ronda=al_terminar,
+                al_empezar_trayectoria=al_empezar_trayectoria,
             )
+            if not rondas:
+                eventos.put(
+                    ("error", {"mensaje": "ninguna trayectoria alcanzó a terminar"})
+                )
+                return
+            # Acá salen las rondas al cable, todas juntas y no mientras se
+            # calculaban: son las de la trayectoria MEDIANA, con la banda entre
+            # las N puesta encima por `consolidar_trayectorias()`. La mediana y
+            # no la media, porque la mediana es una trayectoria que de verdad
+            # ocurrió y la media no corresponde a ninguna.
+            for r in rondas:
+                ev = serializar.evento_ronda(r, arquetipos, aumento_pct)
+                _imprimir_ronda("mediana · ", ev)
+                eventos.put(("ronda", ev))
             gasto: dict[str, Any] = {"segundos": round(time.time() - t0, 1), "modo": modo}
+            # Con cuántas trayectorias se construyó la banda que acaba de salir.
+            # Si el tope duro cortó a mitad, `efectivas` < `pedidas` y con menos
+            # de 2 la banda ya no es la de entre trayectorias: `banda.tipo` lo
+            # dice en el contrato y esto lo dice en el informe de la corrida.
+            gasto["trayectorias_pedidas"] = trayectorias
+            gasto["trayectorias_efectivas"] = n_efectivas
+            gasto["banda_tipo"] = rondas[-1].banda.get("tipo", "degenerada")
             presupuesto = getattr(cliente, "presupuesto", None)
             if presupuesto is not None:
                 gasto["llamadas_api"] = presupuesto.llamadas
@@ -237,7 +301,8 @@ def _generar(
     print(
         f"\n=== corrida: aumento {aumento_pct:g}% · seed {seed} ({SEED_EFECTO}) · "
         f"modo {modo} · "
-        f"cobertura {cobertura:g} · {parafrasis} paráfrasis · {total} arquetipos ==="
+        f"cobertura {cobertura:g} · {trayectorias} trayectorias × {parafrasis} "
+        f"paráfrasis · {total} arquetipos ==="
     )
     try:
         yield _sse(
@@ -250,6 +315,9 @@ def _generar(
                 "seed_efecto": SEED_EFECTO,
                 "modo": modo,
                 "cobertura": cobertura,
+                # De cuántas trayectorias saldrá la banda. La pantalla lo
+                # necesita para no prometer una banda que no se va a pagar.
+                "trayectorias": trayectorias,
                 "parafrasis": parafrasis,
                 "n_arquetipos": total,
             },
