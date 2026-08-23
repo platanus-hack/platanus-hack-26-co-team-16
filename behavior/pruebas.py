@@ -469,6 +469,86 @@ def punto_11_la_tasa_inicial_no_tiene_default_de_andamio() -> None:
     )
 
 
+def s1_1_la_banda_con_tipo_sobrevive_a_a_contrato() -> None:
+    """S1-1: `a_contrato()` redondeaba `banda.tipo`, que es un string.
+
+    Mataba la corrida con `TypeError: type str doesn't define __round__ method`
+    en la configuración POR DEFECTO del endpoint (5 trayectorias), no en una
+    perilla apagada: desde la segunda trayectoria `_percentiles()` pone `tipo`.
+    """
+    print("\nS1-1 — el round() de a_contrato() no toca los strings de la banda")
+    from behavior.rondas import Ronda, consolidar_trayectorias
+
+    def _r(n, tasa, ingreso):
+        return Ronda(
+            simulacion_id="sim-s1-1", seed=42, ronda=n,
+            politica={"tipo": "cambio_costo_laboral", "aumento_pct": 23},
+            tasa_informalidad=tasa, prob_fiscalizacion=0.02, empleo_relativo=1.0,
+            banda={"p10": tasa, "p90": tasa, "degenerada": True},
+            ingreso_laboral_relativo=ingreso,
+        )
+
+    corridas = [[_r(0, 0.30, 1.0), _r(1, 0.50 + i * 0.05, 1.0 - i * 0.03)] for i in range(5)]
+    mediana = consolidar_trayectorias(corridas)
+    _check(mediana[-1].banda.get("tipo") == "entre_trayectorias",
+           "con 5 trayectorias la banda queda etiquetada entre_trayectorias")
+    try:
+        contrato_json = mediana[-1].a_contrato()
+        ok = True
+    except TypeError as e:
+        contrato_json, ok = {}, False
+        _check(False, "a_contrato() no revienta con banda.tipo", str(e))
+    if ok:
+        _check(contrato_json["banda"]["tipo"] == "entre_trayectorias",
+               "a_contrato() serializa banda.tipo sin redondearlo")
+        # El contrato lo exige desde H+4: contracts/ronda.json declara `tipo`.
+        _check(isinstance(contrato_json["banda"]["p10"], float),
+               "los números de la banda sí se redondean")
+
+
+def s1_2_la_banda_cubre_todas_las_metricas_publicadas() -> None:
+    """La banda cubría 1 de las 5 cifras que salen a pantalla.
+
+    `ingreso_laboral_relativo` se movía 10,23 pp entre trayectorias y se
+    publicaba pelado — más ancho que la banda que sí se publicaba.
+    """
+    print("\nS1-2 — la banda cubre las 5 métricas publicadas, no solo la tasa")
+    from behavior.rondas import METRICAS_PUBLICADAS, Ronda, banda_entre_trayectorias
+
+    def _r(tasa, ingreso):
+        return Ronda(
+            simulacion_id="s", seed=42, ronda=1,
+            politica={}, tasa_informalidad=tasa, prob_fiscalizacion=0.02,
+            empleo_relativo=1.0, banda={}, ingreso_laboral_relativo=ingreso,
+        )
+
+    corridas = [[_r(0.50 + i * 0.05, 1.0 - i * 0.03)] for i in range(5)]
+    banda = banda_entre_trayectorias(corridas)
+    _check(set(banda["metricas"]) == set(METRICAS_PUBLICADAS),
+           f"hay banda para las {len(METRICAS_PUBLICADAS)} métricas publicadas",
+           f"faltan: {set(METRICAS_PUBLICADAS) - set(banda['metricas'])}")
+    ing = banda["metricas"]["ingreso_laboral_relativo"]
+    _check(ing["p90"] - ing["p10"] > 0,
+           "ingreso_laboral_relativo ya no sale pelado: lleva su propia banda")
+
+
+def s1_3_ancho_cero_se_rotula_degenerada() -> None:
+    """`degenerada` medía «hubo 2+ valores», no «hay dispersión que dibujar».
+
+    En modo=reglas la ablación es determinista: N trayectorias dan el mismo
+    número y se publicaba una banda de ancho cero rotulada como real.
+    """
+    print("\nS1-3 — una banda de ancho cero se rotula degenerada")
+    from behavior.rondas import _percentiles
+
+    iguales = _percentiles([0.42] * 5, tipo="entre_trayectorias")
+    _check(iguales["degenerada"] is True,
+           "5 valores idénticos -> degenerada=True (ancho 0, nada que dibujar)")
+    distintos = _percentiles([0.40, 0.55], tipo="entre_trayectorias")
+    _check(distintos["degenerada"] is False,
+           "2 valores distintos -> degenerada=False (sí hay dispersión)")
+
+
 def main() -> int:
     print("Regresiones del review del PR #4 — sin API, sin caché del repo, $0")
     for prueba in (
@@ -480,6 +560,9 @@ def main() -> int:
         punto_7_fallos_tecnicos_se_cuentan_con_reintento_exitoso,
         punto_8_lo_pagado_queda_cacheado_aunque_dispare_el_corte,
         punto_11_la_tasa_inicial_no_tiene_default_de_andamio,
+        s1_1_la_banda_con_tipo_sobrevive_a_a_contrato,
+        s1_2_la_banda_cubre_todas_las_metricas_publicadas,
+        s1_3_ancho_cero_se_rotula_degenerada,
     ):
         prueba()
     print()
