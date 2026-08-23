@@ -15,9 +15,11 @@ equipo, según el docstring de `banda_entre_trayectorias()`—, así que la API
 estaba fuera de su propio contrato y afirmando una precisión que el modelo no
 tiene. Esta capa la pone dentro.
 
-Lo que hace divergir dos trayectorias es la PARÁFRASIS del prompt, no el seed:
-la caché se indexa por el prompt y el prompt no lleva seed (ver `SEED_EFECTO` en
-`api/servidor.py`, medido). Es el mismo mecanismo con el que
+Lo que hace divergir dos trayectorias dentro de UNA corrida es la PARÁFRASIS del
+prompt: esta capa fija una paráfrasis por trayectoria y deja el resto igual.
+(Desde el 23-ago el seed TAMBIÉN entra al prompt —elige el contexto de cada
+firma en `behavior/contexto.py`, ver `SEED_EFECTO`—, pero es constante dentro de
+una corrida, así que no es lo que separa a estas N.) Es el mismo mecanismo con el que
 `scripts/barrido_politicas.py` mide la banda del barrido; acá entra al camino
 del producto, que es donde faltaba.
 

@@ -1,9 +1,14 @@
 "use client";
 
-// Las celdas empleadoras: discos instanciados con halo aditivo. El área sigue
-// al empleo vivo (una celda que despide se encoge), el color va del hueso al
-// azul según su fracción informal REAL, y cada decisión que llega del motor
-// dispara un anillo del color de su familia. Nacen con pop escalonado.
+// Las celdas empleadoras: hexágonos instanciados. El área sigue al empleo vivo
+// (una celda que despide se encoge), el color va del hueso al azul según su
+// fracción informal REAL, y cada decisión que llega del motor dispara un anillo
+// del color de su familia. Nacen con pop escalonado, sin halo.
+//
+// El halo aditivo se quitó: cada celda salía envuelta en un disco de color 3-4x
+// su radio, y con 81 celdas eso es una capa de ruido encima de la única señal
+// que importa —QUÉ decidió cada una—, que son los anillos de familia. Los
+// anillos se quedan: son información, no adorno.
 
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
@@ -30,26 +35,11 @@ function popNacimiento(t: number): number {
   return 1 + c3 * u * u * u + c1 * u * u;
 }
 
-function texturaHalo(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = c.height = 128;
-  const g = c.getContext("2d")!;
-  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, "rgba(255,255,255,0.85)");
-  grad.addColorStop(0.35, "rgba(255,255,255,0.25)");
-  grad.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
-}
-
 export default function Empresas({ motor }: { motor: MotorVisual }) {
   const n = motor.orden.length;
   const discos = useRef<THREE.InstancedMesh>(null);
-  const halos = useRef<THREE.InstancedMesh>(null);
   const pulsos = useRef<THREE.InstancedMesh>(null);
   const aroFoco = useRef<THREE.Mesh>(null);
-  const halo = useMemo(texturaHalo, []);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const color = useMemo(() => new THREE.Color(), []);
 
@@ -66,9 +56,8 @@ export default function Empresas({ motor }: { motor: MotorVisual }) {
     const t = estado.clock.elapsedTime;
     const st = usarAlmacen.getState();
     const md = discos.current;
-    const mh = halos.current;
     const mp = pulsos.current;
-    if (!md || !mh || !mp) return;
+    if (!md || !mp) return;
 
     motor.orden.forEach((id, i) => {
       const c = motor.celdas.get(id)!;
@@ -96,17 +85,6 @@ export default function Empresas({ motor }: { motor: MotorVisual }) {
       const esHover = st.hover === id;
       color.multiplyScalar(respiro * (esHover ? 1.25 : 1));
       md.setColorAt(i, color);
-
-      // halo aditivo, más ancho y más azul cuanto más informal
-      dummy.rotation.set(0, 0, 0); // el halo es circular: se le quita el giro del hexágono
-      dummy.position.set(cx, cy, 0.2);
-      dummy.scale.setScalar(Math.max(r * (3.0 + 0.9 * e.fraccion_informal), 0.0001));
-      dummy.updateMatrix();
-      mh.setMatrixAt(i, dummy.matrix);
-      color.copy(HUESO).lerp(AZUL, Math.min(1, e.fraccion_informal * 1.2));
-      const brillo = (esHover ? 0.3 : 0.11) * respiro * pop;
-      color.multiplyScalar(brillo);
-      mh.setColorAt(i, color);
     });
 
     // anillos de decisión: aditivos, el alfa viaja en el color
@@ -131,10 +109,8 @@ export default function Empresas({ motor }: { motor: MotorVisual }) {
     }
 
     md.instanceMatrix.needsUpdate = true;
-    mh.instanceMatrix.needsUpdate = true;
     mp.instanceMatrix.needsUpdate = true;
     if (md.instanceColor) md.instanceColor.needsUpdate = true;
-    if (mh.instanceColor) mh.instanceColor.needsUpdate = true;
     if (mp.instanceColor) mp.instanceColor.needsUpdate = true;
 
     // el aro del testimonio: rojo, giro lento, latido
@@ -160,20 +136,11 @@ export default function Empresas({ motor }: { motor: MotorVisual }) {
 
   return (
     <group>
-      <instancedMesh ref={halos} args={[undefined, undefined, n]} frustumCulled={false}>
-        <planeGeometry args={[2, 2]} />
-        <meshBasicMaterial
-          map={halo}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </instancedMesh>
       {/* P5.2 · HIVE: la empresa es un hexágono. `circleGeometry` con 6
           segmentos ya ES un hexágono regular, así que no hace falta
           construir una THREE.Shape ni cambiar nada del instanciado. El
-          halo, el pulso y el aro siguen circulares a propósito: leen mejor
-          como halo y no compiten con la silueta. */}
+          pulso y el aro siguen circulares a propósito: no compiten con la
+          silueta. */}
       <instancedMesh ref={discos} args={[undefined, undefined, n]} frustumCulled={false}>
         <circleGeometry args={[1, 6]} />
         <meshBasicMaterial />

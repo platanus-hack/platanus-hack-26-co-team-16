@@ -23,6 +23,7 @@ from typing import Any, Callable, Protocol
 
 from behavior import contrato
 from behavior.arquetipos import Arquetipo, varianza_estrategias
+from behavior.contexto import contexto_de
 from behavior.cliente import (
     ClienteConductual,
     RespuestaInvalida,
@@ -168,6 +169,7 @@ def renderizar(
     historial: str = "",
     fraccion_informal_previa: float | None = None,
     reskin: Reskin | None = None,
+    seed: int = 42,
 ) -> str:
     """Rellena `prompts/arquetipo.md`. Solo mecánica; jamás el nombre.
 
@@ -178,11 +180,22 @@ def renderizar(
     `fraccion_informal_previa` es el estado VIVO de la planta al empezar esta
     ronda. Si no se da, se cae al estado inicial del arquetipo — que es correcto
     solo en la primera ronda.
+
+    `seed` elige el contexto idiosincrático de la firma (`behavior/contexto.py`):
+    quién le compra, cómo viene la venta, contra quién compite. Es la primera vez
+    que el seed llega al prompt — hasta hoy la perilla de la API era una etiqueta
+    (`api/servidor.py`, `SEED_EFECTO`) porque dos semillas hasheaban el mismo
+    texto y por lo tanto pegaban en la misma entrada del caché.
     """
     if fraccion_informal_previa is None:
         fraccion_informal_previa = 0.0 if arquetipo.formal else 1.0
     plantilla = cargar_prompt("arquetipo.md")
     r = reskin or Reskin()
+    # El contexto se sortea con el sector REAL, no con la etiqueta del re-skin:
+    # el reparto entre regímenes de precio es una propiedad de la actividad, y
+    # el re-skin solo cambia cómo se llama. Lo que sale al prompt no nombra
+    # ninguna actividad, así que el candado 3(b) queda intacto.
+    ctx = contexto_de(arquetipo, ronda, tasa_informalidad, seed)
     return plantilla.format(
         sector=r.sector(arquetipo.sector),
         n_trabajadores=arquetipo.n_trabajadores,
@@ -202,6 +215,16 @@ def renderizar(
         ronda=ronda,
         rondas_totales=rondas_totales,
         historial=historial,
+        # El contexto del mundo real alrededor de la firma. Ninguno de estos
+        # siete campos lleva un monto: ordenan preferencias, no entran a la
+        # aritmética del veto. Ver el encabezado de `behavior/contexto.py`.
+        clientes=ctx.clientes,
+        perspectiva_venta=ctx.perspectiva_venta,
+        competencia=ctx.competencia,
+        planta_gente=ctx.planta_gente,
+        experiencia_inspeccion=ctx.experiencia_inspeccion,
+        tope_margen=ctx.tope_margen,
+        compromisos=ctx.compromisos,
     )
 
 
@@ -221,6 +244,7 @@ def decidir_arquetipo(
     parafrasis_fija: str | None = None,
     fraccion_informal_previa: float | None = None,
     reskin: Reskin | None = None,
+    seed: int = 42,
 ) -> ResultadoArquetipo:
     """Una ronda para un arquetipo: N paráfrasis, cada una con su reintento.
 
@@ -251,6 +275,7 @@ def decidir_arquetipo(
         historial,
         fraccion_informal_previa,
         reskin,
+        seed,
     )
     res = ResultadoArquetipo(arquetipo_id=arquetipo.id)
 

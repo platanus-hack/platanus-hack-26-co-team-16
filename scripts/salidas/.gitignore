@@ -9,6 +9,20 @@
 # que se mide si las correcciones sirvieron —y porque ya está pagada—, no
 # porque describa el modelo de hoy. La corrida POST-corrección todavía no
 # existe; cuando exista, se versiona al lado, no en su lugar.
+#
+# `barrido-reglas-20260823-E1.json` es la corrida DETERMINISTA de 16 politicas
+# (0% a 30%, paso 2, con --cascada-apagada) del 23-ago 08:44. Cuesta USD 0,00 y
+# tarda 9,7 s, asi que cualquiera la reproduce sin API key. Se versiona porque
+# es la evidencia que cita `docs/evidencia/2026-08-23-E1-E2-E3.md`: la curva
+# monotona (Spearman 0,96) y el aporte medido de la cascada (+0,0 pp).
+#
+# `corrida-reglas-23-42.json` es EL ARTEFACTO CANONICO que exige el candado G1 y la
+# ADR 0009. Lo produce `make run` y NO lleva fecha a proposito: dos corridas con el
+# mismo (seed, manifiesto, versiones) tienen que dar este archivo byte a byte igual.
+# Versionarlo es lo que convierte "somos deterministas" en algo que un tercero
+# comprueba con `git diff` despues de correr `make run`.
 *
 !.gitignore
 !barrido-llm-20260822-1550.json
+!barrido-reglas-20260823-E1.json
+!corrida-reglas-23-42.json

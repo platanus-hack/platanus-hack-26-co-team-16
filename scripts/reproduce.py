@@ -34,6 +34,7 @@ from behavior.arquetipos import (  # noqa: E402
 )
 from behavior.cache import Cache  # noqa: E402
 from behavior.cliente import SinCredenciales  # noqa: E402
+from behavior.presupuesto import Presupuesto, PresupuestoAgotado  # noqa: E402
 from behavior.rondas import UMBRAL_ESTABILIDAD_PP, correr  # noqa: E402
 
 CACHE_DEMO = RAIZ / "behavior" / "cache-demo.json"
@@ -43,26 +44,58 @@ MOMENTOS = RAIZ / "data" / "momentos.json"
 # El escenario que se reproduce: el aumento del 23% del caso demo.
 AUMENTO_DEMO = 23.0
 SEED_DEMO = 42
+# La cobertura top-K de la corrida que generó `cache-demo.json`. Tiene que coincidir o
+# los prompts no son los mismos y la caché no acierta. Ver el comentario en `main()`.
+COBERTURA_DEMO = 0.80
 
-# La cobertura top-K con la que se PAGÓ `cache-demo.json`. No es una preferencia:
-# es la llave de la caché. Este script no la pasaba, así que `correr()` mandaba
-# las 81 celdas de la grilla a una caché comprada para 31 y la cobertura caía a
-# 6,3%; con este valor sube a ~90% (medido hoy, 43 aciertos contra 5 fallos).
-# El día que se pague una caché con otra cobertura, este número la sigue.
-COBERTURA_CACHE_DEMO = 0.80
+
+class _ConCaida:
+    """La caché primero; lo que no esté cacheado lo resuelve la regla fija.
+
+    Existe porque este script PROMETE reproducir con un comando en una máquina
+    limpia, y antes no cumplía: en cuanto una sola llamada no estaba en la
+    caché, `ClienteConductual` levantaba `SinCredenciales` y el script moría con
+    un stack trace. La promesa del repo —"un extraño con el link tiene que poder
+    usarlo"— se caía en la primera celda.
+
+    La caché deja de cubrir la corrida entera cada vez que cambia algo que entra
+    al texto del prompt (la probabilidad de inspección por celda, o los propios
+    `behavior/prompts/*.md`), porque la clave es un sha256 de ese texto. Cuando
+    eso pasa, la salida sigue siendo determinista y el script lo DICE: reporta
+    cuántas decisiones vinieron del modelo y cuántas de la regla.
+    """
+
+    def __init__(self, llm, reglas: ClienteReglas) -> None:
+        self._llm = llm
+        self._reglas = reglas
+        self.presupuesto = llm.presupuesto
+        self.aciertos = 0
+        self.caidas = 0
+
+    def proponer(self, *a, **kw):
+        try:
+            salida = self._llm.proponer(*a, **kw)
+        except (SinCredenciales, PresupuestoAgotado):
+            self.caidas += 1
+            return self._reglas.proponer(*a, **kw)
+        self.aciertos += 1
+        return salida
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--aumento", type=float, default=AUMENTO_DEMO)
     ap.add_argument("--seed", type=int, default=SEED_DEMO)
+    ap.add_argument("--cobertura", type=float, default=COBERTURA_DEMO,
+                    help="top-K de la corrida que produjo la caché versionada")
     args = ap.parse_args(argv)
 
     if not EMPRESAS.exists():
         print(f"falta {EMPRESAS.relative_to(RAIZ)} — es un entregable de R1 (data/).")
         return 2
 
-    cliente = ClienteReglas()
+    reglas = ClienteReglas()
+    cliente = reglas
     modo = "ABLACIÓN (reglas fijas, sin API)"
     if CACHE_DEMO.exists():
         n = Cache().importar(CACHE_DEMO)
@@ -70,7 +103,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from behavior.cliente import ClienteConductual
 
-            cliente = ClienteConductual()
+            # Tope 0 a propósito: este script NO puede gastar. Con credenciales
+            # en el entorno, una llamada fuera de caché moriría en
+            # `presupuesto.comprobar()` antes de salir a la red, y de ahí cae a
+            # la regla fija igual que si no hubiera key.
+            cliente = _ConCaida(
+                ClienteConductual(presupuesto=Presupuesto(tope_usd=0.0)), reglas
+            )
             modo = "LLM sobre caché versionada (nivel 2 de la ADR 0009)"
         except Exception as e:  # noqa: BLE001 - sin credenciales es el caso normal
             print(f"  no se pudo usar la capa LLM ({type(e).__name__}); se usa la ablación")
@@ -85,49 +124,41 @@ def main(argv: list[str] | None = None) -> int:
           f"alza {args.aumento:g}%")
     print(f"informalidad observada (GEIH): {tasa:.1%}\n")
 
-    # Por qué esto es un intento y no una llamada.
-    #
-    # Una caché de ~90% no alcanza: basta UN prompt que no esté para que
-    # `ClienteConductual` levante `SinCredenciales` y el script muera con exit 1
-    # en la máquina del jurado, que es el escenario exacto que este archivo
-    # existe para evitar. Y no se puede saber de antemano cuáles faltan: los
-    # prompts de la ronda n llevan el historial que produjo la ronda n-1, así
-    # que la caché solo se puede sondear corriendo.
-    #
-    # Entonces el nivel 2 de la ADR 0009 (caché) se INTENTA y el nivel 3
-    # (ablación determinista) es la red, que es como la ADR los ordena. Lo que
-    # no se hace es esconder cuál de los dos corrió: si cae, lo dice y con
-    # cuántos fallos.
-    rondas = None
-    if isinstance(cliente, ClienteReglas):
-        pass
-    else:
-        try:
-            rondas = correr(
-                arquetipos,
-                cliente,
-                aumento_pct=args.aumento,
-                seed=args.seed,
-                tasa_informalidad_inicial=tasa,
-                cobertura_llm=COBERTURA_CACHE_DEMO,
-            )
-        except SinCredenciales:
-            fallos = getattr(getattr(cliente, "cache", None), "fallos", "?")
-            print(f"  la caché no cubre esta corrida ({fallos} prompts sin pagar) "
-                  "y no hay credenciales:")
-            print("  se reproduce con la ablación, que es determinista sin "
-                  "depender de nada externo (nivel 3 de la ADR 0009).")
-            modo = "ABLACIÓN (reglas fijas, sin API)"
-            print(f"\nmodo: {modo}")
-
-    if rondas is None:
-        rondas = correr(
+    # `cobertura_llm` NO es opcional cuando se reproduce sobre la caché versionada: la
+    # corrida que la produjo usó `--cobertura 0.80`, y la clave del caché depende del
+    # prompt, que depende de qué celdas entran al LLM. Sin este argumento la partición
+    # era otra, los prompts eran otros y la tasa de acierto caía al 6,3% — o sea que
+    # "reproduje el resultado" era, casi siempre, "corrí otra cosa".
+    def _correr(con):
+        return correr(
             arquetipos,
-            ClienteReglas(),
+            con,
             aumento_pct=args.aumento,
             seed=args.seed,
             tasa_informalidad_inicial=tasa,
+            cobertura_llm=args.cobertura,
         )
+
+    try:
+        rondas = _correr(cliente)
+    except Exception as e:  # noqa: BLE001
+        # El try/except de arriba solo cubría CONSTRUIR el cliente. El fallo real llega
+        # más tarde, a mitad de corrida, cuando un prompt no está en la caché: entonces
+        # `SinCredenciales` sube desde `behavior/capa.py` y el script moría con exit 1.
+        #
+        # Y no es un caso raro: `cache-demo.json` se grabó con la grilla de 101
+        # arquetipos y la de hoy tiene 81, así que los prompts cambiaron y la caché ya
+        # no los cubre. Mientras eso siga así, el nivel 2 de la ADR 0009 no se puede
+        # servir y hay que decirlo en voz alta en vez de morir con un stack trace.
+        if isinstance(cliente, ClienteReglas):
+            raise
+        print(f"\n  la caché versionada NO cubre esta corrida ({type(e).__name__}).")
+        print("  Causa conocida: cache-demo.json es de la grilla de 101 arquetipos y")
+        print(f"  la de hoy tiene {len(arquetipos)}, así que los prompts ya no coinciden.")
+        print("  Se REPITE con la ablación determinista, que no depende de nada externo.\n")
+        cliente = ClienteReglas()
+        modo = "ABLACIÓN (reglas fijas, sin API) — la caché no cubrió"
+        rondas = _correr(cliente)
 
     print("ronda  informalidad  p.sanción   empleo   masa salarial")
     for r in rondas:
@@ -142,6 +173,26 @@ def main(argv: list[str] | None = None) -> int:
           f"(umbral {UMBRAL_ESTABILIDAD_PP:g} pp)")
     print(f"fallbacks: {ultima.fraccion_fallback:.1%} de las decisiones · "
           f"sin ninguna opción factible: {ultima.fraccion_sin_salida:.1%}")
+
+    # Dos avisos que se complementan y por eso van los dos: el de `_ConCaida` cuenta
+    # decisión por decisión cuántas salieron del modelo, y el de abajo rotula la corrida
+    # entera. El segundo existe porque el primero se pierde entre el resto de la salida,
+    # y una corrida rotulada "reproducción" que en realidad usó reglas fijas es
+    # indistinguible de la buena para quien solo mira el número final.
+    if isinstance(cliente, _ConCaida):
+        print(f"\norigen de las decisiones: {cliente.aciertos} del modelo (caché ya "
+              f"pagada) · {cliente.caidas} de la regla fija por no estar en caché")
+        if cliente.caidas:
+            print("  La caché no cubre esta corrida: se pagó antes de un cambio que entra")
+            print("  al texto del prompt. La corrida sigue siendo determinista, pero esas")
+            print("  decisiones NO son del modelo. Ver AGENTS.md, pendientes declarados.")
+
+    print(f"\nMODO EFECTIVO DE ESTA CORRIDA: {modo}")
+    if isinstance(cliente, ClienteReglas):
+        print("  ATENCION: esto NO reproduce la corrida con LLM del artefacto publicado.")
+        print("  Es la ablacion determinista (nivel 3 de la ADR 0009): sirve para")
+        print("  comprobar que el pipeline corre y es reproducible, no para recuperar")
+        print("  el numero de `data/prediccion_modelo.json`.")
     print("\nPara verificar el determinismo: corre esto dos veces y compara.")
     return 0
 

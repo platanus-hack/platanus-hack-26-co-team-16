@@ -535,6 +535,13 @@ def correr(
                 # C6 — el candado 3(b): mismos incentivos, otras etiquetas y
                 # otra escala de montos. El agregado no debería moverse.
                 reskin=reskin,
+                # El seed llega al PROMPT por primera vez: elige el contexto
+                # idiosincrático de cada firma (`behavior/contexto.py`). Antes
+                # solo elegía el re-skin y el muestreo, así que dos semillas
+                # producían el mismo texto y por lo tanto el mismo acierto de
+                # caché — es lo que `api/servidor.py` rotulaba `SEED_EFECTO =
+                # "etiqueta"`. Ahora la perilla elige trayectoria.
+                seed=seed,
             )
             # Progreso intra-ronda para quien escucha (la API y el enjambre):
             # se dispara en el hilo del pool, en orden de TERMINACIÓN, no de
