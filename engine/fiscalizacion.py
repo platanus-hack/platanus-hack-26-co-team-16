@@ -115,6 +115,59 @@ PROB_ANUAL_REFERENCIA_EEUU = 0.014
 # propia dentro de "micro" y contra ese numero inflado salia 1,875, que
 # sacrificaba micro para compensar el error de pyme, que ninguna alfa mueve. Si cambia el objetivo,
 # se vuelve a correr el calibrador y este numero cambia con el.
+#
+# ------------------------------------------------------------------------------
+# LIMITE DECLARADO · el placebo NO identifica alfa, y esto se midio
+# ------------------------------------------------------------------------------
+#
+# La pregunta que abrio el juez cientifico era si alfa es CIRCULAR: si se calibra
+# contra la informalidad que el modelo debe reproducir, el argumento se muerde la
+# cola. Estrictamente NO lo es — `scripts/calibrar_visibilidad.py` minimiza el
+# error del PLACEBO (`aumento_pct=0.0`), o sea el NIVEL, mientras que lo que el
+# proyecto publica es el CAMBIO bajo una politica; son dos cantidades distintas y
+# pedir que la distribucion observada sea un punto fijo cuando la politica no hace
+# nada es una condicion de identificacion legitima.
+#
+# Pero medirlo destapo algo peor que la circularidad: **el placebo no PINNEA
+# alfa**. Barrido con la ablacion determinista ($0, seed 42, grilla real):
+#
+#   | alfa  | error del placebo | respuesta al 23% |
+#   |-------|-------------------|------------------|
+#   | 1,40  |          +3,71 pp |        +11,83 pp |
+#   | 1,50  |      **+3,25 pp** |        +12,26 pp |
+#   | 1,60  |      **+3,25 pp** |        +12,26 pp |
+#   | 1,70  |      **+3,25 pp** |         +9,56 pp |
+#   | 1,80  |      **+3,25 pp** |         +8,06 pp |
+#   | 1,875 |      **+3,25 pp** |         +7,33 pp |
+#   | 1,90  |          +3,71 pp |         +6,87 pp |
+#
+# Cinco valores de alfa ajustan el placebo EXACTAMENTE IGUAL y predicen respuestas
+# que van de +7,33 a +12,26 pp: **casi 5 pp de dispersion que el criterio de
+# calibracion no puede resolver**. La causa esta en la propia forma del modelo y
+# ya la habia visto el juez: las celdas son homogeneas y la decision es binaria,
+# asi que cada celda solo puede salir 0% o 100% y alfa mueve el resultado a
+# saltos. Entre salto y salto, el placebo es plano y alfa es libre.
+#
+# Consecuencia, y va en voz alta porque no se arregla a esta hora: **la respuesta a
+# la politica que este modelo publica lleva adentro un parametro que su propio
+# criterio de calibracion no determina.** El rango de esa indeterminacion es ~5 pp
+# y esta medido arriba, que es mas de lo que se puede decir de la mayoria de los
+# parametros libres de un modelo.
+#
+# Por que el valor NO se cambia: 1,875 sigue estando dentro del minimo empatado,
+# asi que no hay ninguna alfa que ajuste MEJOR el placebo. Moverlo dentro del
+# empate no compraria ajuste y si movería todas las cifras publicadas.
+#
+# El otro hallazgo, y es el que obliga a releer este numero: alfa se calibro contra
+# una ablacion que sumaba COP/mes con COP/trimestre (`behavior/ablacion.py`, la
+# mitad del arreglo A3 que habia quedado sin hacer). Al corregir las unidades el
+# error del placebo paso de -0,92 pp a +3,25 pp, o sea que **parte del ajuste de
+# alfa estaba absorbiendo ese defecto de unidades**. Lo honesto es decirlo, no
+# re-ajustar alfa hasta que el numero vuelva a verse bonito: un parametro que se
+# re-calibra cada vez que se arregla un bug es un parametro que esta tapando bugs.
+#
+# Como se reproduce: barrer `alfa_visibilidad=` en `behavior.rondas.correr()` con
+# `ClienteReglas()`, `aumento_pct` en 0 y 23, seed 42. Cuesta $0 y no llama al LLM.
 ELASTICIDAD_VISIBILIDAD = 1.875
 
 
