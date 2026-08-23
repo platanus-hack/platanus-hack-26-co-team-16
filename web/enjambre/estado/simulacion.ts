@@ -94,6 +94,15 @@ export interface EventoFin {
   cache_fallos?: number;
 }
 
+export interface EventoInicio {
+  aumento_pct: number;
+  seed: number;
+  modo: string;
+  cobertura: number;
+  parafrasis: number;
+  n_arquetipos: number;
+}
+
 export type Fase = "carga" | "menu" | "politica" | "simulacion";
 export type Conexion = "inactiva" | "conectando" | "corriendo" | "terminada" | "error";
 
@@ -113,6 +122,16 @@ interface Almacen {
   hover: string | null;
   // personas por punto del nivel de zoom actual (LOD)
   personasPorPunto: number;
+  // con qué corrió esta corrida: "llm" (producto) o "reglas" (ablación
+  // determinista, $0, sin key). Viene del evento `inicio` — S2-1.
+  modo: string | null;
+  // S2-5: la ronda que el enjambre está mostrando/animando ahora mismo, NO la
+  // última que llegó por SSE. `rondas` puede recibir varias de golpe (caché
+  // caliente); MotorVisual las consume una por una y publica acá cuál es la
+  // que corresponde a lo que se ve en pantalla. Los paneles de texto leen
+  // esto, nunca `rondas[rondas.length-1]`, o vuelven a saltar por delante
+  // del enjambre.
+  rondaMostrada: EventoRonda | null;
 
   setFase: (f: Fase) => void;
   setAumentoPct: (v: number) => void;
@@ -123,6 +142,8 @@ interface Almacen {
   setFin: (f: EventoFin) => void;
   setHover: (id: string | null) => void;
   setPersonasPorPunto: (n: number) => void;
+  setModo: (m: string) => void;
+  setRondaMostrada: (r: EventoRonda) => void;
   reiniciarCorrida: () => void;
 }
 
@@ -138,7 +159,11 @@ export const usarAlmacen = create<Almacen>((set) => ({
   avance: { ronda: 0, decididos: 0, total: 0 },
   fin: null,
   hover: null,
+  // SUPUESTO: 8.000 personas por punto es el LOD inicial por defecto, elegido
+  // por legibilidad al primer render — no viene del motor.
   personasPorPunto: 8000,
+  modo: null,
+  rondaMostrada: null,
 
   setFase: (fase) => set({ fase }),
   setAumentoPct: (aumentoPct) => set({ aumentoPct }),
@@ -154,6 +179,8 @@ export const usarAlmacen = create<Almacen>((set) => ({
   setFin: (fin) => set({ fin, conexion: "terminada" }),
   setHover: (hover) => set({ hover }),
   setPersonasPorPunto: (personasPorPunto) => set({ personasPorPunto }),
+  setModo: (modo) => set({ modo }),
+  setRondaMostrada: (rondaMostrada) => set({ rondaMostrada }),
   reiniciarCorrida: () =>
     set({
       conexion: "inactiva",
@@ -164,6 +191,8 @@ export const usarAlmacen = create<Almacen>((set) => ({
       avance: { ronda: 0, decididos: 0, total: 0 },
       fin: null,
       hover: null,
+      modo: null,
+      rondaMostrada: null,
     }),
 }));
 

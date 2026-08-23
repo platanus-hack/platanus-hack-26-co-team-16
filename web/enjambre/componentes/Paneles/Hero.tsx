@@ -5,17 +5,21 @@
 // número sin banda).
 
 import { pct, pp } from "@/lib/formato";
-import { ultimaRonda, usarAlmacen } from "@/estado/simulacion";
+import { usarAlmacen } from "@/estado/simulacion";
 
 export default function Hero() {
   const rondas = usarAlmacen((s) => s.rondas);
-  const ult = ultimaRonda({ rondas });
-  if (!ult) return null;
+  // S2-5: la ronda mostrada, no la última llegada (ver motorVisual.ts).
+  const ult = usarAlmacen((s) => s.rondaMostrada);
+  if (!ult || !rondas.length) return null;
 
   const inicial = rondas[0].contrato.tasa_informalidad;
   const actual = ult.contrato.tasa_informalidad;
   const banda = ult.contrato.banda;
   const delta = (actual - inicial) * 100;
+  // SUPUESTO: 0,05pp es el piso para considerar que la tasa "se movió" y
+  // mostrar el tachado con la proyección oficial — ruido de redondeo por
+  // debajo, no un umbral que calcule el motor.
   const movida = delta > 0.05;
 
   return (

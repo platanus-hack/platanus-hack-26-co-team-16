@@ -5,11 +5,11 @@
 
 import { COLOR_FAMILIA } from "@/componentes/enjambre/motorVisual";
 import { nombreEstrategia, pct } from "@/lib/formato";
-import { ultimaRonda, usarAlmacen } from "@/estado/simulacion";
+import { usarAlmacen } from "@/estado/simulacion";
 
 export default function Estrategias() {
-  const rondas = usarAlmacen((s) => s.rondas);
-  const ult = ultimaRonda({ rondas });
+  // S2-5: la ronda mostrada, no la última llegada (ver motorVisual.ts).
+  const ult = usarAlmacen((s) => s.rondaMostrada);
   const entradas = ult ? Object.entries(ult.desglose_estrategias).slice(0, 4) : [];
   if (!entradas.length) return null;
 

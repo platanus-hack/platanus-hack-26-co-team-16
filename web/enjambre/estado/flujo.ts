@@ -6,6 +6,7 @@
 import {
   EventoDecision,
   EventoFin,
+  EventoInicio,
   EventoRonda,
   Poblacion,
   usarAlmacen,
@@ -40,8 +41,12 @@ export function iniciarCorrida(): void {
   fuente = new EventSource(`/api/simulaciones/flujo?${q}`);
 
   fuente.addEventListener("inicio", (e) => {
+    const i = JSON.parse((e as MessageEvent).data) as EventoInicio;
+    // S2-1: con qué modo corrió (llm o reglas) tiene que quedar visible en
+    // pantalla, no solo en la consola — un juez tiene que poder verlo.
+    usarAlmacen.getState().setModo(i.modo);
     usarAlmacen.getState().setConexion("corriendo");
-    console.info("[enjambre] corrida iniciada:", JSON.parse((e as MessageEvent).data));
+    console.info("[enjambre] corrida iniciada:", i);
   });
 
   fuente.addEventListener("decision", (e) => {

@@ -1,22 +1,32 @@
 "use client";
 
-// La barra de tiempo, con la unidad REAL del motor: 1 ronda = 1 trimestre
-// (ADR 0005), la ronda 0 es la proyección oficial y el horizonte son 9 meses.
+// La línea de tiempo explícita (ADR 0005 — "el reloj de la simulación"): sin
+// reloj, empleo_relativo es "un número sin unidades". Las etiquetas NO son
+// texto fijo: salen de `poblacion.meses_por_ronda`, el mismo campo que viaja
+// en el contrato y que antes nadie leía. Si el motor cambia el largo de la
+// ronda, esta barra cambia con él, no hay que tocar el front.
 // Durante una ronda LLM el segmento activo se llena con el avance real
 // (celdas decididas / total).
 
 import { usarAlmacen } from "@/estado/simulacion";
 
 export default function BarraTiempo() {
-  const rondas = usarAlmacen((s) => s.rondas);
+  // S2-5: la ronda mostrada, no la última llegada — si no, esta barra salta
+  // directo a "Ronda 3/3" mientras el enjambre todavía anima la 1 (ver
+  // motorVisual.ts).
+  const rondaMostrada = usarAlmacen((s) => s.rondaMostrada);
   const avance = usarAlmacen((s) => s.avance);
   const conexion = usarAlmacen((s) => s.conexion);
   const fin = usarAlmacen((s) => s.fin);
   const poblacion = usarAlmacen((s) => s.poblacion);
 
   const total = poblacion?.rondas_totales ?? 4;
-  const cerrada = rondas.length ? rondas[rondas.length - 1].contrato.ronda : -1;
-  const etiquetas = ["R0 · proyección", "T1", "T2", "T3", "T4", "T5"].slice(0, total);
+  const mpr = poblacion?.meses_por_ronda ?? 3;
+  const horizonteMeses = (total - 1) * mpr;
+  const cerrada = rondaMostrada?.contrato.ronda ?? -1;
+  const etiquetas = Array.from({ length: total }, (_, i) =>
+    i === 0 ? "R0 · decreto" : `T${i} · mes +${i * mpr}`
+  );
 
   return (
     <div
@@ -67,7 +77,7 @@ export default function BarraTiempo() {
       <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--tinta-tenue)", textAlign: "center" }}>
         {conexion === "terminada" && fin
           ? `corrida terminada · ${fin.segundos.toFixed(1).replace(".", ",")} s · ${fin.llamadas_api ?? 0} llamadas API · $${(fin.gasto_usd ?? 0).toFixed(2)} USD`
-          : "1 ronda = 1 trimestre · horizonte 9 meses · la ronda 0 es la proyección oficial"}
+          : `1 ronda = ${mpr} meses · horizonte ${horizonteMeses} meses desde el decreto · la ronda 0 es la proyección oficial`}
       </div>
     </div>
   );

@@ -75,10 +75,16 @@ export class MotorVisual {
       this.nacimiento.set(c.id, prog);
     }
 
-    // ¿llegó una ronda nueva? → nuevo objetivo, transición desde el estado visible
-    if (st.rondas.length > this.rondasVistas) {
-      const r = st.rondas[st.rondas.length - 1];
-      this.rondasVistas = st.rondas.length;
+    // S2-5: cola de rondas, una a la vez. `st.rondas` puede recibir varias de
+    // golpe en la misma ráfaga (caché caliente); antes esto tomaba siempre
+    // rondas[length-1] y descartaba las intermedias, así que la pantalla
+    // saltaba directo de "preparando" a la última ronda. Ahora solo se saca
+    // la siguiente ronda pendiente de la cola, y solo cuando la transición
+    // anterior ya terminó (this.t >= 1) — se consume una cada
+    // DURACION_TRANSICION, nunca se salta por delante.
+    if (this.t >= 1 && st.rondas.length > this.rondasVistas) {
+      const r = st.rondas[this.rondasVistas];
+      this.rondasVistas += 1;
       for (const id of this.orden) {
         this.previo.set(id, { ...this.actual.get(id)! });
         const e = r.estado_por_arquetipo[id];
@@ -87,6 +93,10 @@ export class MotorVisual {
       this.t = r.contrato.ronda === 0 ? 1 : 0; // la ronda 0 es el punto de partida, sin viaje
       this.rondaEnCurso = r.contrato.ronda + 1;
       this.decididas.clear();
+      // publica cuál ronda se está mostrando para que los paneles de texto
+      // (Titulo, Hero, Metricas, Estrategias, BarraTiempo) avancen en el
+      // mismo ritmo que el enjambre, en vez de leer la última llegada.
+      st.setRondaMostrada(r);
     }
 
     if (this.t < 1) {

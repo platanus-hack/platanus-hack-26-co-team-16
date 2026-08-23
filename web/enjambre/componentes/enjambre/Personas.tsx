@@ -176,6 +176,9 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
   );
 
   // tamaño del punto en unidades de mundo, según cuánta gente representa
+  // SUPUESTO: los tres tamaños de punto (0,5 / 0,34 / 0,22) y sus cortes de
+  // LOD (8.000 / 3.000 personas por punto) son estética de legibilidad al
+  // hacer zoom, no un cálculo del motor.
   const tamanoBase = ppp >= 8000 ? 0.5 : ppp >= 3000 ? 0.34 : 0.22;
 
   useFrame((estado, dtCrudo) => {
@@ -190,8 +193,11 @@ export default function Personas({ motor }: { motor: MotorVisual }) {
       const nExp = Math.round(n * (1 - e.fraccion_empleada));
       const nEmpleado = n - nExp;
       const nInf = Math.round(nEmpleado * e.fraccion_informal);
-      const nJor =
-        e.horas < 0.999 ? Math.round((nEmpleado - nInf) * Math.min(1, 1 - e.horas + 0.15)) : 0;
+      // S2-3: nada de `+0.15` inventado — la fracción de puntos ámbar sale
+      // directo de `e.horas`, el estado real de la celda que emite el motor.
+      // El `+0.15` anterior inflaba el conteo de puntos por encima de la
+      // cifra real (`fraccion_jornada_recortada` en Metricas.tsx).
+      const nJor = e.horas < 0.999 ? Math.round((nEmpleado - nInf) * (1 - e.horas)) : 0;
       umbrales.set(id, { nExp, nInf, nJor, n });
     }
 

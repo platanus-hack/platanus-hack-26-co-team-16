@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import CurvaBrecha from "./CurvaBrecha";
 import { copBillones, pct } from "@/lib/formato";
-import { ultimaRonda, usarAlmacen } from "@/estado/simulacion";
+import { usarAlmacen } from "@/estado/simulacion";
 
 interface Fila {
   nombre: string;
@@ -16,9 +16,9 @@ interface Fila {
 }
 
 export default function Metricas() {
-  const rondas = usarAlmacen((s) => s.rondas);
   const poblacion = usarAlmacen((s) => s.poblacion);
-  const ult = ultimaRonda({ rondas });
+  // S2-5: la ronda mostrada, no la última llegada (ver motorVisual.ts).
+  const ult = usarAlmacen((s) => s.rondaMostrada);
 
   // masa salarial base (COP/mes) para traducir el índice relativo a plata
   const masaBase = useMemo(
@@ -50,11 +50,32 @@ export default function Metricas() {
     nombre: "Prob. de sanción · fiscalización endógena",
     valor: pct(c.prob_fiscalizacion, 2),
   });
+  // SUPUESTO: 0,1% es el piso de "vale la pena mostrarlo" para estas filas
+  // (aquí y en fallback/sin_salida más abajo) — ruido de redondeo por debajo,
+  // elegido para no llenar el panel de ceros. No es un umbral del motor.
   if (ult.fraccion_jornada_recortada > 0.001) {
     filas.push({
       nombre: "Conserva el empleo con jornada recortada",
       valor: pct(ult.fraccion_jornada_recortada),
       color: "var(--ambar)",
+    });
+  }
+  // S2-7: fraccion_fallback y fraccion_sin_salida viajan en el contrato
+  // (serializar.py) desde antes, pero ningún panel los leía. Es lo primero
+  // que pide un juez técnico: cuánto del modelo terminó en la salida de
+  // emergencia en vez de en una decisión real.
+  if (ult.fraccion_fallback > 0.001) {
+    filas.push({
+      nombre: "Decisiones en fallback (LLM sin propuesta viable)",
+      valor: pct(ult.fraccion_fallback),
+      color: ult.fraccion_fallback > 0.05 ? "var(--rojo)" : "var(--ambar)",
+    });
+  }
+  if (ult.fraccion_sin_salida > 0.001) {
+    filas.push({
+      nombre: "Sin salida factible · todo vetado",
+      valor: pct(ult.fraccion_sin_salida),
+      color: "var(--rojo)",
     });
   }
   if (ult.fraccion_bajo_minimo != null) {
@@ -63,6 +84,8 @@ export default function Metricas() {
       valor: pct(ult.fraccion_bajo_minimo),
     });
   }
+  // SUPUESTO: 0,5% de piso para mostrar traslado a precios — mismo criterio
+  // de "no llenar el panel con ruido de redondeo" que arriba.
   if (c.traslado_precios_pct > 0.005) {
     filas.push({
       nombre: "Traslado a precios declarado por firmas",

@@ -37,6 +37,10 @@ export default function Leyenda() {
         <Ficha color="#3ecf8e" texto="empleo formal" />
         <Ficha color="#e8a33d" texto="jornada recortada" />
         <Ficha color="#99a2b1" hueco texto="expulsado del empleo" />
+        {/* S2-4: la onda (Onda.tsx) es el elemento más grande de la pantalla
+            y no traía leyenda — el radio salta de 0 a ~5 apenas la brecha
+            cruza 0,04pp, así que se aclara qué mide y por qué aparece de golpe. */}
+        <Ficha color="#5b9dff" texto="halo que late = onda de informalización nueva, radio ∝ √brecha ponderada" />
       </div>
       <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--tinta-tenue)" }}>
         1 punto ≈ {miles(ppp)} personas (zoom para subdividir) · celda = grupo sector×tamaño GEIH, no una

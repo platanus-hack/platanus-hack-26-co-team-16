@@ -1,35 +1,34 @@
 "use client";
 
 // Pantalla 1: el logo (placeholder tipográfico — el logo aún no existe) y una
-// barra de carga. La barra avanza de verdad: espera el GET /poblacion, que es
-// lo único que la simulación necesita precargar.
+// barra de carga. Espera el GET /poblacion, que es lo único que la
+// simulación necesita precargar. Sin porcentaje inventado (S2-11): barrido
+// indeterminado mientras espera, 100% real solo cuando la respuesta llegó.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { cargarPoblacion } from "@/estado/flujo";
 import { usarAlmacen } from "@/estado/simulacion";
 
 export default function Carga() {
   const setFase = usarAlmacen((s) => s.setFase);
-  const [progreso, setProgreso] = useState(0);
+  // S2-11: nada de porcentaje inventado. GET /api/poblacion es un solo
+  // fetch sin eventos de progreso reales, así que mientras espera se muestra
+  // un barrido indeterminado (no afirma "vamos en 82%" sin medirlo) y la
+  // barra solo llega a 100% cuando la respuesta real llegó.
+  const [listo, setListo] = useState(false);
   const [falla, setFalla] = useState<string | null>(null);
-  const listo = useRef(false);
 
   useEffect(() => {
     let vivo = true;
-    // La barra sube sola hasta 82% mientras llega la red; el tramo final es real.
-    const timer = setInterval(() => {
-      setProgreso((p) => (listo.current ? Math.min(1, p + 0.1) : Math.min(0.82, p + 0.02)));
-    }, 50);
     cargarPoblacion()
       .then(() => {
         if (!vivo) return;
-        listo.current = true;
+        setListo(true);
         setTimeout(() => vivo && setFase("menu"), 650);
       })
       .catch((e) => vivo && setFalla(String(e?.message ?? e)));
     return () => {
       vivo = false;
-      clearInterval(timer);
     };
   }, [setFase]);
 
@@ -63,15 +62,12 @@ export default function Carga() {
         </div>
       </div>
       <div style={{ width: 280 }}>
-        <div style={{ height: 1, background: "rgba(233,236,242,0.12)" }}>
-          <div
-            style={{
-              height: 1,
-              width: `${progreso * 100}%`,
-              background: "var(--tinta)",
-              transition: "width 0.2s linear",
-            }}
-          />
+        <div style={{ height: 1, background: "rgba(233,236,242,0.12)", overflow: "hidden" }}>
+          {listo ? (
+            <div style={{ height: 1, width: "100%", background: "var(--tinta)", transition: "width 0.35s ease-out" }} />
+          ) : (
+            <div className="barra-indeterminada" style={{ height: 1, width: "26%", background: "var(--tinta)" }} />
+          )}
         </div>
       </div>
       {falla && (

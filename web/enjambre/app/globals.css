@@ -187,6 +187,23 @@ input[type="range"].deslizador::-moz-range-thumb {
   animation: latido 1.6s ease-in-out infinite;
 }
 
+/* S2-11: antes la barra de Carga.tsx trepaba sola hasta 82% con un número
+   inventado mientras esperaba la red. Un barrido indeterminado no afirma un
+   progreso que no se mide; la barra solo llega a 100% cuando /api/poblacion
+   responde de verdad. */
+@keyframes barrido {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+.barra-indeterminada {
+  animation: barrido 1.1s ease-in-out infinite;
+}
+
 @keyframes cursor-tecleo {
   0%,
   49% {

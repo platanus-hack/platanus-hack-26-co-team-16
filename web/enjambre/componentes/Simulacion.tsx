@@ -10,6 +10,7 @@ import Estrategias from "@/componentes/Paneles/Estrategias";
 import Hero from "@/componentes/Paneles/Hero";
 import Leyenda from "@/componentes/Paneles/Leyenda";
 import Metricas from "@/componentes/Paneles/Metricas";
+import Procedencia from "@/componentes/Paneles/Procedencia";
 import Titulo from "@/componentes/Paneles/Titulo";
 import Noticias from "@/componentes/Noticias";
 import Relato from "@/componentes/Relato";
@@ -36,6 +37,7 @@ export default function Simulacion() {
         </button>
       )}
       <Titulo />
+      <Procedencia />
       <Hero />
       <Noticias />
       <Relato />

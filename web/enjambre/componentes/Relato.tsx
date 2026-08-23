@@ -29,6 +29,9 @@ export default function Relato() {
     const anular = usarAlmacen.subscribe((s) => {
       const poblacion = s.poblacion;
       if (!poblacion) return;
+      // SUPUESTO: top-25 celdas por peso como corte de "lo que mueve el
+      // agregado" — un umbral editorial para que el relato quepa, no un
+      // resultado del motor. Ver también el subtítulo en el panel (S2-6).
       const pesoGrande =
         [...poblacion.arquetipos].sort((a, b) => b.peso - a.peso)[Math.min(24, poblacion.arquetipos.length - 1)]
           ?.peso ?? 0;
@@ -55,7 +58,9 @@ export default function Relato() {
           tono: "ronda",
         });
       }
-      // poda: si el flujo va más rápido que el tecleo, se queda lo último
+      // poda: si el flujo va más rápido que el tecleo, se queda lo último.
+      // SUPUESTO: el umbral (7) y cuántas decisiones sobreviven la poda (4)
+      // son ritmo de lectura elegido a ojo, no una regla del motor.
       if (cola.current.length > 7) {
         const rondasEnCola = cola.current.filter((l) => l.tono === "ronda");
         cola.current = [...rondasEnCola, ...cola.current.filter((l) => l.tono !== "ronda").slice(-4)];
@@ -112,8 +117,14 @@ export default function Relato() {
         lineHeight: 1.5,
       }}
     >
-      <div className="kicker" style={{ marginBottom: 4 }}>
+      <div className="kicker" style={{ marginBottom: 0 }}>
         relato de la corrida
+      </div>
+      {/* S2-6: es un subconjunto filtrado (top-25 celdas por peso, ver
+          `pesoGrande` arriba) y podado si el flujo va más rápido que el
+          tecleo — dicho, no implícito. */}
+      <div style={{ color: "var(--tinta-tenue)", fontSize: 9.5, marginBottom: 4 }}>
+        top-25 celdas por peso · se poda si el flujo va más rápido que el tecleo
       </div>
       {visibles.map((l, i) => (
         <div key={i} style={{ color: color(l.tono), opacity: 0.45 + (i / visibles.length) * 0.55 }}>
