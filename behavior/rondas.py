@@ -57,6 +57,32 @@ from engine.veto import EstadoVivo, veto_del_motor
 # mundo; esto es solo el agregado que vuelve a los agentes la ronda siguiente.
 
 
+def _serializar_banda(banda: dict[str, Any]) -> dict[str, Any]:
+    """Redondea los NÚMEROS de la banda y deja pasar intacto lo que no lo es.
+
+    La banda no es un dict de floats, aunque el tipo declarado lo sugiera: lleva
+    `degenerada` (bool), `tipo` (str, la etiqueta de QUÉ dispersión se midió) y
+    `metricas` (dict anidado, una banda por cada cifra que sale a pantalla).
+
+    Acá había un dict-comp que redondeaba todo lo que no fuera `bool`, así que
+    `tipo` entraba a `round()` y mataba la corrida completa con
+    `TypeError: type str doesn't define __round__ method`. No se veía con una
+    sola trayectoria porque `consolidar_trayectorias()` devuelve la corrida
+    intacta y la banda nunca lleva `tipo`; aparecía desde la segunda —o desde la
+    segunda paráfrasis, por la otra ruta, `_banda()`—, es decir en la
+    configuración por defecto del endpoint, no en una perilla apagada.
+    """
+    fuera = {}
+    for k, v in banda.items():
+        if isinstance(v, dict):
+            fuera[k] = _serializar_banda(v)
+        elif isinstance(v, (bool, str)) or v is None:
+            fuera[k] = v
+        else:
+            fuera[k] = round(v, 4)
+    return fuera
+
+
 @dataclass
 class Ronda:
     """Un `contracts/ronda.json` más el desglose por arquetipo (dato A4)."""
@@ -116,10 +142,7 @@ class Ronda:
             "tasa_informalidad": round(self.tasa_informalidad, 4),
             "prob_fiscalizacion": round(self.prob_fiscalizacion, 4),
             "empleo_relativo": round(self.empleo_relativo, 4),
-            "banda": {
-                k: (v if isinstance(v, bool) else round(v, 4))
-                for k, v in self.banda.items()
-            },
+            "banda": _serializar_banda(self.banda),
             # C3 + A4 + A5 — campos NUEVOS respecto de `contracts/ronda.json`
             # congelado en H+4. Se avisó al grupo junto con `banda.degenerada`,
             # que ya se emitía sin estar declarado (§4.4), y el contrato del repo
@@ -589,6 +612,15 @@ def _percentiles(valores: list[float], *, tipo: str) -> dict[str, Any]:
     distintas y dan números muy distintos (0,0 pp contra 22,5 pp en la corrida
     medida). Publicar una donde se espera la otra es la forma más rápida de
     perder credibilidad en el Q&A, así que la etiqueta viaja con el número.
+
+    CÓMO NOMBRAR ESTO EN PANTALLA. Con las N chicas que corremos, `p10` y `p90`
+    no son percentiles interiores sino los extremos de la muestra. Medido sobre
+    esta misma función: `p90` recién se despega del máximo en N=6, y `p10` del
+    mínimo en N=11. Con los N=5 del endpoint, entonces, son literalmente el
+    mínimo y el máximo de las corridas, y rotularlos "p10-p90" promete una
+    estadística que no se calculó. El nombre exacto es "rango entre las N
+    corridas". No es un defecto del cálculo —con 5 puntos no hay percentil
+    interior que calcular— sino de cómo se etiqueta.
     """
     if not valores:
         return {"p10": 0.0, "p90": 0.0, "degenerada": True, "tipo": tipo}
@@ -599,14 +631,40 @@ def _percentiles(valores: list[float], *, tipo: str) -> dict[str, Any]:
     vs = sorted(valores)
     k10 = max(0, int(0.10 * (len(vs) - 1)))
     k90 = min(len(vs) - 1, int(round(0.90 * (len(vs) - 1))))
-    return {"p10": vs[k10], "p90": vs[k90], "degenerada": False, "tipo": tipo}
+    # `degenerada` mide si hay dispersión que dibujar, no si hubo más de un
+    # valor. Con N corridas que dan todas el mismo número —el caso normal en
+    # `modo=reglas`, donde la ablación es determinista— el ancho es cero y una
+    # banda de ancho cero rotulada como real le dice al front que dibuje una
+    # precisión que no se midió. Contar valores en vez de medir el ancho hacía
+    # exactamente eso desde el segundo valor idéntico.
+    return {
+        "p10": vs[k10],
+        "p90": vs[k90],
+        "degenerada": vs[k10] == vs[k90],
+        "tipo": tipo,
+    }
 
 
 # --- B2: la banda que se PUBLICA es la de trayectorias completas -------------
 
 
+# Las cifras que `a_contrato()` publica como número pelado. La banda tiene que
+# cubrirlas TODAS: `ingreso_laboral_relativo` se mueve 10,23 pp entre 5
+# trayectorias —más que la banda de `tasa_informalidad` que sí publicábamos— y
+# salía a pantalla sin ninguna. Publicar banda sobre una métrica y dejar las
+# otras peladas es peor que no publicar ninguna, porque le enseña al lector que
+# las peladas son ciertas.
+METRICAS_PUBLICADAS = (
+    "tasa_informalidad",
+    "prob_fiscalizacion",
+    "empleo_relativo",
+    "traslado_precios_pct",
+    "ingreso_laboral_relativo",
+)
+
+
 def banda_entre_trayectorias(corridas: list[list[Ronda]], ronda: int = -1) -> dict[str, Any]:
-    """p10/p90 de la tasa final entre N corridas completas e independientes.
+    """p10/p90 entre N corridas completas e independientes, métrica por métrica.
 
     Esta es la banda honesta y es la que va a la pantalla. La otra —la que
     calcula `_banda()`— mide la dispersión de las paráfrasis DENTRO de una ronda
@@ -617,9 +675,22 @@ def banda_entre_trayectorias(corridas: list[list[Ronda]], ronda: int = -1) -> di
     Publicar la angosta no era una decisión, era un accidente del código; pero
     el efecto habría sido presentar una precisión que el modelo no tiene. La
     banda se ENSANCHA con esta corrección, y ese ensanchamiento es el arreglo.
+
+    `p10`/`p90` en la raíz siguen siendo los de `tasa_informalidad`, porque eso
+    es lo que `contracts/ronda.json` declara y lo que el frontend ya lee. Las
+    demás viajan en `metricas`, una entrada por cifra publicada.
     """
-    finales = [c[ronda].tasa_informalidad for c in corridas if c]
-    return _percentiles(finales, tipo="entre_trayectorias")
+    validas = [c for c in corridas if c]
+    banda = _percentiles(
+        [c[ronda].tasa_informalidad for c in validas], tipo="entre_trayectorias"
+    )
+    banda["metricas"] = {
+        m: _percentiles(
+            [getattr(c[ronda], m) for c in validas], tipo="entre_trayectorias"
+        )
+        for m in METRICAS_PUBLICADAS
+    }
+    return banda
 
 
 def consolidar_trayectorias(corridas: list[list[Ronda]]) -> list[Ronda]:
