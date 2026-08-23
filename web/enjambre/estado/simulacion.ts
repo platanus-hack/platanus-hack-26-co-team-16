@@ -129,6 +129,10 @@ interface Almacen {
   // con qué corrió esta corrida: "llm" (producto) o "reglas" (ablación
   // determinista, $0, sin key). Viene del evento `inicio` — S2-1.
   modo: string | null;
+  // los parámetros con los que arrancó la corrida, tal como los declaró el
+  // servidor. Se guardan enteros porque el reporte y el laboratorio tienen
+  // que poder decir con qué se corrió, no solo qué salió.
+  inicio: EventoInicio | null;
   // S2-5: la ronda que el enjambre está mostrando/animando ahora mismo, NO la
   // última que llegó por SSE. `rondas` puede recibir varias de golpe (caché
   // caliente); MotorVisual las consume una por una y publica acá cuál es la
@@ -157,7 +161,7 @@ interface Almacen {
   setFin: (f: EventoFin) => void;
   setHover: (id: string | null, tipo?: "empresa" | "personas" | null) => void;
   setPersonasPorPunto: (n: number) => void;
-  setModo: (m: string) => void;
+  setModo: (i: EventoInicio) => void;
   setRondaMostrada: (r: EventoRonda) => void;
   setPausado: (b: boolean) => void;
   setDecididasMostradas: (n: number) => void;
@@ -182,6 +186,7 @@ export const usarAlmacen = create<Almacen>((set) => ({
   // el primer nivel de NIVELES_LOD (lib/disposicion.ts).
   personasPorPunto: 3000,
   modo: null,
+  inicio: null,
   rondaMostrada: null,
   pausado: false,
   decididasMostradas: 0,
@@ -200,7 +205,7 @@ export const usarAlmacen = create<Almacen>((set) => ({
   setFin: (fin) => set({ fin, conexion: "terminada" }),
   setHover: (hover, hoverTipo = null) => set({ hover, hoverTipo }),
   setPersonasPorPunto: (personasPorPunto) => set({ personasPorPunto }),
-  setModo: (modo) => set({ modo }),
+  setModo: (inicio) => set({ inicio, modo: inicio.modo }),
   setRondaMostrada: (rondaMostrada) => set({ rondaMostrada }),
   setPausado: (pausado) => set({ pausado }),
   setDecididasMostradas: (decididasMostradas) => set({ decididasMostradas }),
@@ -216,6 +221,7 @@ export const usarAlmacen = create<Almacen>((set) => ({
       hover: null,
       hoverTipo: null,
       modo: null,
+      inicio: null,
       rondaMostrada: null,
       pausado: false,
       decididasMostradas: 0,
