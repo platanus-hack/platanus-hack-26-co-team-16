@@ -214,3 +214,63 @@ input[type="range"].deslizador::-moz-range-thumb {
     opacity: 0;
   }
 }
+
+/* ---- el reporte imprimible (P3) ---- */
+
+.reporte {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 40px 80px;
+}
+
+.reporte__acciones {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-bottom: 26px;
+}
+
+/* la app fija `overflow: hidden` en html/body para el lienzo; el reporte es un
+   documento y sí tiene que poder desplazarse */
+html:has(.reporte),
+body:has(.reporte) {
+  overflow: auto;
+}
+
+@media print {
+  /* fondo oscuro en papel es tinta desperdiciada y texto ilegible: el reporte
+     se imprime en negro sobre blanco, y los tokens se reasignan una sola vez */
+  :root {
+    --fondo: #ffffff;
+    --panel: #ffffff;
+    --tinta: #14171c;
+    --tinta-suave: #3c4350;
+    --tinta-tenue: #6b7280;
+    --linea: rgba(20, 23, 28, 0.16);
+    --azul-vivo: #1c4fd8;
+    --rojo: #b3261e;
+  }
+  body {
+    background: #fff;
+    color: var(--tinta);
+  }
+  .no-imprimir {
+    display: none !important;
+  }
+  .reporte {
+    max-width: none;
+    padding: 0;
+  }
+  @page {
+    margin: 16mm;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  h2 {
+    page-break-after: avoid;
+  }
+}

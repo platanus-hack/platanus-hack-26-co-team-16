@@ -44,11 +44,21 @@ const FILAS: Fila[] = [
   { metrica: "Banda de incertidumbre (p10–p90)", tipo: "CALCULADO", fuente: "paráfrasis del mismo prompt, N≥2" },
 ];
 
-export default function Procedencia() {
+// `forzarAbierto` lo usa el reporte: ahí la tabla no es un panel flotante que
+// tape el enjambre, es una sección más del documento y va siempre desplegada.
+export default function Procedencia({ forzarAbierto = false }: { forzarAbierto?: boolean }) {
   const [abierto, setAbierto] = useState(false);
+  const visible = abierto || forzarAbierto;
 
   return (
-    <div style={{ position: "absolute", left: "50%", top: 32, transform: "translateX(-50%)", zIndex: 20 }}>
+    <div
+      style={
+        forzarAbierto
+          ? { position: "static" }
+          : { position: "absolute", left: "50%", top: 32, transform: "translateX(-50%)", zIndex: 20 }
+      }
+    >
+      {!forzarAbierto && (
       <button
         onClick={() => setAbierto((v) => !v)}
         style={{
@@ -66,16 +76,17 @@ export default function Procedencia() {
       >
         {abierto ? "cerrar procedencia ▲" : "¿de dónde sale esto? ▾"}
       </button>
-      {abierto && (
+      )}
+      {visible && (
         <div
-          className="vidrio"
+          className={forzarAbierto ? undefined : "vidrio"}
           style={{
-            marginTop: 8,
-            width: 460,
-            maxHeight: "60vh",
-            overflowY: "auto",
-            border: "1px solid var(--linea)",
-            padding: "14px 16px",
+            marginTop: forzarAbierto ? 0 : 8,
+            width: forzarAbierto ? "100%" : 460,
+            maxHeight: forzarAbierto ? "none" : "60vh",
+            overflowY: forzarAbierto ? "visible" : "auto",
+            border: forzarAbierto ? "none" : "1px solid var(--linea)",
+            padding: forzarAbierto ? 0 : "14px 16px",
             display: "flex",
             flexDirection: "column",
             gap: 4,

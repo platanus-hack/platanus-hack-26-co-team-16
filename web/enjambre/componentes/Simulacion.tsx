@@ -4,6 +4,7 @@
 // narrativa y tiempo flotando encima. Cada panel es un componente separado.
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import Globo from "@/componentes/Globo";
 import BarraTiempo from "@/componentes/Paneles/BarraTiempo";
 import ColumnaIzquierda from "@/componentes/Paneles/ColumnaIzquierda";
@@ -30,13 +31,27 @@ export default function Simulacion() {
         // Estaba en `top:150`, pisando la línea de la banda del Hero con
         // z-index 20. Abajo a la derecha no compite con nada: Metricas termina
         // en bottom:96 y la barra de tiempo va centrada.
-        <button
-          className="boton aparecer"
-          style={{ position: "absolute", right: 36, bottom: 30, zIndex: 20, padding: "12px 22px", fontSize: 11 }}
-          onClick={() => setFase("politica")}
+        <div
+          className="aparecer"
+          style={{ position: "absolute", right: 36, bottom: 30, zIndex: 20, display: "flex", gap: 10 }}
         >
-          otra política
-        </button>
+          {/* P3: al terminar TODAS las rondas aparece el reporte, con todo lo
+              que se sacó del lienzo para que la simulación se viera. */}
+          <Link
+            href="/reporte"
+            className="boton boton--primario"
+            style={{ padding: "12px 22px", fontSize: 11 }}
+          >
+            ver reporte
+          </Link>
+          <button
+            className="boton"
+            style={{ padding: "12px 22px", fontSize: 11 }}
+            onClick={() => setFase("politica")}
+          >
+            otra política
+          </button>
+        </div>
       )}
       <Titulo />
       {/* `Procedencia` sale del lienzo: abierto tapaba el centro del enjambre
