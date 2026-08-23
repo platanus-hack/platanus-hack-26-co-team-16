@@ -5,7 +5,11 @@
 # Mientras una pieza no exista, su target dice la verdad en vez de fallar con un stack trace.
 
 SHELL := /bin/bash
-PY    ?= python3
+# Si existe el venv del proyecto se usa ESE, que es donde estan las dependencias
+# (pandas, pyarrow, anthropic, fastapi). El python3 del sistema suele tener solo
+# una parte, y entonces el target pasaba el chequeo y reventaba mas adelante
+# leyendo el parquet. Se puede forzar otro con `make PY=/ruta/a/python3`.
+PY    ?= $(shell [ -x .venv/bin/python3 ] && echo .venv/bin/python3 || echo python3)
 SEED  ?= 42
 
 .DEFAULT_GOAL := help
@@ -92,8 +96,14 @@ estado:
 # La interfaz: dos procesos, la API del motor y el frontend del enjambre.
 # Se corren en dos terminales (make servidor / make enjambre).
 servidor:
-	@$(PY) -c "import fastapi, uvicorn" 2>/dev/null || { \
-		echo "PENDIENTE · make servidor — falta fastapi/uvicorn (pip install -r requirements.txt, venv activo)"; exit 1; }
+	@$(PY) -c "import fastapi, uvicorn, pandas, pyarrow, anthropic" 2>/dev/null || { \
+		echo "PENDIENTE · make servidor — faltan dependencias en $(PY)."; \
+		echo "  python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"; \
+		exit 1; }
+	@echo "  API del enjambre en http://localhost:8000 · Ctrl-C para parar"
+	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
+		echo "  OJO: sin ANTHROPIC_API_KEY. El modo LLM caera a cache, y sin cache dara error."; \
+	fi
 	$(PY) -m uvicorn api.servidor:app --port 8000
 
 enjambre:
