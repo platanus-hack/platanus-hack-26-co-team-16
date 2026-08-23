@@ -20,7 +20,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ENJAMBRE · simulación de política laboral",
+  title: "HIVE · simulación de política laboral",
   description:
     "La corrida real del simulador de cumplimiento, transmitida en vivo: celdas empleadoras GEIH decidiendo frente a un alza del costo laboral formal.",
 };
