@@ -274,3 +274,106 @@ body:has(.reporte) {
     page-break-after: avoid;
   }
 }
+
+/* ---- burbujas de noticia (iteración 3) ---- */
+
+@keyframes burbuja-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.burbuja {
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  padding: 10px 12px 11px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: burbuja-entra 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  transition: width 0.28s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.2s;
+}
+
+.burbuja:hover {
+  border-color: rgba(233, 236, 242, 0.3);
+}
+
+.burbuja__ronda {
+  font-family: var(--mono);
+  font-size: 9;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rojo);
+}
+
+.burbuja__titulo {
+  font-family: var(--serif);
+  font-size: 13.5;
+  line-height: 1.3;
+  color: var(--tinta);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.burbuja__cita {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12.5;
+  line-height: 1.4;
+  color: var(--tinta-suave);
+  border-left: 2px solid var(--linea);
+  padding-left: 9px;
+}
+
+.burbuja__pie {
+  font-family: var(--mono);
+  font-size: 9.5;
+  line-height: 1.5;
+  color: var(--tinta-tenue);
+}
+
+.burbuja__mas {
+  font-family: var(--mono);
+  font-size: 9;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta-tenue);
+}
+
+/* ---- cifras con etiqueta al pasar el mouse (iteración 3) ---- */
+
+.cifra-muda {
+  position: relative;
+  cursor: default;
+}
+
+.cifra-muda__etiqueta {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 10;
+  letter-spacing: 0.06em;
+  color: var(--tinta-tenue);
+  opacity: 0;
+  transition: opacity 0.18s;
+  pointer-events: none;
+}
+
+.cifra-muda:hover .cifra-muda__etiqueta,
+.cifra-muda:focus-within .cifra-muda__etiqueta,
+.cifra-muda--fija .cifra-muda__etiqueta {
+  opacity: 1;
+}

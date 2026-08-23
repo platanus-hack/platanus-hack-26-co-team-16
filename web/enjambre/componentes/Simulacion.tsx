@@ -1,7 +1,16 @@
 "use client";
 
-// Pantalla 4: el enjambre. El lienzo three.js atrás; los paneles de dato,
-// narrativa y tiempo flotando encima. Cada panel es un componente separado.
+// Pantalla 4: el enjambre. El lienzo three.js atrás y lo mínimo flotando
+// encima. La pieza es el mapa, así que el chrome se recortó a lo que no se
+// puede leer en ninguna otra parte:
+//
+//   · `Relato` ("lo que va pasando") — fuera. Era una columna de 330 px
+//     tecleando un top-25 podado que nadie alcanzaba a leer. Su contenido
+//     vive completo y ordenado en el reporte.
+//   · `Metricas` y su `CurvaBrecha` — fuera del lienzo. Las cifras que
+//     importan pasaron a `Hero` (mudas, con etiqueta al pasar el mouse) y
+//     las gráficas al reporte, donde tienen tamaño para leerse.
+//   · `Noticias` — rehecho como burbujas arriba, ya no como bloque lateral.
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -10,10 +19,8 @@ import BarraTiempo from "@/componentes/Paneles/BarraTiempo";
 import ColumnaIzquierda from "@/componentes/Paneles/ColumnaIzquierda";
 import Continuar from "@/componentes/Paneles/Continuar";
 import Hero from "@/componentes/Paneles/Hero";
-import Metricas from "@/componentes/Paneles/Metricas";
 import Titulo from "@/componentes/Paneles/Titulo";
 import Noticias from "@/componentes/Noticias";
-import Relato from "@/componentes/Relato";
 import { usarAlmacen } from "@/estado/simulacion";
 
 // three.js solo vive en el cliente
@@ -61,9 +68,7 @@ export default function Simulacion() {
           conserva para reusarlo allá. */}
       <Hero />
       <Noticias />
-      <Relato />
       <ColumnaIzquierda />
-      <Metricas />
       <BarraTiempo />
       <Continuar />
       <Globo />

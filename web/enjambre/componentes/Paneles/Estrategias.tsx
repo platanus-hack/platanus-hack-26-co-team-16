@@ -30,26 +30,26 @@ export default function Estrategias() {
   const celdasTotal = Object.values(conteo).reduce((s, n) => s + n, 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div className="kicker">reparto de estrategias</div>
       {entradas.map(([k, v]) => {
         const n = conteo[k] ?? 0;
         return (
-          <div key={k} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 118, flexShrink: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 500, color: "var(--tinta)" }}>
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 104, flexShrink: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 500, color: "var(--tinta-suave)" }}>
                 {nombreEstrategia(k)}
               </div>
               {celdasTotal > 0 && (
-                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--tinta-tenue)" }}>
-                  {n} de {celdasTotal} celdas
+                <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--tinta-tenue)" }}>
+                  {n}/{celdasTotal}
                 </div>
               )}
             </div>
             <div
               style={{
                 flex: 1,
-                height: 14,
+                height: 7,
                 background: "rgba(233,236,242,0.07)",
                 position: "relative",
               }}
@@ -70,8 +70,8 @@ export default function Estrategias() {
                   title={`por conteo de celdas: ${pct(n / celdasTotal)}`}
                   style={{
                     position: "absolute",
-                    top: -3,
-                    bottom: -3,
+                    top: -2,
+                    bottom: -2,
                     left: `${Math.min(100, (n / celdasTotal) * 100)}%`,
                     width: 2,
                     background: "var(--tinta)",
@@ -83,15 +83,15 @@ export default function Estrategias() {
             </div>
             <div
               className="cifra"
-              style={{ width: 86, textAlign: "right", fontSize: 30, lineHeight: 1 }}
+              style={{ width: 58, textAlign: "right", fontSize: 16, lineHeight: 1 }}
             >
               {pct(v)}
             </div>
           </div>
         );
       })}
-      <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--tinta-tenue)" }}>
-        barra y cifra = población · marca vertical = conteo de celdas
+      <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--tinta-tenue)" }}>
+        barra = población · marca = celdas
       </div>
     </div>
   );

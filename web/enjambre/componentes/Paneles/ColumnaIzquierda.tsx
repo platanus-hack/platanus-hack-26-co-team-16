@@ -19,10 +19,10 @@ export default function ColumnaIzquierda() {
       style={{
         left: 36,
         bottom: 30,
-        width: 420,
+        width: 330,
         display: "flex",
         flexDirection: "column",
-        gap: 16,
+        gap: 13,
       }}
     >
       <Estrategias />
