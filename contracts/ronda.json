@@ -6,5 +6,9 @@
   "tasa_informalidad": 0.583,
   "prob_fiscalizacion": 0.041,
   "empleo_relativo": 0.968,
-  "banda": { "p10": 0.571, "p90": 0.596 }
+  "banda": { "p10": 0.571, "p90": 0.596, "degenerada": false, "tipo": "entre_trayectorias" },
+  "traslado_precios_pct": 1.34,
+  "ingreso_laboral_relativo": 0.941,
+  "movimiento_pp": 0.4,
+  "estabilizada": true
 }

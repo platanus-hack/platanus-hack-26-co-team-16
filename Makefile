@@ -5,11 +5,15 @@
 # Mientras una pieza no exista, su target dice la verdad en vez de fallar con un stack trace.
 
 SHELL := /bin/bash
-PY    ?= python3
+# Si existe el venv del proyecto se usa ESE, que es donde estan las dependencias
+# (pandas, pyarrow, anthropic, fastapi). El python3 del sistema suele tener solo
+# una parte, y entonces el target pasaba el chequeo y reventaba mas adelante
+# leyendo el parquet. Se puede forzar otro con `make PY=/ruta/a/python3`.
+PY    ?= $(shell [ -x .venv/bin/python3 ] && echo .venv/bin/python3 || echo python3)
 SEED  ?= 42
 
 .DEFAULT_GOAL := help
-.PHONY: help run test validate reproduce estado
+.PHONY: help run test validate reproduce estado supuestos servidor enjambre
 
 help:
 	@echo ""
@@ -20,6 +24,8 @@ help:
 	@echo "  make validate   Los 4 candados de validacion e imprime EL numero"
 	@echo "  make reproduce  Reproduce el resultado principal con un comando"
 	@echo "  make estado     Que esta cableado y que no"
+	@echo "  make servidor   La API del enjambre (uvicorn :8000, SSE por ronda)"
+	@echo "  make enjambre   El frontend (Next.js :3000; requiere make servidor aparte)"
 	@echo ""
 	@echo "  Documentacion: AGENTS.md · VALIDATION.md · docs/PLAN.md"
 	@echo ""
@@ -34,16 +40,17 @@ run:
 		echo "  Mientras tanto la referencia del flujo es docs/FLUJO.md."; \
 	fi
 
+# Los tests del nucleo viven en `engine/` y `behavior/`, no solo en `tests/`:
+# cada duenio los escribe en su carpeta. Este target los corria solo desde
+# `tests/` e imprimia "No hay tests todavia" mientras 58 pasaban en `engine/`.
 test:
 	@if ! command -v pytest >/dev/null 2>&1; then \
-		echo "PENDIENTE · make test — pytest no esta instalado (pip install pytest)."; \
-	elif [ -z "$$(find tests -name 'test_*.py' -print -quit 2>/dev/null)" ]; then \
-		echo "PENDIENTE · make test"; \
-		echo "  No hay tests todavia. Los primeros cuatro estan enumerados en tests/README.md:"; \
-		echo "  determinismo · el veto · fiscalizacion endogena · contratos."; \
-		echo "  Se cablean con Manuel (R2) alrededor de H+6."; \
+		echo "PENDIENTE · make test — pytest no esta instalado (pip install -r requirements.txt)."; \
 	else \
-		pytest tests/ -q; \
+		pytest engine/ tests/ -q; \
+		echo ""; \
+		echo "  regresiones de behavior/ (no son pytest, corren solas):"; \
+		$(PY) -m behavior.pruebas | tail -3; \
 	fi
 
 validate:
@@ -62,9 +69,12 @@ validate:
 		echo ""; \
 	fi
 
+# C4 — corre en una maquina limpia SIN API key. Importa la cache versionada del
+# escenario demo si existe; si no, cae a la ablacion, que es determinista sin
+# depender de nada externo. Es el nivel 2 (y el 3) de la ADR 0009.
 reproduce:
 	@if [ -f scripts/reproduce.py ]; then \
-		$(PY) scripts/reproduce.py; \
+		$(PY) scripts/reproduce.py --seed $(SEED); \
 	else \
 		echo "PENDIENTE · make reproduce — llega junto con el numero de validacion (C5)."; \
 	fi
@@ -79,6 +89,37 @@ estado:
 	done
 	@echo ""
 	@echo "  Supuestos tomados en el codigo (informe de honestidad):"
-	@n=$$(grep -rn "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' '); \
-	 echo "    $$n en codigo · listarlos con: grep -rn \"SUPUESTO:\" engine behavior data api web"
+	@n=$$(grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' '); \
+	 echo "    $$n en codigo · listarlos con: make supuestos"
 	@echo ""
+
+# La interfaz: dos procesos, la API del motor y el frontend del enjambre.
+# Se corren en dos terminales (make servidor / make enjambre).
+servidor:
+	@$(PY) -c "import fastapi, uvicorn, pandas, pyarrow, anthropic" 2>/dev/null || { \
+		echo "PENDIENTE · make servidor — faltan dependencias en $(PY)."; \
+		echo "  python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"; \
+		exit 1; }
+	@echo "  API del enjambre en http://localhost:8000 · Ctrl-C para parar"
+	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
+		echo "  OJO: sin ANTHROPIC_API_KEY. El modo LLM caera a cache, y sin cache dara error."; \
+	fi
+	$(PY) -m uvicorn api.servidor:app --port 8000
+
+enjambre:
+	@if [ ! -d web/enjambre/node_modules ]; then \
+		echo "  instalando dependencias de web/enjambre (primera vez)..."; \
+		cd web/enjambre && npm install --no-audit --no-fund; \
+	fi
+	cd web/enjambre && npm run dev
+
+# El informe de honestidad del proyecto, con UN solo comando.
+#
+# `-I` ignora binarios y `--exclude-dir=__pycache__` salta el bytecode: sin eso el
+# conteo contaba los `.pyc` y daba un numero distinto segun si alguien habia
+# corrido Python antes (54 o 94, segun quien lo corriera). Un informe de
+# honestidad que no es reproducible no sirve para nada.
+supuestos:
+	@grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null || true
+	@echo ""
+	@echo "  total: $$(grep -rnI --exclude-dir=__pycache__ "SUPUESTO:" engine behavior data api web scripts tests 2>/dev/null | wc -l | tr -d ' ') supuestos declarados"

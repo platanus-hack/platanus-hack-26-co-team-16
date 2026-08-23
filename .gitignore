@@ -20,7 +20,14 @@ dist/
 # Datos pesados y caché de LLM (se regeneran; no van al repo)
 data/raw/
 *.parquet
-behavior/cache/
+# C4: la caché real vive en `behavior/.cache/` (y la ignora también
+# `behavior/.gitignore`). Esta línea apuntaba a `behavior/cache/`, una ruta
+# que no existe, así que era inerte: quien intentara versionar la caché
+# habría editado la línea equivocada y no habría entendido por qué no pasa nada.
+behavior/.cache/
+# La caché EXPORTADA del escenario demo sí se versiona a propósito: es lo que
+# permite `make reproduce` en una máquina sin API key (ADR 0009, nivel 2).
+!behavior/cache-demo.json
 
 # Sistema
 .DS_Store

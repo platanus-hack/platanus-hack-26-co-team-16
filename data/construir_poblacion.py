@@ -1,4 +1,4 @@
-"""GEIH cruda -> data/poblacion.parquet + data/momentos.json.
+"""GEIH cruda -> población y momentos del año solicitado.
 
 Entrada:  data/raw/GEIH_2026_<mes>/CSV/  (la deja `python data/descargar_geih.py`)
 Salida:   data/poblacion.parquet  — una fila por agente-trabajador de Bogota,
@@ -9,11 +9,12 @@ Salida:   data/poblacion.parquet  — una fila por agente-trabajador de Bogota,
 Determinista: transformacion pura sin muestreo (no requiere seed); el parquet
 se escribe ordenado por id, asi dos corridas producen el mismo archivo.
 
-Uso:  python data/construir_poblacion.py
+Uso:  python data/construir_poblacion.py [--anio 2026]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -81,8 +82,42 @@ def cuantil_ponderado(valores: np.ndarray, pesos: np.ndarray, q: float) -> float
     return float(np.interp(q * w.sum(), acum, v))
 
 
-def cargar_mes(mes: str) -> pd.DataFrame:
-    base = RAW / f"GEIH_2026_{mes}" / "CSV"
+def _carpeta_csv(anio: int, mes: str) -> Path:
+    """Localiza la carpeta CSV del mes, tolerando el anidamiento del ZIP.
+
+    Los ZIP del DANE no traen la misma estructura todos los años. 2025 y 2026
+    descomprimen a `GEIH_<anio>_<mes>/CSV/`; los de 2024 traen una carpeta más
+    adentro (`GEIH_2024_enero/Ene_2024/CSV/`), porque ANDA los publica con el
+    nombre del mes abreviado. Es una diferencia de empaquetado, no de contenido:
+    los ocho módulos y sus nombres son idénticos.
+
+    Se busca a un nivel y luego a dos, y NADA MÁS. Si apareciera un tercer nivel
+    hay que mirarlo a mano en vez de barrer el árbol entero: un `rglob` podría
+    engancharse con la carpeta de otro mes y mezclar períodos en silencio.
+    """
+    raiz = RAW / f"GEIH_{anio}_{mes}"
+    if not raiz.is_dir():
+        raise FileNotFoundError(f"no existe {raiz}; corre data/descargar_geih.py --anio {anio}")
+
+    # La carpeta buena es la que CONTIENE los modulos, no la que se llama "CSV":
+    # en marzo y abril de 2024 hay un `CSV/CSV/` porque el ZIP venia doble, y
+    # quedarse con el primer `CSV` daba una carpeta sin datos.
+    candidatas = sorted(
+        {p.parent for p in raiz.rglob("Ocupados.CSV")}
+        | {p.parent for p in raiz.rglob("Ocupados.csv")}
+    )
+    if len(candidatas) == 1:
+        return candidatas[0]
+    if not candidatas:
+        raise FileNotFoundError(f"no encontre Ocupados.CSV bajo {raiz}")
+    raise RuntimeError(
+        f"{raiz} tiene {len(candidatas)} carpetas con Ocupados.CSV: {[str(c) for c in candidatas]}. "
+        "No se adivina cual es el mes; revisalo a mano antes de mezclar periodos."
+    )
+
+
+def cargar_mes(mes: str, anio: int = 2026) -> pd.DataFrame:
+    base = _carpeta_csv(anio, mes)
     occ = pd.read_csv(base / "Ocupados.CSV", sep=";", encoding="latin-1", low_memory=False)
     occ = occ[occ["AREA"] == AREA_BOGOTA]
     # El nombre del archivo varia entre meses (p.ej. abril: "Capítulos de
@@ -98,8 +133,9 @@ def cargar_mes(mes: str) -> pd.DataFrame:
     return df
 
 
-def construir() -> tuple[pd.DataFrame, dict]:
-    crudo = pd.concat([cargar_mes(m) for m in MESES], ignore_index=True)
+def construir(anio: int = 2026, meses: list[str] | None = None) -> tuple[pd.DataFrame, dict]:
+    meses = MESES if meses is None else meses
+    crudo = pd.concat([cargar_mes(m, anio) for m in meses], ignore_index=True)
     n_crudo = len(crudo)
 
     # Ingreso: INGLABO es el ingreso laboral mensual total que calcula el DANE.
@@ -126,7 +162,7 @@ def construir() -> tuple[pd.DataFrame, dict]:
 
     # Pooling de 6 meses: el factor de expansion mensual se divide entre el
     # numero de meses apilados (practica estandar GEIH para promedios de periodo).
-    df["factor_expansion"] = df["FEX_C18"].astype(float) / len(MESES)
+    df["factor_expansion"] = df["FEX_C18"].astype(float) / len(meses)
 
     df["ingreso_mensual_cop"] = df["INGLABO"].astype(float).round().astype("int64")
 
@@ -163,7 +199,7 @@ def construir() -> tuple[pd.DataFrame, dict]:
     df["arquetipo"] = arquetipo
 
     df["id"] = (
-        "geih-2026-m" + df["mes_num"].astype(str).str.zfill(2) + "-"
+        f"geih-{anio}-m" + df["mes_num"].astype(str).str.zfill(2) + "-"
         + df["DIRECTORIO"].astype(str) + "-" + df["SECUENCIA_P"].astype(str)
         + "-" + df["ORDEN"].astype(str)
     )
@@ -192,8 +228,9 @@ def construir() -> tuple[pd.DataFrame, dict]:
     moda = int(masa.idxmax())
     spike = float(masa.max() / masa.sum())
 
+    periodo = "enero-junio" if meses == MESES else f"{meses[0]}-{meses[-1]}"
     momentos = {
-        "fuente": "GEIH 2026 enero-junio, Bogota (AREA=11), modulo Ocupados - calculado por data/construir_poblacion.py",
+        "fuente": f"GEIH {anio} {periodo}, Bogota (AREA=11), modulo Ocupados - calculado por data/construir_poblacion.py",
         "n_muestra": int(len(df)),
         "n_descartados_sin_ingreso": int(n_sin_ingreso),
         "ocupados_expandidos": round(float(wtot)),
@@ -208,7 +245,7 @@ def construir() -> tuple[pd.DataFrame, dict]:
         "spike_salarial": {
             "moda_ingreso_cop": moda,
             "masa_en_moda": round(spike, 4),
-            "nota": "verificar contra SMLMV 2026 (V4, R5)",
+            "nota": f"verificar contra SMLMV {anio} (V4, R5)",
         },
         "terciles_ingreso_cop": {"t1_max": round(t1), "t2_max": round(t2)},
         "n_arquetipos": int(poblacion["arquetipo"].nunique()),
@@ -217,12 +254,19 @@ def construir() -> tuple[pd.DataFrame, dict]:
 
 
 def main() -> None:
-    poblacion, momentos = construir()
+    parser = argparse.ArgumentParser(description="Construye la población GEIH de Bogotá.")
+    parser.add_argument("--anio", type=int, choices=(2024, 2025, 2026), default=2026)
+    args = parser.parse_args()
+
+    poblacion, momentos = construir(args.anio)
     out = Path(__file__).parent
-    poblacion.to_parquet(out / "poblacion.parquet", index=False)
-    with open(out / "momentos.json", "w", encoding="utf-8") as f:
+    sufijo = "" if args.anio == 2026 else f"_{args.anio}"
+    poblacion_path = out / f"poblacion{sufijo}.parquet"
+    momentos_path = out / f"momentos{sufijo}.json"
+    poblacion.to_parquet(poblacion_path, index=False)
+    with open(momentos_path, "w", encoding="utf-8") as f:
         json.dump(momentos, f, ensure_ascii=False, indent=2)
-    print(f"poblacion.parquet: {len(poblacion)} agentes, "
+    print(f"{poblacion_path.name}: {len(poblacion)} agentes, "
           f"{momentos['ocupados_expandidos']:,} ocupados expandidos, "
           f"{momentos['n_arquetipos']} arquetipos")
     print(f"informalidad total: {momentos['tasa_informalidad_total']:.1%}")
