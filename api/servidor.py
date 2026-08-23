@@ -78,6 +78,21 @@ RONDAS_TOTALES = 4
 # esto pasa a "trayectoria" y es la única línea que cambia.
 SEED_EFECTO = "etiqueta"  # "etiqueta" | "trayectoria"
 
+# La otra perilla que hoy no hace nada, y esta la rompí yo en este mismo PR.
+# `api/trayectorias.py` fija en qué paráfrasis corre cada trayectoria
+# reemplazando `behavior.capa.parafrasis` por una lambda que devuelve UNA, y esa
+# lambda ignora el `n` que le pasan. Río abajo, `behavior/capa.py:250` hace
+# `for instruccion in parafrasis(n_parafrasis)`, o sea una sola vuelta pase lo
+# que pase: `parafrasis` queda neutralizado en el camino de trayectorias.
+# No es un bug que se arregle: es una incoherencia de diseño. Una trayectoria
+# ESTÁ DEFINIDA por su paráfrasis, así que pedir N paráfrasis adentro de una
+# trayectoria no quiere decir nada. La banda que se publica es la de entre
+# trayectorias justamente porque reemplazó a la intra-ronda, que era la angosta.
+# Se declara en vez de disimularse, igual que `SEED_EFECTO`, y se saca de la
+# cuenta del presupuesto: una perilla que no multiplica llamadas no puede
+# multiplicar el tope.
+PARAFRASIS_EFECTO = "ninguno"  # "ninguno" | "intra_ronda"
+
 # El tope de gasto de UNA corrida, derivado de la corrida QUE SE PIDIÓ. V-1.
 #
 # Lo medido (R3, 23-08-2026, `behavior/README.md` §Costo): una corrida en frío
@@ -122,19 +137,20 @@ MARGEN_TOPE = 1.25
 TOPE_USD_MAXIMO = 25.0
 
 
-def llamadas_de_la_corrida(cobertura: float, trayectorias: int, parafrasis: int) -> int:
+def llamadas_de_la_corrida(cobertura: float, trayectorias: int) -> int:
     """Cuántas llamadas al LLM va a hacer esta corrida. Exacto, no estimado.
 
     La ronda 0 es la reacción ingenua y no llama al LLM (ADR 0005), así que las
-    rondas que cuestan son `RONDAS_TOTALES - 1`.
+    rondas que cuestan son `RONDAS_TOTALES - 1`. `parafrasis` NO entra: ver
+    `PARAFRASIS_EFECTO`.
     """
     celdas, _cola = particionar_por_peso(_grilla(), cobertura)
-    return len(celdas) * (RONDAS_TOTALES - 1) * trayectorias * parafrasis
+    return len(celdas) * (RONDAS_TOTALES - 1) * trayectorias
 
 
-def tope_derivado(cobertura: float, trayectorias: int, parafrasis: int) -> float:
+def tope_derivado(cobertura: float, trayectorias: int) -> float:
     """Lo que esta corrida debería costar en frío, con margen. En USD."""
-    n = llamadas_de_la_corrida(cobertura, trayectorias, parafrasis)
+    n = llamadas_de_la_corrida(cobertura, trayectorias)
     return round(n * USD_POR_LLAMADA_EN_FRIO * MARGEN_TOPE, 2)
 
 
@@ -197,9 +213,11 @@ def flujo(
         ge=1,
         le=9,
         description=(
-            "Paráfrasis por ronda DENTRO de cada trayectoria. Solo llena "
-            "`banda_intra_ronda`, que es diagnóstico y no sale a pantalla. "
-            "Multiplica el costo por su valor: déjalo en 1."
+            "HOY NO HACE NADA en este endpoint, y se declara en vez de "
+            "quitarse: ver `PARAFRASIS_EFECTO`. Fijar la paráfrasis de cada "
+            "trayectoria neutraliza este parámetro río abajo, así que ni "
+            "multiplica el costo ni llena `banda_intra_ronda`. La banda que se "
+            "publica es la de ENTRE trayectorias, que es la que reemplazó a esta."
         ),
     ),
     tope_usd: float | None = Query(
@@ -247,8 +265,8 @@ def _generar(
     # pidieron no cabe en el techo, se dice CUÁNTO cuesta y QUÉ bajar, en vez de
     # correrla a medias y publicar una banda sobre menos trayectorias de las
     # prometidas.
-    llamadas_previstas = llamadas_de_la_corrida(cobertura, trayectorias, parafrasis)
-    derivado = tope_derivado(cobertura, trayectorias, parafrasis)
+    llamadas_previstas = llamadas_de_la_corrida(cobertura, trayectorias)
+    derivado = tope_derivado(cobertura, trayectorias)
     if tope_usd is None:
         if derivado > TOPE_USD_MAXIMO:
             yield _sse(
@@ -416,6 +434,7 @@ def _generar(
                 # necesita para no prometer una banda que no se va a pagar.
                 "trayectorias": trayectorias,
                 "parafrasis": parafrasis,
+                "parafrasis_efecto": PARAFRASIS_EFECTO,
                 "n_arquetipos": total,
                 # Lo que esta corrida va a costar y dónde está su corte duro. La
                 # pantalla puede decirlo antes de que el usuario espere 15

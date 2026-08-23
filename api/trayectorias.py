@@ -68,6 +68,16 @@ def _parafrasis_fijada(indice: int, disponibles: list[str]) -> Iterator[None]:
     `behavior/` acepte el índice de paráfrasis por parámetro, este bloque se
     borra, las N corren a la vez y el tiempo total vuelve a ser el de UNA
     corrida. Es un pedido chico y abierto a R3, no un rediseño.
+
+    Y hay un efecto de borde que se declara acá porque no se ve en ningún otro
+    lado: la lambda **ignora el `n` que le pasan**, así que río abajo
+    `behavior/capa.py` da una sola vuelta pase lo que pase y el parámetro
+    `n_parafrasis` queda NEUTRALIZADO mientras este contexto esté activo. No es
+    un descuido que haya que arreglar: una trayectoria está DEFINIDA por su
+    paráfrasis, así que pedir N paráfrasis adentro de una trayectoria no quiere
+    decir nada. Se declara en `api.servidor.PARAFRASIS_EFECTO` y viaja en el
+    evento `inicio`, para que nadie mueva esa perilla, no vea nada y saque una
+    conclusión sobre el modelo.
     """
     original = _capa.parafrasis
     elegida = disponibles[indice % len(disponibles)]
@@ -101,10 +111,11 @@ def correr_consolidada(
     es lo que la hace más fuerte que `n_parafrasis=N`, donde las N variantes
     parten todas del mismo estado previo y por construcción se parecen más.
 
-    `n_parafrasis=1` adentro de cada trayectoria a propósito: la banda que se
-    publica es la de entre trayectorias, y pedir N paráfrasis por ronda además
-    multiplicaría el costo por N para llenar `banda_intra_ronda`, que es
-    diagnóstico y no sale a pantalla.
+    `n_parafrasis` no hace nada acá y se recibe solo por compatibilidad de firma
+    con `correr()`: `_parafrasis_fijada()` lo neutraliza, y eso es coherente y no
+    un bug (ver su docstring y `api.servidor.PARAFRASIS_EFECTO`). La banda que se
+    publica es la de entre trayectorias, que es la que reemplazó a la
+    intra-ronda.
 
     Las tres costuras (`al_*`) llevan el índice de trayectoria adelante para que
     quien las escuche pueda decir en cuál va sin adivinarlo por el orden.

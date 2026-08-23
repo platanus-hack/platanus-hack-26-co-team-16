@@ -174,15 +174,15 @@ def test_el_tope_paga_la_corrida_que_promete():
         tope_derivado,
     )
 
-    llamadas = llamadas_de_la_corrida(0.80, N_TRAYECTORIAS, 1)
+    llamadas = llamadas_de_la_corrida(0.80, N_TRAYECTORIAS)
     en_frio = llamadas * USD_POR_LLAMADA_EN_FRIO
-    assert tope_derivado(0.80, N_TRAYECTORIAS, 1) >= en_frio, (
+    assert tope_derivado(0.80, N_TRAYECTORIAS) >= en_frio, (
         f"el tope no paga las {N_TRAYECTORIAS} trayectorias (${en_frio:.2f} en frío)"
     )
     assert MARGEN_TOPE > 1.0, "sin margen, una corrida un poco más cara se corta"
     # La corrida de máxima calidad (las 81 celdas, las N trayectorias) tiene que
     # caber bajo el techo: si no, el techo estaría prohibiendo la mejor corrida.
-    assert tope_derivado(1.0, N_TRAYECTORIAS, 1) <= TOPE_USD_MAXIMO
+    assert tope_derivado(1.0, N_TRAYECTORIAS) <= TOPE_USD_MAXIMO
 
 
 def test_la_cuenta_de_llamadas_cuadra_con_lo_medido():
@@ -193,7 +193,7 @@ def test_la_cuenta_de_llamadas_cuadra_con_lo_medido():
     """
     from api.servidor import llamadas_de_la_corrida
 
-    assert llamadas_de_la_corrida(0.80, 1, 1) == 93
+    assert llamadas_de_la_corrida(0.80, 1) == 93
 
 
 def test_una_corrida_cara_no_queda_autorizada_como_una_barata():
@@ -205,10 +205,34 @@ def test_una_corrida_cara_no_queda_autorizada_como_una_barata():
     """
     from api.servidor import tope_derivado
 
-    barata = tope_derivado(0.50, 1, 1)
-    producto = tope_derivado(0.80, N_TRAYECTORIAS, 1)
-    cara = tope_derivado(1.0, N_TRAYECTORIAS, 1)
+    barata = tope_derivado(0.50, 1)
+    producto = tope_derivado(0.80, N_TRAYECTORIAS)
+    cara = tope_derivado(1.0, N_TRAYECTORIAS)
     assert barata < producto < cara
+
+
+def test_la_parafrasis_queda_neutralizada_y_esta_declarada():
+    """La perilla `parafrasis` no hace nada en el camino de trayectorias.
+
+    Lo encontró el verificador del track y es un efecto de borde de
+    `_parafrasis_fijada()`: la lambda que fija la redacción ignora su `n`, así
+    que río abajo `behavior/capa.py` da una sola vuelta. Es coherente (una
+    trayectoria ESTÁ definida por su paráfrasis) pero tiene que estar dicho, no
+    escondido. Este test es el que obliga a que la declaración y el hecho no se
+    separen: si alguien vuelve a hacer funcionar la perilla, esto falla y le
+    recuerda cambiar `PARAFRASIS_EFECTO`.
+    """
+    import behavior.capa as _capa
+
+    from api.servidor import PARAFRASIS_EFECTO
+    from api.trayectorias import _parafrasis_fijada
+
+    with _parafrasis_fijada(0, TEXTOS):
+        assert len(_capa.parafrasis(5)) == 1
+        assert len(_capa.parafrasis(9)) == 1
+    # Y fuera del contexto vuelve a funcionar: el parche no se queda pegado.
+    assert len(_capa.parafrasis(5)) == 5
+    assert PARAFRASIS_EFECTO == "ninguno"
 
 
 if __name__ == "__main__":  # pragma: no cover

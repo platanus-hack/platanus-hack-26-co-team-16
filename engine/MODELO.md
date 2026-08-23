@@ -74,8 +74,16 @@ Es un compromiso público en el review del PR #4, no una preferencia.
 > sembró primero. La firma real lleva el seed explícito: `stream_de_ronda(seed, ronda)`.
 > Sin estado global no hay carrera que descubrir a las 4am.
 
-**Si solo lees un archivo, lee `rondas.py`.** Es donde vive la tesis: el bucle de mejor
-respuesta y el punto exacto donde la fiscalización se recalcula.
+**Si solo lees un archivo, lee [`behavior/rondas.py`](../behavior/rondas.py)** — el bucle de
+mejor respuesta — **y [`engine/veto.py`](veto.py)**, el veto determinista. Entre los dos vive la
+tesis: el modelo propone y la aritmética manda.
+
+> ⚠️ Esta línea decía `rondas.py` a secas, dentro del mapa de `engine/`, catorce líneas después
+> de declarar ese archivo como uno de **los siete que no se escriben**. El bucle vive en
+> `behavior/`, que es de R3. `AGENTS.md` se corrigió por este mismo defecto el 22-ago 23:00 y su
+> gemelo de acá se quedó atrás; lo encontró el verificador del track de backend el 23-ago.
+> **Las filas sin ✅ de la tabla de abajo son el plan, no el inventario:** los módulos que existen
+> hoy en `engine/` son `seed.py`, `fiscalizacion.py` y `veto.py`, y solo esos.
 
 ---
 
