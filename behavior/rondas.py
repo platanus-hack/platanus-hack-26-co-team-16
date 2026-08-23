@@ -99,6 +99,12 @@ class Ronda:
     # del mismo estado. Es diagnóstico interno, no la banda que se publica: por
     # construcción es más angosta que la dispersión entre trayectorias completas.
     banda_intra_ronda: dict[str, Any] = field(default_factory=dict)
+    # Foto del estado vivo al CERRAR la ronda, por arquetipo:
+    # {fraccion_informal, fraccion_empleada, horas}. Existe para la interfaz (el
+    # enjambre necesita saber cuánta planta de cada celda sigue empleada, fuera
+    # de regla y con qué jornada). NO va en `a_contrato()`: `ronda.json` sigue
+    # congelado; esto viaja aparte por la API de streaming, como `por_arquetipo`.
+    estado_por_arquetipo: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def a_contrato(self) -> dict[str, Any]:
         """Solo los campos de `contracts/ronda.json`, para la API y el frontend."""
@@ -181,6 +187,7 @@ def correr(
     paralelismo: int = 8,
     cobertura_llm: float | None = None,
     al_terminar_ronda: Callable[[Ronda], None] | None = None,
+    al_decidir_arquetipo: Callable[[int, str, ResultadoArquetipo], None] | None = None,
     fiscalizacion: EstadoFiscalizacion | None = None,
     congelar_prob_fiscalizacion: bool = False,
     reskin: Reskin | None = None,
@@ -324,6 +331,15 @@ def correr(
         banda={"p10": tasa, "p90": tasa, "degenerada": True},
         por_arquetipo={},
         fraccion_poblacion_llm=0.0,
+        pesos={a.id: a.peso for a in arquetipos},
+        estado_por_arquetipo={
+            a.id: {
+                "fraccion_informal": estado.fraccion_informal[a.id],
+                "fraccion_empleada": estado.fraccion_empleada[a.id],
+                "horas": horas[a.id],
+            }
+            for a in arquetipos
+        },
     )
     salida.append(r0)
     if al_terminar_ronda:
@@ -356,7 +372,7 @@ def correr(
                 if previo
                 else ""
             )
-            return a.id, decidir_arquetipo(
+            resultado = decidir_arquetipo(
                 a,
                 cli,
                 veto,
@@ -382,6 +398,13 @@ def correr(
                 # otra escala de montos. El agregado no debería moverse.
                 reskin=reskin,
             )
+            # Progreso intra-ronda para quien escucha (la API y el enjambre):
+            # se dispara en el hilo del pool, en orden de TERMINACIÓN, no de
+            # recorrido. Es solo un evento de avance; el agregado de la ronda
+            # se reconstruye más abajo en el orden estable de `arquetipos`.
+            if al_decidir_arquetipo:
+                al_decidir_arquetipo(n, a.id, resultado)
+            return a.id, resultado
 
         if paralelismo > 1:
             with ThreadPoolExecutor(max_workers=paralelismo) as pool:
@@ -493,6 +516,14 @@ def correr(
             traslado_precios_pct=traslado_precios,
             fraccion_fallback=fraccion_fallback,
             fraccion_sin_salida=fraccion_sin_salida,
+            estado_por_arquetipo={
+                a.id: {
+                    "fraccion_informal": estado.fraccion_informal[a.id],
+                    "fraccion_empleada": estado.fraccion_empleada[a.id],
+                    "horas": horas[a.id],
+                }
+                for a in arquetipos
+            },
         )
         # A5 — la etiqueta se pone ANTES de entregar la ronda, para que quien
         # escucha `al_terminar_ronda` (el terminal, la API, el frontend) la vea

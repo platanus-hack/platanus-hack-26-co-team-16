@@ -1,0 +1,1529 @@
+{
+  "meta": {
+    "fecha": "2026-08-22 15:50",
+    "modo": "llm",
+    "n_arquetipos": 101,
+    "repeticiones": 3,
+    "poblacion": "data/poblacion.parquet (GEIH Bogotá 2026)",
+    "tasa_inicial": 0.3057,
+    "veto": "engine/veto.py (el real)",
+    "capacidad": 0.02,
+    "multa_factor": 12.0,
+    "segundos": 1096.9,
+    "gasto_usd": 6.630091000000002,
+    "llamadas": 0,
+    "control": {
+      "politica": 5.0,
+      "identica": true,
+      "diferencias": {}
+    }
+  },
+  "corridas": [
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.037141207763018186,
+      "prob_capa_final": 0.037141207763018214,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 5.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8523869653006477,
+      "brecha_pp": 54.668696530064764,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.037141207763018214,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.8523869653006477,
+      "banda_p90": 0.8523869653006477,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "informalizar": 0.6031469827216419,
+        "absorber": 0.2492399825790057,
+        "cumplir": 0.1052007005831962,
+        "subir_precios": 0.042412334116156164
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.39383310218571005,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.5284223713053714,
+          "prob_sancion": 0.04951503283801584,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8523869653006477,
+          "prob_sancion": 0.037141207763018214,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.03506446040460267,
+      "prob_capa_final": 0.03506446040460265,
+      "divergencia_motor_capa": 5.551115123125783e-17,
+      "aumento_pct": 5.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6493009551952151,
+      "brecha_pp": 34.36009551952151,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.03506446040460265,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.6493009551952151,
+      "banda_p90": 0.6493009551952151,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "informalizar": 0.41336616346344424,
+        "absorber": 0.3534414945810461,
+        "cumplir": 0.2331923419555097
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.355411321992998,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.5603186026553386,
+          "prob_sancion": 0.05471879796347923,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6493009551952151,
+          "prob_sancion": 0.03506446040460265,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.029272604221662273,
+      "prob_capa_final": 0.029272604221662224,
+      "divergencia_motor_capa": 4.85722573273506e-17,
+      "aumento_pct": 5.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8725482602505372,
+      "brecha_pp": 56.68482602505372,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.029272604221662224,
+      "empleo_relativo_final": 0.9987436920791356,
+      "empleo_perdido_pp": 0.12563079208643968,
+      "banda_p10": 0.8725482602505372,
+      "banda_p90": 0.8725482602505372,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.5255520355648741,
+        "informalizar": 0.38813556285469863,
+        "cumplir": 0.08631240158042748
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.42549526876584115,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.6731831704420005,
+          "prob_sancion": 0.04591646446498576,
+          "empleo_relativo": 0.9987436920791356
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8725482602505372,
+          "prob_sancion": 0.029272604221662224,
+          "empleo_relativo": 0.9987436920791356
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.023266645805837267,
+      "prob_capa_final": 0.02326664580583726,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 7.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6766521855534638,
+      "brecha_pp": 37.095218555346385,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02326664580583726,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.6766521855534638,
+      "banda_p90": 0.6766521855534638,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.5103602735425761,
+        "cumplir": 0.32334781444653615,
+        "informalizar": 0.16629191201088783
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.4755686316906126,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8495603889665564,
+          "prob_sancion": 0.04118287757702277,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6766521855534638,
+          "prob_sancion": 0.02326664580583726,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.025315006502692437,
+      "prob_capa_final": 0.025315006502692472,
+      "divergencia_motor_capa": 5.551115123125783e-17,
+      "aumento_pct": 7.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8052950770221566,
+      "brecha_pp": 49.95950770221566,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.025315006502692472,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.8052950770221566,
+      "banda_p90": 0.8052950770221566,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.5121556293032564,
+        "informalizar": 0.29669133174504697,
+        "cumplir": 0.19115303895169677
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.49419198609685155,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7800024902342518,
+          "prob_sancion": 0.03966212357095167,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8052950770221566,
+          "prob_sancion": 0.025315006502692472,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.026704838651780447,
+      "prob_capa_final": 0.026704838651780416,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 7.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.9124236781749582,
+      "brecha_pp": 60.67236781749581,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.026704838651780416,
+      "empleo_relativo_final": 0.9976305126826084,
+      "empleo_perdido_pp": 0.23694873173916164,
+      "banda_p10": 0.9124236781749582,
+      "banda_p90": 0.9124236781749582,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.47889515613046646,
+        "informalizar": 0.42914628699641855,
+        "cumplir": 0.08011112028615668,
+        "despedir": 0.01184743658695845
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.46371423797658,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7388828349069088,
+          "prob_sancion": 0.042213140473662425,
+          "empleo_relativo": 0.9985783076095651
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.9124236781749582,
+          "prob_sancion": 0.026704838651780416,
+          "empleo_relativo": 0.9976305126826084
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.027907048082347542,
+      "prob_capa_final": 0.027907048082347563,
+      "divergencia_motor_capa": 4.85722573273506e-17,
+      "aumento_pct": 9.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6088125073474179,
+      "brecha_pp": 30.311250734741783,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.027907048082347563,
+      "empleo_relativo_final": 0.9957743260571555,
+      "empleo_perdido_pp": 0.42256739428444545,
+      "banda_p10": 0.6088125073474179,
+      "banda_p90": 0.6088125073474179,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.4610353152975992,
+        "cumplir": 0.2539128363394192,
+        "informalizar": 0.14919888444025367,
+        "subir_precios": 0.13585296392272808
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.47929534321564365,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7066176622149821,
+          "prob_sancion": 0.04086929916941784,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6088125073474179,
+          "prob_sancion": 0.027907048082347563,
+          "empleo_relativo": 0.9957743260571555
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.02143790222849898,
+      "prob_capa_final": 0.02143790222849895,
+      "divergencia_motor_capa": 4.85722573273506e-17,
+      "aumento_pct": 9.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.5640623018095414,
+      "brecha_pp": 25.83623018095414,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02143790222849895,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.5640623018095414,
+      "banda_p90": 0.5640623018095414,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "cumplir": 0.42527347662944637,
+        "absorber": 0.4114632565468059,
+        "informalizar": 0.1632632668237478
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.48881396214269873,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.9228909839430971,
+          "prob_sancion": 0.04008962818052042,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.5640623018095414,
+          "prob_sancion": 0.02143790222849895,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.024627257457230347,
+      "prob_capa_final": 0.024627257457230378,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 9.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8524647708500763,
+      "brecha_pp": 54.676477085007626,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.024627257457230378,
+      "empleo_relativo_final": 0.9965892138293649,
+      "empleo_perdido_pp": 0.34107861706350606,
+      "banda_p10": 0.8524647708500763,
+      "banda_p90": 0.8524647708500763,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.644426636048763,
+        "informalizar": 0.21994409712795535,
+        "cumplir": 0.1356292668232816
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.4517873731708579,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8020667335254985,
+          "prob_sancion": 0.04330305747270502,
+          "empleo_relativo": 0.9965892138293649
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8524647708500763,
+          "prob_sancion": 0.024627257457230378,
+          "empleo_relativo": 0.9965892138293649
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.024695306367654452,
+      "prob_capa_final": 0.02469530636765449,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 11.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6994825858446942,
+      "brecha_pp": 39.37825858446942,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02469530636765449,
+      "empleo_relativo_final": 0.994551754161503,
+      "empleo_perdido_pp": 0.5448245838497012,
+      "banda_p10": 0.6994825858446942,
+      "banda_p90": 0.6994825858446942,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.49154473600726567,
+        "cumplir": 0.24623124306653973,
+        "informalizar": 0.2364791068424809,
+        "subir_precios": 0.0257449140837137
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5070041529689148,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7998288201680253,
+          "prob_sancion": 0.03867949017757366,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6994825858446942,
+          "prob_sancion": 0.02469530636765449,
+          "empleo_relativo": 0.994551754161503
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.02260003473098668,
+      "prob_capa_final": 0.022600034730986707,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 11.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.5822817643477805,
+      "brecha_pp": 27.658176434778042,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.022600034730986707,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.5822817643477805,
+      "banda_p90": 0.5822817643477805,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.4226610598838164,
+        "cumplir": 0.41771823565221955,
+        "informalizar": 0.1596207044639641
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6049724314647157,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8749162936906325,
+          "prob_sancion": 0.03251886955339722,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.5822817643477805,
+          "prob_sancion": 0.022600034730986707,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.024971693332410783,
+      "prob_capa_final": 0.024971693332410783,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 11.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8446489128565254,
+      "brecha_pp": 53.89489128565255,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.024971693332410783,
+      "empleo_relativo_final": 1.0,
+      "empleo_perdido_pp": 0.0,
+      "banda_p10": 0.8446489128565254,
+      "banda_p90": 0.8446489128565254,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.6819469802443304,
+        "informalizar": 0.1790123647943922,
+        "cumplir": 0.13904065496127743
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6196397471332884,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7908646926371187,
+          "prob_sancion": 0.031761481897190635,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8446489128565254,
+          "prob_sancion": 0.024971693332410783,
+          "empleo_relativo": 1.0
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.03219415453296102,
+      "prob_capa_final": 0.03219415453296104,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 13.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.5336261889471839,
+      "brecha_pp": 22.79261889471839,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.03219415453296104,
+      "empleo_relativo_final": 0.9791918298326308,
+      "empleo_perdido_pp": 2.0808170167369244,
+      "banda_p10": 0.5336261889471839,
+      "banda_p90": 0.5336261889471839,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.3678667833396331,
+        "cumplir": 0.2447404349078678,
+        "informalizar": 0.17439673493807775,
+        "subir_precios": 0.11135075783707335,
+        "despedir": 0.10164528897734812
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.45114426162359034,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9930639432775437
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.6111762496582083,
+          "prob_sancion": 0.043363428346198774,
+          "empleo_relativo": 0.9861278865550872
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.5336261889471839,
+          "prob_sancion": 0.03219415453296104,
+          "empleo_relativo": 0.9791918298326308
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.02275410336845568,
+      "prob_capa_final": 0.022754103368455625,
+      "divergencia_motor_capa": 5.551115123125783e-17,
+      "aumento_pct": 13.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.38560858632010125,
+      "brecha_pp": 7.990858632010123,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.022754103368455625,
+      "empleo_relativo_final": 0.9791918298326308,
+      "empleo_perdido_pp": 2.0808170167369244,
+      "banda_p10": 0.38560858632010125,
+      "banda_p90": 0.38560858632010125,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "cumplir": 0.5043444394408512,
+        "absorber": 0.2832536411505105,
+        "informalizar": 0.11075663043129051,
+        "despedir": 0.10164528897734812
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6022175448184712,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9930639432775437
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8689239812947085,
+          "prob_sancion": 0.032665172948807,
+          "empleo_relativo": 0.9861278865550872
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.38560858632010125,
+          "prob_sancion": 0.022754103368455625,
+          "empleo_relativo": 0.9791918298326308
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.029583466270361347,
+      "prob_capa_final": 0.029583466270361347,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 13.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6552144220199257,
+      "brecha_pp": 34.95144220199257,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.029583466270361347,
+      "empleo_relativo_final": 0.9661727352194299,
+      "empleo_perdido_pp": 3.3827264780570077,
+      "banda_p10": 0.6552144220199257,
+      "banda_p90": 0.6552144220199257,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.4224559902829904,
+        "cumplir": 0.23887209034494442,
+        "informalizar": 0.22655739772084568,
+        "despedir": 0.11211452165121956
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6457321247626772,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9930639432775437
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.6660032510304413,
+          "prob_sancion": 0.030497858714279902,
+          "empleo_relativo": 0.9764319727668138
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6552144220199257,
+          "prob_sancion": 0.029583466270361347,
+          "empleo_relativo": 0.9661727352194299
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.025285093622967377,
+      "prob_capa_final": 0.02528509362296738,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 15.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.725531126304385,
+      "brecha_pp": 41.9831126304385,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02528509362296738,
+      "empleo_relativo_final": 0.9460499322730038,
+      "empleo_perdido_pp": 5.395006772699618,
+      "banda_p10": 0.725531126304385,
+      "banda_p90": 0.725531126304385,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.4486178935030715,
+        "informalizar": 0.28114595497129413,
+        "cumplir": 0.14284594846457258,
+        "despedir": 0.10164528897734812,
+        "subir_precios": 0.0257449140837137
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.4702884050067509,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9825705186791873
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7809371840659953,
+          "prob_sancion": 0.04163550237489477,
+          "empleo_relativo": 0.9634794135938165
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.725531126304385,
+          "prob_sancion": 0.02528509362296738,
+          "empleo_relativo": 0.9460499322730038
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.022304479540338432,
+      "prob_capa_final": 0.02230447954033843,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 15.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.5093852196350019,
+      "brecha_pp": 20.368521963500193,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02230447954033843,
+      "empleo_relativo_final": 0.9477115560375616,
+      "empleo_perdido_pp": 5.2288443962438365,
+      "banda_p10": 0.5093852196350019,
+      "banda_p90": 0.5093852196350019,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.47277314116817076,
+        "cumplir": 0.38690261848358726,
+        "despedir": 0.10164528897734812,
+        "informalizar": 0.03867895137089392
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6109115275279777,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9825705186791873
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8866432700008395,
+          "prob_sancion": 0.03220787789804558,
+          "empleo_relativo": 0.9651410373583744
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.5093852196350019,
+          "prob_sancion": 0.02230447954033843,
+          "empleo_relativo": 0.9477115560375616
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.02335623265136233,
+      "prob_capa_final": 0.02335623265136233,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 15.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.7013779660126583,
+      "brecha_pp": 39.56779660126583,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02335623265136233,
+      "empleo_relativo_final": 0.9422726526081426,
+      "empleo_perdido_pp": 5.772734739185736,
+      "banda_p10": 0.7013779660126583,
+      "banda_p90": 0.7013779660126583,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.5655694448951997,
+        "cumplir": 0.18132704601332966,
+        "despedir": 0.12680140261335132,
+        "informalizar": 0.12630210647811937
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5801083057818404,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9825705186791873
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8462630939610353,
+          "prob_sancion": 0.0338887837622448,
+          "empleo_relativo": 0.963894819534956
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.7013779660126583,
+          "prob_sancion": 0.02335623265136233,
+          "empleo_relativo": 0.9422726526081426
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.026416308594563353,
+      "prob_capa_final": 0.026416308594563342,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 17.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.5416772340408198,
+      "brecha_pp": 23.59772340408198,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.026416308594563342,
+      "empleo_relativo_final": 0.9214844035850093,
+      "empleo_perdido_pp": 7.8515596414990725,
+      "banda_p10": 0.5416772340408198,
+      "banda_p90": 0.5416772340408198,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.3774233405384969,
+        "cumplir": 0.3594668403700429,
+        "informalizar": 0.16425389350232283,
+        "despedir": 0.09885592558913746
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5521128704896976,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9738281345283365
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7470634356170376,
+          "prob_sancion": 0.035576221811409625,
+          "empleo_relativo": 0.9476562690566729
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.5416772340408198,
+          "prob_sancion": 0.026416308594563342,
+          "empleo_relativo": 0.9214844035850093
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.026396893070430603,
+      "prob_capa_final": 0.026396893070430583,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 17.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.4183023089922191,
+      "brecha_pp": 11.260230899221908,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.026396893070430583,
+      "empleo_relativo_final": 0.9214844035850093,
+      "empleo_perdido_pp": 7.8515596414990725,
+      "banda_p10": 0.4183023089922191,
+      "banda_p90": 0.4183023089922191,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "cumplir": 0.4828417654186435,
+        "absorber": 0.259577276142872,
+        "informalizar": 0.15872503284934705,
+        "despedir": 0.09885592558913746
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5736523552117889,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9738281345283365
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7476203393017913,
+          "prob_sancion": 0.03426356272187581,
+          "empleo_relativo": 0.9476562690566729
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.4183023089922191,
+          "prob_sancion": 0.026396893070430583,
+          "empleo_relativo": 0.9214844035850093
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.026738808992851394,
+      "prob_capa_final": 0.026738808992851415,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 17.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6336054422461953,
+      "brecha_pp": 32.79054422461953,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.026738808992851415,
+      "empleo_relativo_final": 0.9128961516997209,
+      "empleo_perdido_pp": 8.710384830027905,
+      "banda_p10": 0.6336054422461953,
+      "banda_p90": 0.6336054422461953,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.3899380369888172,
+        "cumplir": 0.26214134697606806,
+        "informalizar": 0.2490646904459773,
+        "despedir": 0.09885592558913746
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6124049248458333,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9738281345283365
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.737931300633044,
+          "prob_sancion": 0.03213061201248735,
+          "empleo_relativo": 0.9449978792564898
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6336054422461953,
+          "prob_sancion": 0.026738808992851415,
+          "empleo_relativo": 0.9128961516997209
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.027240177408575855,
+      "prob_capa_final": 0.027240177408575872,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 19.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.6136828566377156,
+      "brecha_pp": 30.79828566377156,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.027240177408575872,
+      "empleo_relativo_final": 0.9212147551092242,
+      "empleo_perdido_pp": 7.878524489077576,
+      "banda_p10": 0.6136828566377156,
+      "banda_p90": 0.6136828566377156,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.4934852237535761,
+        "cumplir": 0.25057158034732785,
+        "informalizar": 0.17852358706365742,
+        "despedir": 0.05167469475172504,
+        "subir_precios": 0.0257449140837137
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.45824795362766935,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9689993084751001
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7241635793137713,
+          "prob_sancion": 0.04270577904329498,
+          "empleo_relativo": 0.9379986169502001
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.6136828566377156,
+          "prob_sancion": 0.027240177408575872,
+          "empleo_relativo": 0.9212147551092242
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.025255365572815124,
+      "prob_capa_final": 0.025255365572815158,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 19.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.5449111726231838,
+      "brecha_pp": 23.921117262318376,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.025255365572815158,
+      "empleo_relativo_final": 0.91710897010933,
+      "empleo_perdido_pp": 8.289102989066999,
+      "banda_p10": 0.5449111726231838,
+      "banda_p90": 0.5449111726231838,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.4435108182867171,
+        "cumplir": 0.33963556922199983,
+        "informalizar": 0.14102724126959187,
+        "despedir": 0.07582637122169122
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.6095824619368538,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9689993084751001
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7818682960239125,
+          "prob_sancion": 0.032276954697888494,
+          "empleo_relativo": 0.9379986169502001
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.5449111726231838,
+          "prob_sancion": 0.025255365572815158,
+          "empleo_relativo": 0.91710897010933
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.023823191429212607,
+      "prob_capa_final": 0.02382319142921263,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 19.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.7871044387019842,
+      "brecha_pp": 48.14044387019842,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.02382319142921263,
+      "empleo_relativo_final": 0.911883880547897,
+      "empleo_perdido_pp": 8.811611945210295,
+      "banda_p10": 0.7871044387019842,
+      "banda_p90": 0.7871044387019842,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.6169667083813374,
+        "informalizar": 0.21242300705395525,
+        "cumplir": 0.1189355898129825,
+        "despedir": 0.05167469475172504
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5169734684311453,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9689993084751001
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8294778974853024,
+          "prob_sancion": 0.037947931837695625,
+          "empleo_relativo": 0.9307759527510169
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.7871044387019842,
+          "prob_sancion": 0.02382319142921263,
+          "empleo_relativo": 0.911883880547897
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.02306050544974795,
+      "prob_capa_final": 0.023060505449747914,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 20.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8443035162111898,
+      "brecha_pp": 53.86035162111897,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.023060505449747914,
+      "empleo_relativo_final": 0.9284581843947283,
+      "empleo_perdido_pp": 7.154181560527173,
+      "banda_p10": 0.8443035162111898,
+      "banda_p90": 0.8443035162111898,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.5974271927548197,
+        "informalizar": 0.23867509587733973,
+        "despedir": 0.10328433674585287,
+        "cumplir": 0.06061337462198761
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.4680396275644427,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9734592291712278
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8572447948256071,
+          "prob_sancion": 0.04183130383397138,
+          "empleo_relativo": 0.9456722405190371
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8443035162111898,
+          "prob_sancion": 0.023060505449747914,
+          "empleo_relativo": 0.9284581843947283
+        }
+      ],
+      "repeticion": 1,
+      "parafrasis": 1
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.02208745852361271,
+      "prob_capa_final": 0.022087458523612713,
+      "divergencia_motor_capa": 4.85722573273506e-17,
+      "aumento_pct": 20.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.7757181741847214,
+      "brecha_pp": 47.00181741847214,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.022087458523612713,
+      "empleo_relativo_final": 0.9469184583424555,
+      "empleo_perdido_pp": 5.308154165754453,
+      "banda_p10": 0.7757181741847214,
+      "banda_p90": 0.7757181741847214,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.6980404521499005,
+        "informalizar": 0.15559477105407765,
+        "cumplir": 0.1463647767960218
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5798823280622338,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9734592291712278
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.8954540058731704,
+          "prob_sancion": 0.033901763647904315,
+          "empleo_relativo": 0.9469184583424555
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.7757181741847214,
+          "prob_sancion": 0.022087458523612713,
+          "empleo_relativo": 0.9469184583424555
+        }
+      ],
+      "repeticion": 2,
+      "parafrasis": 2
+    },
+    {
+      "rondas_degeneradas": [],
+      "rondas_saturadas": [],
+      "absorbente": false,
+      "prob_motor_final": 0.027453711806680065,
+      "prob_capa_final": 0.027453711806680103,
+      "divergencia_motor_capa": 4.163336342344337e-17,
+      "aumento_pct": 20.0,
+      "seed": 42,
+      "informalidad_r0": 0.3057,
+      "informalidad_final": 0.8501998905455048,
+      "brecha_pp": 54.44998905455047,
+      "prob_sancion_r0": 0.06332941113050838,
+      "prob_sancion_final": 0.027453711806680103,
+      "empleo_relativo_final": 0.9384071080711915,
+      "empleo_perdido_pp": 6.159289192880846,
+      "banda_p10": 0.8501998905455048,
+      "banda_p90": 0.8501998905455048,
+      "banda_degenerada": true,
+      "ancho_banda_pp": 0.0,
+      "fraccion_poblacion_llm": 0.8050713053821695,
+      "estrategias": {
+        "absorber": 0.6144776233762848,
+        "informalizar": 0.29496119955036887,
+        "cumplir": 0.06540506343734316,
+        "despedir": 0.025156113636003206
+      },
+      "por_ronda": [
+        {
+          "ronda": 0,
+          "informalidad": 0.3057,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 1.0
+        },
+        {
+          "ronda": 1,
+          "informalidad": 0.5102197785312492,
+          "prob_sancion": 0.06332941113050838,
+          "empleo_relativo": 0.9734592291712278
+        },
+        {
+          "ronda": 2,
+          "informalidad": 0.7184525463995047,
+          "prob_sancion": 0.038440462134118225,
+          "empleo_relativo": 0.942599793677192
+        },
+        {
+          "ronda": 3,
+          "informalidad": 0.8501998905455048,
+          "prob_sancion": 0.027453711806680103,
+          "empleo_relativo": 0.9384071080711915
+        }
+      ],
+      "repeticion": 3,
+      "parafrasis": 3
+    }
+  ]
+}

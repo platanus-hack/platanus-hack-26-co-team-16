@@ -1,0 +1,14 @@
+# Las salidas de barrido son artefactos de corrida, no fuente.
+# Se versiona SOLO la que DEFECTOS.md cita como evidencia; el resto son
+# pruebas de humo que no tiene sentido arrastrar.
+#
+# `barrido-llm-20260822-1550.json` es la corrida con LLM real de las 15:50
+# ($6,63, 27 trayectorias) y es **PRE-PR #12**: la produjo el código anterior
+# a las correcciones, con `desde_poblacion()`, el veto de juguete y la
+# capacidad de 0,02. Se conserva a propósito porque es la LÍNEA BASE contra la
+# que se mide si las correcciones sirvieron —y porque ya está pagada—, no
+# porque describa el modelo de hoy. La corrida POST-corrección todavía no
+# existe; cuando exista, se versiona al lado, no en su lugar.
+*
+!.gitignore
+!barrido-llm-20260822-1550.json

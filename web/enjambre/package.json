@@ -1,0 +1,27 @@
+{
+  "name": "enjambre",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EL ENJAMBRE — la corrida real del simulador, transmitida en vivo. Frontend Next.js + three.js.",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.3.0",
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "three": "^0.180.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.180.0",
+    "typescript": "^5"
+  }
+}

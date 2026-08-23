@@ -9,6 +9,48 @@
 
 _Lo más reciente arriba._
 
+- **2026-08-22 · H+18 — el barrido adaptado al `main` post-PR #12**, en `rol/integracion`.
+
+  - **`main` se movió debajo de la rama y el barrido dejó de correr.** La corrección C2
+    borró `capacidad_fiscalizacion` de `correr()` y el arnés reventaba con un
+    `TypeError`. Se puso al día con **merge**, no con rebase: la rama ya estaba pusheada
+    y abierta como PR #11, y rebasarla exigía un force-push que está en la deny-list.
+    El merge entró **sin un solo conflicto** —mi commit solo agrega 5 archivos que
+    `main` no tiene—, así que el resultado es el mismo y el PR se actualizó solo.
+  - **Tres cosas que el arnés hacía y ahora hace el motor.** El veto real, el
+    `EstadoVivo` con su función de sutura y el factor prestacional por sector se
+    borraron del script. Las tres se fueron a `behavior/rondas.correr()` con C1 y C2.
+    **Ojo con la tercera:** mi `ClienteReglasPorSector` discrepaba del parquet en
+    **10 de las 81 celdas**, siempre por los ~13,5 puntos de la exoneración del 114-1 y
+    siempre subestimando, porque contaba la exoneración sobre un headcount que C1
+    redefinió (`n_empleados` ya no incluye al dueño). Diez celdas de micro-empleador,
+    que es justo donde vive la informalidad. Mantenerlo habría reintroducido la
+    divergencia que C1 quitó.
+  - **El barrido es ahora la única herramienta que corre la §9.** Se le puso el
+    **semáforo de aceptación** con los seis criterios, la **banda entre trayectorias**
+    (B2, que necesita corridas completas e independientes y por eso solo se puede
+    calcular acá), y `--cascada-apagada` para B4. Los seis campos nuevos de la ronda
+    —`traslado_precios_pct`, `ingreso_laboral_relativo`, `movimiento_pp`,
+    `estabilizada`, `fraccion_fallback`, `fraccion_sin_salida`— entraron al reporte.
+  - **Lo que el semáforo dice hoy, y es lo importante:** en ablación **no se puede
+    medir ni el ruido ni el signo**. La informalidad no se mueve entre políticas
+    (`despedir` domina con 67,2% de la población en todas), así que ruido y señal salen
+    los dos en 0,00 pp. El script lo reporta como *"sin señal"* en vez de imprimir el
+    `inf` que salía del cociente, porque `inf` se leía como "demasiado ruido" y habría
+    mandado al equipo a cazar varianza cuando el problema es el contrario.
+    **Los dos 🔴 del proyecto —ruido/señal 0,71 y el signo −0,311— siguen SIN REMEDIR.**
+    Las correcciones que los atacan ya están en `main`; el número que las juzga solo
+    sale de una corrida con LLM real que nadie ha hecho después del PR #12.
+  - **`DEFECTOS.md` no se editó, se le puso encima una tabla de estado.** Verifiqué los
+    21 defectos uno por uno contra el árbol de `main`: 8 cerrados, 5 parciales, 3
+    abiertos, 3 declarados en el bloque D, y los 2 sin remedir. El inventario original
+    queda intacto porque es la línea base contra la que se mide todo esto.
+  - **`requirements.txt` sigue sin estar en `main`** y es el candado 1: nadie que clone
+    el repo puede montar el entorno. Cierra cuando entre el PR #11.
+  - _Nota:_ `make reproduce` no funciona con `PY=` si la ruta del repo tiene un espacio
+    (`$(PY)` va sin comillas en el `Makefile`). Se corrió metiendo el venv en el `PATH`.
+    Es un arreglo de una línea en el `Makefile` para la próxima sesión.
+
 - **2026-08-22 · H+1 — bloque H+0→H+1 cerrado** en `rol/integracion`.
 
   - **V7 (espejo) — hecho, y ojo con esto:** el doble push **NO estaba configurado** en
@@ -77,7 +119,14 @@ _Lo más reciente arriba._
 
 ## En qué estoy trabajando
 
-- [ ] PR de `rol/integracion` → `main` con el bloque H+0→H+1.
+- [ ] **PR #11** de `rol/integracion` → `main`: barrido + `DEFECTOS.md` +
+      `requirements.txt`. Al día con `main`. **Falta la review de alguien más**
+      (regla 3 de `AGENTS.md`): es lo único que no puedo hacer yo.
+- [ ] **La corrida con LLM post-corrección.** Es lo que decide la §9 y hoy no
+      existe. `python scripts/barrido_politicas.py --llm --repeticiones 5 --desde 5
+      --hasta 20 --paso 2 --cascada-apagada`.
+- [ ] `behavior/cache-demo.json` no existe: `make reproduce` cae a la ablación.
+      Es de Nico (R3), avisarle — sin ese archivo el nivel 2 de la ADR 0009 no corre.
       **Lo revisa alguien distinto de mí** (regla 3 de `AGENTS.md`).
 - [ ] Pasar la elasticidad de V8 a Manuel y Alejo en el próximo standup.
 

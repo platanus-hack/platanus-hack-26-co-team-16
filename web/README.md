@@ -4,6 +4,19 @@
 
 La interfaz es el 20% de impacto de la rúbrica. Un extraño con el link, sin manual y sin registrarse, tiene que entenderla.
 
+## Dónde está
+
+**`enjambre/` es la interfaz** (Next.js + three.js, conectada al motor real por
+SSE contra `api/servidor.py`). Se corre con `make servidor` + `make enjambre`;
+su documentación está en [`enjambre/README.md`](enjambre/README.md).
+
+`prototipo/mapa.html` es el prototipo de movimiento con datos falsos, superado.
+`PLAN-VISUAL.md` es la dirección que `enjambre/` ejecuta.
+
+De los cuatro elementos de abajo, `enjambre/` trae hoy la **curva de la brecha**,
+el **slider de política** y el **desglose de estrategias** con feed de decisiones
+en vivo. El mapa distributivo sector × tramo sigue pendiente.
+
 ## Qué va aquí
 
 Los cuatro elementos, en este orden:
